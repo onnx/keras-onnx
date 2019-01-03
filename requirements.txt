@@ -1,0 +1,6 @@
+numpy
+protobuf
+tf2onnx==0.3.2
+tensorflow
+keras
+onnx

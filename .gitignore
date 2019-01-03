@@ -1,0 +1,41 @@
+bin/
+obj/
+x64/
+Release/
+Debug/
+ipch/
+packages/
+.vs/
+.vscode/
+.idea/
+*.VC.db
+*.VC.opendb
+.DS_Store
+__pycache__
+*.pyc
+dependencies/
+target/
+*.coverage
+*.user
+*.code-workspace
+/build
+temp/
+assets/
+
+# setup.py intermediates
+.eggs
+*.egg-info/
+dist
+
+# PyCharm files
+.idea
+
+# Visual Studio Code files
+.vscode
+
+# test generated files
+.pytest_cache/
+.cache
+htmlcov
+coverage.xml
+.coverage
