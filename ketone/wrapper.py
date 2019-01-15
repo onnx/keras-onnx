@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+from .common import ketone_logger
 from tf2onnx.tfonnx import *
 from .funcbook import set_converter
 
@@ -11,16 +12,22 @@ def tf2onnx_wrap(node_list, outputs, target_opset):
     """
     A wrapper function to invoke the basic node conversion from tf2onnx
     """
-    onnx_nodes, op_cnt, attr_cnt, output_shapes, dtypes = tflist_to_onnx(node_list, {})
+    try:
+        onnx_nodes, op_cnt, attr_cnt, output_shapes, dtypes = tflist_to_onnx(node_list, {})
 
-    g = Graph(onnx_nodes, output_shapes, dtypes, opset=target_opset, output_names=outputs)
-    ops = g.get_nodes()
-    g.topological_sort(ops)
+        g = Graph(onnx_nodes, output_shapes, dtypes, opset=target_opset, output_names=outputs)
+        ops = g.get_nodes()
+        g.topological_sort(ops)
 
-    _ = tensorflow_onnx_mapping(g, False, {})
-    g.topological_sort(g.get_nodes())
-    g.update_proto()
-    return g
+        _ = tensorflow_onnx_mapping(g, False, {})
+        g.topological_sort(g.get_nodes())
+        g.update_proto()
+        return g
+
+    except Exception as e:
+        for node_ in node_list:
+            ketone_logger().debug("tfnode: {}".format(node_.name))
+        raise e
 
 
 def tfnode_convert(varset, operator, container):

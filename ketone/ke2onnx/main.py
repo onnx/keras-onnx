@@ -42,6 +42,7 @@ def convert_keras_reshape(scope, operator, container):
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
 
+
 keras_layer_to_operator = {
     UpSampling1D: convert_keras_upsample_1d,
     UpSampling2D: convert_keras_upsample_2d,

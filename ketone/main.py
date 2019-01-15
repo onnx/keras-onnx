@@ -31,8 +31,9 @@ def _build_opmap_from_keras(model):
     static_set_ke2onnx_converters(set_converter)
     output_dict = {}
     for l_ in model.layers:
-        if l_.__class__ not in keras_layer_to_operator:
-            continue
+        # if get_converter(type(l_)) is None:
+        #     continue
+        #
         for node_ in extract_inbound_nodes(l_):
             for ts_ in node_.output_tensors:
                 output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_

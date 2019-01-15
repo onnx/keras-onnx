@@ -24,6 +24,7 @@ class Operator:
         self.raw_operator = raw_operator
         self.inputs = []
         self.outputs = []
+        self.nodelist = None
         self.is_evaluated = None
         self.is_abandoned = False
         self.target_opset = target_opset
@@ -56,6 +57,10 @@ class Operator:
         Return the original operator/layer
         """
         return self.raw_operator
+
+    @property
+    def node_list(self):
+        return self.nodelist
 
     def add_input(self, var):
         if self not in var.op_to:

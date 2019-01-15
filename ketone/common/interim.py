@@ -6,6 +6,7 @@
 # the interim objects for the model conversion.
 import re
 import six
+import functools
 
 from ..proto import helper
 from .intop import Operator
@@ -35,6 +36,133 @@ class OnnxObjectContainer(object):
         self.node_domain_version_pair_sets = set()
         # The targeted ONNX version. All produced operators should be supported by the targeted ONNX version.
         self.target_opset = target_opset
+        self.bind_all_ops()
+
+    def bind_all_ops(self):
+        oplist = ['Abs',
+                  'Acos',
+                  'Acosh',
+                  'Add',
+                  'And',
+                  'ArgMax',
+                  'ArgMin',
+                  'Asin',
+                  'Asinh',
+                  'Atan',
+                  'Atanh',
+                  'AveragePool',
+                  'BatchNormalization',
+                  'Cast',
+                  'Ceil',
+                  'Clip',
+                  'Compress',
+                  'Concat',
+                  'Constant',
+                  'ConstantOfShape',
+                  'Conv',
+                  'ConvTranspose',
+                  'Cos',
+                  'Cosh',
+                  'DepthToSpace',
+                  'Div',
+                  'Dropout',
+                  'Elu',
+                  'Equal',
+                  'Erf',
+                  'Exp',
+                  'Expand',
+                  'EyeLike',
+                  'Flatten',
+                  'Floor',
+                  'GRU',
+                  'Gather',
+                  'Gemm',
+                  'GlobalAveragePool',
+                  'GlobalLpPool',
+                  'GlobalMaxPool',
+                  'Greater',
+                  'HardSigmoid',
+                  'Hardmax',
+                  'Identity',
+                  'If',
+                  'InstanceNormalization',
+                  'IsNaN',
+                  'LRN',
+                  'LSTM',
+                  'LeakyRelu',
+                  'Less',
+                  'Log',
+                  'LogSoftmax',
+                  'Loop',
+                  'LpNormalization',
+                  'LpPool',
+                  'MatMul',
+                  'Max',
+                  'MaxPool',
+                  'MaxRoiPool',
+                  'MaxUnpool',
+                  'Mean',
+                  'Min',
+                  'Mul',
+                  'Multinomial',
+                  'Neg',
+                  'Not',
+                  'OneHot',
+                  'Or',
+                  'PRelu',
+                  'Pad',
+                  'Pow',
+                  'RNN',
+                  'RandomNormal',
+                  'RandomNormalLike',
+                  'RandomUniform',
+                  'RandomUniformLike',
+                  'Reciprocal',
+                  'ReduceL1',
+                  'ReduceL2',
+                  'ReduceLogSum',
+                  'ReduceLogSumExp',
+                  'ReduceMax',
+                  'ReduceMean',
+                  'ReduceMin',
+                  'ReduceProd',
+                  'ReduceSum',
+                  'ReduceSumSquare',
+                  'Relu',
+                  'Reshape',
+                  'Scan',
+                  'Scatter',
+                  'Selu',
+                  'Shape',
+                  'Shrink',
+                  'Sigmoid',
+                  'Sign',
+                  'Sin',
+                  'Sinh',
+                  'Size',
+                  'Slice',
+                  'Softmax',
+                  'Softplus',
+                  'Softsign',
+                  'SpaceToDepth',
+                  'Split',
+                  'Sqrt',
+                  'Squeeze',
+                  'Sub',
+                  'Sum',
+                  'Tan',
+                  'Tanh',
+                  'Tile',
+                  'TopK',
+                  'Transpose',
+                  'Unsqueeze',
+                  'Upsample',
+                  'Where',
+                  'Xor'
+                  ]
+
+        for op_ in oplist:
+            setattr(self, op_, functools.partial(self.add_node, op_))
 
     def _make_value_info(self, variable):
         value_info = helper.ValueInfoProto()
@@ -230,11 +358,11 @@ class InterimContext:
                 self.variable_name_mapping[raw_name] = [onnx_name]
             return variable
 
-    def declare_local_operator(self, type, raw_model=None):
+    def declare_local_operator(self, type, raw_model=None, op_name=None):
         """
         This function is used to declare new local operator.
         """
-        onnx_name = self.get_unique_operator_name(str(type))
+        onnx_name = self.get_unique_operator_name(str(type) if op_name is None else op_name)
         operator = Operator(onnx_name, self.name, type, raw_model, self.target_opset)
         self.operators[onnx_name] = operator
         return operator
@@ -324,5 +452,3 @@ class Variable:
             new_name = seed + str(i)
             existing_names.add(new_name)
             return new_name
-
-

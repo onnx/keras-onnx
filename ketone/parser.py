@@ -8,6 +8,7 @@ import keras
 import tensorflow as tf
 from six.moves import queue
 from .common import ketone_logger
+from .ke2onnx import extract_inbound_nodes
 from .common.data_types import *
 from .topology import Topology
 from .subgraph import get_node_by_name, is_placeholder_node, opname_to_node, create_subgraph
@@ -137,7 +138,8 @@ def _locate_outputs(node_list, varset):
 
 
 def _convert_keras_scope(node_list, layer, scope_name, varset):
-    operator = varset.declare_local_operator(layer.__class__, raw_model=layer)
+    operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
+    operator.nodelist = node_list
 
     inputs = layer.input if isinstance(layer.input, list) else [layer.input]
     for i_ in inputs:
@@ -167,6 +169,7 @@ def _convert_keras_scope(node_list, layer, scope_name, varset):
 
 def _convert_predefined_scope(node_list, front_nodes, scope_name, varset, kname):
     operator = varset.declare_local_operator(kname, raw_model=node_list)
+    operator.nodelist = node_list
 
     operator.inputs = _locate_inputs_by_node(node_list, varset)[0]
     for i_ in operator.inputs:
@@ -186,12 +189,15 @@ def _convert_predefined_scope(node_list, front_nodes, scope_name, varset, kname)
 
 def _convert_general_scope(node_list, varset):
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
+    operator.nodelist = node_list
+
     basename = _get_scope_name(node_list[0].name)[1]
     sgv, replacement = create_subgraph(node_list, basename)  # type: tf.Graph
     subgraph = sgv.graph
     setattr(operator, 'basename', basename)
     setattr(operator, 'subgraph', subgraph)
     vars, ts = _locate_inputs_by_node(node_list, varset)
+
     for n_, var_ in enumerate(vars):
         # oop = ONNX operator
         ph_ = replacement.get(ts[n_])
@@ -215,7 +221,7 @@ def _finalize_tf2onnx_op(operator, varset):
             if node in nodes:
                 nodes[node].append(n_)
             else:
-                nodes[node] = [n_,]
+                nodes[node] = [n_, ]
 
     outputs = []
     with subgraph.as_default():
@@ -230,6 +236,12 @@ def _finalize_tf2onnx_op(operator, varset):
                 oop.add_input(iv)
                 oop.add_output(ov)
 
+        # need more tests before this tensorflow graph optimization.
+        # graph_def = tf_optimize({}, outputs, subgraph.as_graph_def(), True)
+        # with tf.Graph().as_default() as sub_tf_graph:
+        #     tf.import_graph_def(graph_def)
+        #     g = tf2onnx_wrap(sub_tf_graph.get_operations(), outputs, varset.target_opset)
+        #     setattr(operator, 'custom_op', g)
         g = tf2onnx_wrap(subgraph.get_operations(), outputs, varset.target_opset)
         setattr(operator, 'custom_op', g)
 
@@ -293,16 +305,12 @@ def _is_same_subgraph(node, predecessor, key, scope_name):
     return my_scope == scope_name or (isinstance(key, str) and my_key == key + '_')
 
 
-def _on_keras_layers(layer, node_list):
+def _create_keras_nodelist(layer, node_list):
     newly = set()
-    outputs = layer.output if isinstance(layer.output, list) else [layer.output]
-    for ts_ in outputs:
-        newly.add(ts_.op)
-
-    ts_out = set()
-    inputs = layer.input if isinstance(layer.input, list) else [layer.input]
-    for ts_ in inputs:
-        ts_out.add(ts_)
+    ts_end = set()
+    for node_ in extract_inbound_nodes(layer):
+        newly |= set([ts_.op for ts_ in node_.output_tensors])
+        ts_end |= set(node_.input_tensors)
 
     visited = set()
     while newly:
@@ -310,7 +318,7 @@ def _on_keras_layers(layer, node_list):
         newly.clear()
         for n_ in visited:
             for i_ in n_.inputs:
-                if i_ not in ts_out and i_.op not in visited:
+                if i_ not in ts_end and i_.op not in visited:
                     newly.add(i_.op)
 
     return [get_node_by_name(node_list, n_.name) for n_ in visited]
@@ -379,7 +387,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
 
         activated_keras_nodes = set()
         if isinstance(type_k, keras.layers.Layer):
-            activated_keras_nodes = _on_keras_layers(type_k, node_list)
+            activated_keras_nodes = _create_keras_nodelist(type_k, node_list)
         q_subgraph = queue.Queue()
         i_subgraph = set()
         bound_nodes = []
@@ -389,7 +397,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
         while not scope_processed:
             while not q_subgraph.empty():
                 int_node = q_subgraph.get_nowait()
-                if int_node in input_nodes or int_node in visited:
+                if int_node in input_nodes or int_node in visited or int_node.name in keras_op_table:
                     continue
 
                 visited.add(int_node)
@@ -397,8 +405,11 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
                 advance_by_input(int_node, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph, bound_nodes)
 
             if isinstance(type_k, keras.layers.Layer):
-                ketone_logger().info('Processed a keras scope - (%s)' % type_k)
-                _convert_keras_scope(nodes, type_k, curr_scope_name, varset)
+                ketone_logger().info('Processed a keras scope - (%s: %s)' % (type_k.name, type(type_k)))
+                if get_converter(type(type_k)) is None:
+                    _convert_general_scope(nodes, varset)
+                else:
+                    _convert_keras_scope(nodes, type_k, curr_scope_name, varset)
                 scope_processed = True
                 keras_layer_visited.add(type_k)
             elif type_k is not None:
@@ -412,7 +423,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
                 # try to expand the scope with other non predefined scopes.
                 while len(i_subgraph) > 0:
                     int_node = i_subgraph.pop()
-                    if int_node in input_nodes or int_node in visited:
+                    if int_node in input_nodes or int_node in visited or int_node.name in keras_op_table:
                         continue
 
                     type_k, curr_scope_name = _get_scope_name(int_node.name)

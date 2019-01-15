@@ -1,6 +1,6 @@
 numpy
 protobuf
-tf2onnx==0.3.2
+tf2onnx
 tensorflow
 keras
 onnx
