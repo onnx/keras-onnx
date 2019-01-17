@@ -378,7 +378,7 @@ class RedundantOptimizer(object):
             if n_.is_identity and n_.in_single_path:
                 end = n_.successor[0]
                 end_pre = n_
-                while end is not None and end.is_identity and n_.in_single_path:
+                while end is not None and end.is_identity and end.in_single_path:
                     end_pre = end
                     end = end.successor[0]
                 solution = Solution(n_.precedence[0], n_, end_pre, end)

@@ -9,6 +9,7 @@ from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
 from .proto import helper, onnx_proto
+from .optimizer import optimize_onnx
 
 
 class Topology:
@@ -234,8 +235,12 @@ def convert_topology(topology, model_name, doc_string, target_opset):
         value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
         extra_inputs.append(value_info)
 
+
+    # enable the ONNX optimizations
+    nodes = optimize_onnx(container.nodes, inputs=container.inputs + extra_inputs, outputs=container.outputs)
+
     # Create a graph from its main components
-    graph = helper.make_graph(container.nodes, model_name, container.inputs + extra_inputs,
+    graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
                               container.outputs, container.initializers)
 
     # Add extra information related to the graph
