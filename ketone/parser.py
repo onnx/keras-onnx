@@ -8,6 +8,7 @@ import keras
 import tensorflow as tf
 from six.moves import queue
 from .common import ketone_logger
+from .common.utils import GRAPH_OUTMOST_NAME
 from .ke2onnx import extract_inbound_nodes
 from .common.data_types import *
 from .topology import Topology
@@ -16,7 +17,6 @@ from .funcbook import get_converter, create_pattern_dict, fb_id, fb_key, fb_addi
 from .wrapper import tf2onnx_wrap, TFNODES
 
 
-GRAPH_OUTMOST_NAME = "imp_root_"  # import_root
 DEFAULT_BATCH_SIZE = 1
 
 

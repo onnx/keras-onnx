@@ -5,6 +5,7 @@
 ###############################################################################
 
 from .common import utils
+from .common.utils import GRAPH_OUTMOST_NAME
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
@@ -166,7 +167,7 @@ class Topology:
         self._check_structure()
 
 
-def convert_topology(topology, model_name, doc_string, target_opset):
+def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
     This function is used to convert our Topology object defined in _parser.py into a ONNX model (type: ModelProto).
     :param topology: The Topology object we are going to convert
@@ -174,6 +175,7 @@ def convert_topology(topology, model_name, doc_string, target_opset):
     assigned to "model.graph.name."
     :param doc_string: A string attached to the produced model
     :param target_opset: The maximun opset number in the model.
+    :param channel_first_inputs: A list of channel first input.
     :return: a ONNX ModelProto
     """
     topology._initialize_graph_status_for_traversing()
@@ -199,9 +201,20 @@ def convert_topology(topology, model_name, doc_string, target_opset):
                     other_outputs[variable.raw_name] = variable
 
     # Add roots the graph according to their order in the original model
+    nhwc_inputs = []
+    if channel_first_inputs is None:
+        channel_first_inputs = []
+    channel_first_inputs = [GRAPH_OUTMOST_NAME + '/' + inputs for inputs in channel_first_inputs]
     for name in topology.raw_model.input_names:
         if name in tensor_inputs:
-            container.add_input(tensor_inputs[name])
+            onnx_input = tensor_inputs[name]  # type: Variable
+            if name in channel_first_inputs or \
+                    (name.endswith(':0') and name[:-2] in channel_first_inputs):
+                nhwc_inputs.append(onnx_input.full_name) # TODO: used for onnx optimization
+                s = onnx_input.type.shape
+                onnx_input.type.shape = [s[0], s[3], s[1], s[2]]
+            container.add_input(onnx_input)
+
     for name in topology.raw_model.input_names:
         if name in other_inputs:
             container.add_input(other_inputs[name])
