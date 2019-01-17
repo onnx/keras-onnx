@@ -554,17 +554,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
 
     def test_channel_first_input(self):
-        inp1 = keras.layers.Input(shape=(5, 6, 7), name='input1')
-        inp2 = keras.layers.Input(shape=(5, 6, 7), name='input2')
-        admi = keras.layers.Dense(3)(inp1)
-        pla = keras.layers.Dense(3)(inp2)
-        out = keras.layers.concatenate([admi, pla], axis=-1)
-        output = keras.layers.Dense(1, activation='sigmoid')(out)
+        N, W, H, C = 2, 5, 6, 3
+        inp1 = keras.layers.Input(batch_shape=(N, W, H, C), name='input1')
+        inp2 = keras.layers.Input(batch_shape=(N, W, H, C), name='input2')
+        output = keras.layers.Add()([inp1, inp2])
         model = keras.models.Model(inputs=[inp1, inp2], outputs=output)
         onnx_model = ketone.convert_keras(model, model.name, channel_first_inputs=['input1'])
-
         self.assertIsNotNone(onnx_model)
-        onnx.save_model(onnx_model, self.get_temp_file('temp_before.onnx'))
+
+        data1 = np.random.rand(N, W, H, C).astype(np.float32).reshape((N, W, H, C))
+        data2 = np.random.rand(N, W, H, C).astype(np.float32).reshape((N, W, H, C))
+        data_transpose = np.transpose(data1, (0, 3, 1, 2))
+        self.assertTrue(data_transpose.shape == (N, C, W, H))
+
+        expected = model.predict([data1, data2])
+        self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [data_transpose, data2], expected))
 
 if __name__ == "__main__":
     unittest.main()

@@ -4,12 +4,13 @@
 # license information.
 ###############################################################################
 
-from .common import utils
+from .common import utils, ketone_logger
 from .common.utils import GRAPH_OUTMOST_NAME
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
 from .proto import helper, onnx_proto
+from .optimizer import optimize_onnx
 
 
 class Topology:
@@ -201,7 +202,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
                     other_outputs[variable.raw_name] = variable
 
     # Add roots the graph according to their order in the original model
-    nhwc_inputs = []
+    nchw_inputs = []
     if channel_first_inputs is None:
         channel_first_inputs = []
     channel_first_inputs = [GRAPH_OUTMOST_NAME + '/' + inputs for inputs in channel_first_inputs]
@@ -210,7 +211,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             onnx_input = tensor_inputs[name]  # type: Variable
             if name in channel_first_inputs or \
                     (name.endswith(':0') and name[:-2] in channel_first_inputs):
-                nhwc_inputs.append(onnx_input.full_name) # TODO: used for onnx optimization
+                nchw_inputs.append(onnx_input.full_name)
                 s = onnx_input.type.shape
                 onnx_input.type.shape = [s[0], s[3], s[1], s[2]]
             container.add_input(onnx_input)
@@ -230,6 +231,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # Traverse the graph from roots to leaves
     for operator in topology.topological_operator_iterator():
         scope = next(scope for scope in topology.scopes if scope.name == operator.scope)
+        ketone_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         get_converter(operator.type)(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list. However, in
@@ -247,8 +249,12 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
         extra_inputs.append(value_info)
 
+
+    # enable the ONNX optimizations
+    nodes = optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs, outputs=container.outputs)
+
     # Create a graph from its main components
-    graph = helper.make_graph(container.nodes, model_name, container.inputs + extra_inputs,
+    graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
                               container.outputs, container.initializers)
 
     # Add extra information related to the graph

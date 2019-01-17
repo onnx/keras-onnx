@@ -31,9 +31,11 @@ def _build_opmap_from_keras(model):
     static_set_ke2onnx_converters(set_converter)
     output_dict = {}
     for l_ in model.layers:
-        # if get_converter(type(l_)) is None:
-        #     continue
-        #
+        if hasattr(l_, 'layers'):
+            dict = _build_opmap_from_keras(l_)
+            output_dict.update(dict)
+            continue
+
         for node_ in extract_inbound_nodes(l_):
             for ts_ in node_.output_tensors:
                 output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_
