@@ -43,8 +43,8 @@ def _build_opmap_from_keras(model):
     return output_dict
 
 
-def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, doc_string):
-    # type: (str, tf.GraphDef, {}, [], int, str) -> onnx.ModelProto
+def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, doc_string, channel_first_inputs=None):
+    # type: (str, tf.GraphDef, {}, [], int, str, []) -> onnx.ModelProto
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
@@ -58,16 +58,17 @@ def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, 
         topology = parse_graph(tf_graph, keras_op_table, target_opset, output_names)
         topology.compile()
 
-        return convert_topology(topology, name, doc_string, target_opset)
+        return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
 
 
-def convert_keras(model, name=None, doc_string='', target_opset=None):
-    # type: (keras.Model, str, str, int) -> onnx.ModelProto
+def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
+    # type: (keras.Model, str, str, int, []) -> onnx.ModelProto
     """
     :param model: keras model
     :param name: the converted onnx model internal name
     :param doc_string:
     :param target_opset:
+    :param channel_first_inputs: A list of channel first input.
     :return:
     """
     from keras import backend as K
@@ -88,11 +89,11 @@ def convert_keras(model, name=None, doc_string='', target_opset=None):
     sess.run(tf.global_variables_initializer())
     out_node = [n_.replace(':0', '') for n_ in output_names]
     tf_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=out_node)
-    return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string)
+    return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string, channel_first_inputs)
 
 
-def convert_keras_tf(name, output_names, doc_string='', target_opset=None):
-    # type: (str, [], str, int) -> onnx.ModelProto
+def convert_keras_tf(name, output_names, doc_string='', target_opset=None, channel_first_inputs=None):
+    # type: (str, [], str, int, []) -> onnx.ModelProto
     """
     Convert the frozen tensorflow model originally defined by Keras
     :param name:
@@ -103,4 +104,4 @@ def convert_keras_tf(name, output_names, doc_string='', target_opset=None):
     with tf.gfile.FastGFile(name, 'rb') as f:
         graph_def.ParseFromString(f.read())
 
-        return _convert_tf(name, graph_def, None, output_names, target_opset, doc_string)
+        return _convert_tf(name, graph_def, None, output_names, target_opset, doc_string, channel_first_inputs)

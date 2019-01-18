@@ -10,6 +10,7 @@ from __future__ import print_function
 import logging
 import functools
 
+GRAPH_OUTMOST_NAME = "imp_root_"  # import_root
 
 class FunctionStaticVariable(object):
     def __init__(self, *args, **kwargs):
