@@ -79,14 +79,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     op_dict = _build_opmap_from_keras(model)
     output_names = [n.name for n in model.outputs]
 
-    global _TF_SESSION
-    if _TF_SESSION is not None:
-        _TF_SESSION.close()
-
-    _TF_SESSION = tf.Session(graph=tf.get_default_graph())
-    sess = _TF_SESSION
-    K.set_session(sess)
-    sess.run(tf.global_variables_initializer())
+    sess = K.get_session()
     out_node = [n_.replace(':0', '') for n_ in output_names]
     tf_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=out_node)
     return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string, channel_first_inputs)
