@@ -13,7 +13,7 @@ More intro will be coming soon...
 
 ## Validate pre-trained Keras application models
 In some cases it will be useful to convert the models from Keras to ONNX from a python script. You can use the following API:
-```buildoutcfg
+```
 import ketone
 ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
     # type: (keras.Model, str, str, int, []) -> onnx.ModelProto
@@ -29,7 +29,7 @@ ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel
 
 See the examples:
 
-```buildoutcfg
+```
 import keras
 import ketone
 from keras.applications.resnet50 import ResNet50
