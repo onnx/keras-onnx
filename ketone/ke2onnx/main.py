@@ -8,7 +8,7 @@ from keras.layers import *
 from keras.layers import advanced_activations as adv_activations
 
 from ..common import with_variable
-from ..common.onnx_ops import apply_reshape
+from ..common.onnx_ops import apply_identity, apply_reshape
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -43,6 +43,10 @@ def convert_keras_reshape(scope, operator, container):
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
 
 
+def convert_keras_dropout(scope, operator, container):
+    apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
+
+
 keras_layer_to_operator = {
     UpSampling1D: convert_keras_upsample_1d,
     UpSampling2D: convert_keras_upsample_2d,
@@ -75,6 +79,8 @@ keras_layer_to_operator = {
     Cropping3D: convert_keras_crop_3d,
 
     Reshape: convert_keras_reshape,
+
+    Dropout: convert_keras_dropout,
 
     SimpleRNN: convert_keras_simple_rnn,
     GRU: convert_keras_gru,
