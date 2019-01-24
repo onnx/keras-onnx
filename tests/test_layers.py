@@ -7,6 +7,9 @@ import numpy as np
 import keras
 import onnx
 import ketone
+from keras.applications import mobilenet
+from keras.applications.resnet50 import preprocess_input
+from keras.preprocessing import image
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -569,6 +572,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         expected = model.predict([data1, data2])
         self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [data_transpose, data2], expected))
+
+    def test_MobileNet(self):
+        model = mobilenet.MobileNet(weights='imagenet')
+        img_path = 'data/elephant.jpg'
+        try:
+            img = image.load_img(img_path, target_size=(224, 224))
+            x = image.img_to_array(img)
+            x = np.expand_dims(x, axis=0)
+            x = preprocess_input(x)
+
+            preds = model.predict(x)
+            onnx_model = ketone.convert_keras(model, model.name)
+            self.assertTrue(self.run_onnx_runtime('onnx_MobileNet', onnx_model, x, preds, rtol=1.e-4, atol=1.e-8))
+        except FileNotFoundError:
+            self.assertTrue(False, 'The image data does not exist.')
 
 if __name__ == "__main__":
     unittest.main()
