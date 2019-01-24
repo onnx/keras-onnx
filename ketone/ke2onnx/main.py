@@ -43,7 +43,7 @@ def convert_keras_reshape(scope, operator, container):
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
 
 
-def convert_keras_dropout(scope, operator, container):
+def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
 
@@ -80,7 +80,7 @@ keras_layer_to_operator = {
 
     Reshape: convert_keras_reshape,
 
-    Dropout: convert_keras_dropout,
+    Dropout: convert_keras_training_only_layer,
 
     SimpleRNN: convert_keras_simple_rnn,
     GRU: convert_keras_gru,
