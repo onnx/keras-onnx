@@ -38,14 +38,17 @@ def create_subgraph(node_list, dst_scope=""):
     return copied_sgv, handler.replacement
 
 
-def get_node_by_name(node_list, name):
+def get_node_by_name(node_list, name, exact_match=False):
     """
     select the node by its name, without comparing the scope name.
     :param node_list:
     :param name:
+    :param exact_match:
     :return:
     """
     try:
+        if exact_match:
+            return next(node for node in node_list if node.name == name)
         return next(node for node in node_list if node.name.endswith(name))
     except StopIteration:
         return None

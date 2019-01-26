@@ -66,6 +66,8 @@ keras_layer_to_operator = {
     Conv2DTranspose: convert_keras_conv_transpose_2d,
     Conv3DTranspose: convert_keras_conv_transpose_3d,
     DepthwiseConv2D: convert_keras_depthwise_conv_2d,
+    SeparableConv1D: convert_keras_separable_conv1d,
+    SeparableConv2D: convert_keras_separable_conv2d,
 
     MaxPooling1D: convert_keras_max_pooling_1d,
     MaxPooling2D: convert_keras_max_pooling_2d,

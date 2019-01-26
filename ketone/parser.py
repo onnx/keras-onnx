@@ -97,6 +97,8 @@ def _infer_variable_type(tensor, default_batch_size=DEFAULT_BATCH_SIZE):
         return FloatTensorType(shape=tensor_shape)
     elif tensor_type == tf.float64:
         return DoubleTensorType(shape=tensor_shape)
+    elif tensor_type == tf.bool:
+        return BoolTensorType(shape=tensor_shape)
     else:
         raise ValueError('Unable to find out a correct type for tensor %s' % tensor)
 
@@ -321,7 +323,7 @@ def _create_keras_nodelist(layer, node_list):
                 if i_ not in ts_end and i_.op not in visited:
                     newly.add(i_.op)
 
-    return [get_node_by_name(node_list, n_.name) for n_ in visited]
+    return [get_node_by_name(node_list, GRAPH_OUTMOST_NAME + '/' + n_.name, exact_match=True) for n_ in visited]
 
 
 def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset, output_names):

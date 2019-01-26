@@ -141,6 +141,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
             else:
                 attrs['auto_pad'] = 'SAME_UPPER'
         else:
+            attrs['auto_pad'] = 'NOTSET'
             output_padding = [0] * len(op.kernel_size)
             if hasattr(op, 'output_padding') and op.output_padding is not None:
                 output_padding = op.output_padding
