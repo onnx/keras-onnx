@@ -9,6 +9,7 @@ from __future__ import print_function
 
 import logging
 import functools
+import tensorflow as tf
 
 GRAPH_OUTMOST_NAME = "imp_root_"  # import_root
 
@@ -48,7 +49,8 @@ def is_keras_installed():
 @with_variable('logger')
 def ketone_logger():  # type: () -> logging.Logger
     logger = logging.getLogger('ketone')
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.WARNING)
+    tf.logging.set_verbosity(tf.logging.WARN)
     return logger
 
 
