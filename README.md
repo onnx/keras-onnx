@@ -12,7 +12,8 @@ More intro will be coming soon...
 # Testing
 
 ## Validate pre-trained Keras application models
-In some cases it will be useful to convert the models from Keras to ONNX from a python script. You can use the following API:
+It will be useful to convert the models from Keras to ONNX from a python script.
+You can use the following API:
 ```
 import ketone
 ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
@@ -27,23 +28,53 @@ ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel
     """
 ```
 
-See the examples:
+We converted successfully for the keras application models such as:
+Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201.
+The following unit test can be embedded in ```tests/test_layers.py``` for testing.
 
 ```
-import keras
-import ketone
-from keras.applications.resnet50 import ResNet50
-from keras.preprocessing import image
-from keras.applications.resnet50 import preprocess_input
+def test_Xception(self):
+    from keras.applications.xception import Xception
+    model = Xception(include_top=True, weights='imagenet')
+    self._test_keras_model(model, img_size=299, atol=5e-3)
+
+def test_VGG16(self):
+    from keras.applications.vgg16 import VGG16
+    model = VGG16(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
+
+def test_VGG19(self):
+    from keras.applications.vgg19 import VGG19
+    model = VGG19(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
 
 def test_ResNet50(self):
-    model = ResNet50(weights='imagenet')
-    img_path = 'data/elephant.jpg'   # make sure the image exists in img_path
-    img = image.load_img(img_path, target_size=(224, 224))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
-    preds = model.predict(x)
-    onnx_model = ketone.convert_keras(model, model.name)
-    self.assertTrue(self.run_onnx_runtime('onnx_ResNet50', onnx_model, x, preds, rtol=1.e-4, atol=1.e-8))
+    from keras.applications.resnet50 import ResNet50
+    model = ResNet50(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
+
+def test_InceptionV3(self):
+    from keras.applications.inception_v3 import InceptionV3
+    model = InceptionV3(include_top=True, weights='imagenet')
+    self._test_keras_model(model, rtol=1.e-3)
+
+def test_InceptionResNetV2(self):
+    from keras.applications.inception_resnet_v2 import InceptionResNetV2
+    model = InceptionResNetV2(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
+
+def test_DenseNet121(self):
+    from keras.applications.densenet import DenseNet121
+    model = DenseNet121(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
+
+def test_DenseNet169(self):
+    from keras.applications.densenet import DenseNet169
+    model = DenseNet169(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
+
+def test_DenseNet201(self):
+    from keras.applications.densenet import DenseNet201
+    model = DenseNet201(include_top=True, weights='imagenet')
+    self._test_keras_model(model)
 ```

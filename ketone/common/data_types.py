@@ -90,6 +90,14 @@ class Int64TensorType(TensorType):
         return onnx_proto.TensorProto.INT64
 
 
+class BooleanTensorType(TensorType):
+    def __init__(self, shape=None, doc_string=''):
+        super(BooleanTensorType, self).__init__(shape, doc_string)
+
+    def _get_element_onnx_type(self):
+        return onnx_proto.TensorProto.BOOL
+
+
 class FloatTensorType(TensorType):
     def __init__(self, shape=None, color_space=None, doc_string=''):
         super(FloatTensorType, self).__init__(shape, doc_string)

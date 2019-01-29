@@ -7,7 +7,6 @@ import numpy as np
 import keras
 import onnx
 import ketone
-from keras.applications import mobilenet
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 
@@ -51,7 +50,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         feed = dict([(x.name, data[n]) for n, x in enumerate(sess.get_inputs())])
         actual = sess.run(None, feed)
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
-        if res:  # still keep the failed case files for the diagnosis.
+        if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
 
         return res
@@ -573,20 +572,28 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict([data1, data2])
         self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [data_transpose, data2], expected))
 
-    def test_MobileNet(self):
-        model = mobilenet.MobileNet(weights='imagenet')
+    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-4, atol=1.e-8, img_size=224):
         img_path = 'data/elephant.jpg'
         try:
-            img = image.load_img(img_path, target_size=(224, 224))
+            img = image.load_img(img_path, target_size=(img_size, img_size))
             x = image.img_to_array(img)
             x = np.expand_dims(x, axis=0)
             x = preprocess_input(x)
 
             preds = model.predict(x)
             onnx_model = ketone.convert_keras(model, model.name)
-            self.assertTrue(self.run_onnx_runtime('onnx_MobileNet', onnx_model, x, preds, rtol=1.e-4, atol=1.e-8))
+            self.assertTrue(self.run_onnx_runtime(model_name, onnx_model, x, preds, rtol=rtol, atol=atol))
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')
+
+    def test_MobileNets(self):
+        from keras.applications import mobilenet
+        model = mobilenet.MobileNet(weights='imagenet')
+        self._test_keras_model(model)
+
+        from keras.applications import mobilenet_v2
+        model = mobilenet_v2.MobileNetV2(weights='imagenet')
+        self._test_keras_model(model)
 
 if __name__ == "__main__":
     unittest.main()
