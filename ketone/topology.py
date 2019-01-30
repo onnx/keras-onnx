@@ -255,8 +255,10 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
                               outputs=container.outputs)
     except ImportError:
-        ketone_logger().warning("onnxtk is not imported, so the convertor optimizer is not enabled, "
-                                "and nchw_inputs does not make effect.")
+        onnx_not_imported = 'onnxtk is not imported,'
+        if nchw_inputs:
+            raise Exception('{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
+        ketone_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         nodes = container.nodes
 
     # Create a graph from its main components
