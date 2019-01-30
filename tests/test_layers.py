@@ -586,11 +586,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')
 
-    def test_MobileNets(self):
+    def test_MobileNet(self):
         from keras.applications import mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_keras_model(model)
 
+    def test_MobileNetV2(self):
         from keras.applications import mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
