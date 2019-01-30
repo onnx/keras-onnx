@@ -10,7 +10,6 @@ from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
 from .proto import helper, onnx_proto
-from .optimizer import optimize_onnx
 
 
 class Topology:
@@ -251,7 +250,14 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
 
     # enable the ONNX optimizations
-    nodes = optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs, outputs=container.outputs)
+    try:
+        import onnxtk
+        nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
+                              outputs=container.outputs)
+    except ImportError:
+        ketone_logger().warning("onnxtk is not imported, so the convertor optimizer is not enabled, "
+                                "and nchw_inputs does not make effect.")
+        nodes = container.nodes
 
     # Create a graph from its main components
     graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,

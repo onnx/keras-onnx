@@ -591,6 +591,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_keras_model(model)
 
+    def test_MobileNetsV2(self):
         from keras.applications import mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
