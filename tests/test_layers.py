@@ -499,6 +499,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
 
+    def test_separable_convolution(self):
+        N, C, H, W = 2, 3, 5, 5
+        x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
+        model = keras.models.Sequential()
+        model.add(keras.layers.SeparableConv2D(filters=10, kernel_size=(1, 2), strides=(1, 1), padding='valid', input_shape=(H, W, C),
+                         data_format='channels_last', depth_multiplier=4))
+        model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), data_format='channels_last'))
+        model.compile(optimizer='sgd', loss='mse')
+        onnx_model = ketone.convert_keras(model, 'test')
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime('separable_convolution_1', onnx_model, x, expected))
+
+        x = np.random.rand(N, H, C).astype(np.float32, copy=False)
+        model = keras.models.Sequential()
+        model.add(keras.layers.SeparableConv1D(filters=10, kernel_size=2, strides=1, padding='valid', input_shape=(H, C),
+                         data_format='channels_last'))
+        model.compile(optimizer='sgd', loss='mse')
+        onnx_model = ketone.convert_keras(model, 'test')
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
+
     def test_recursive_model(self):
         from keras.layers import Input, Dense, Add
 
@@ -571,6 +592,25 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         expected = model.predict([data1, data2])
         self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [data_transpose, data2], expected))
+
+    def test_channel_last(self):
+        N, C, H, W = 2, 3, 5, 5
+        x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
+
+        model = keras.models.Sequential()
+        model.add(keras.layers.Conv2D(2, kernel_size=(1, 2), strides=(1, 1), padding='valid', input_shape=(H, W, C),
+                         data_format='channels_last'))  # , activation='softmax')
+        model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), data_format='channels_last'))
+
+        model.compile(optimizer='sgd', loss='mse')
+        onnx_model = ketone.convert_keras(model, channel_first_inputs=[model.inputs[0].name])
+
+        expected = model.predict(x)
+        self.assertIsNotNone(expected)
+        self.assertIsNotNone(onnx_model)
+
+        x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
+        self.assertTrue(self.run_onnx_runtime('channel_last_input', onnx_model, x, expected))
 
     def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-4, atol=1.e-8, img_size=224):
         img_path = 'data/elephant.jpg'
