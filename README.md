@@ -28,53 +28,80 @@ ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel
     """
 ```
 
+Use the following script to convert keras application models to onnx, and then perform inference:
+```
+import numpy as np
+from keras.preprocessing import image
+from keras.applications.resnet50 import preprocess_input
+import ketone
+import onnxruntime
+
+# image preprocessing
+img_path = 'elephant.jpg'   # make sure the image is in img_path
+img_size = 224
+img = image.load_img(img_path, target_size=(img_size, img_size))
+x = image.img_to_array(img)
+x = np.expand_dims(x, axis=0)
+x = preprocess_input(x)
+
+# load keras model
+from keras.applications.resnet50 import ResNet50
+model = ResNet50(include_top=True, weights='imagenet')
+
+# convert to onnx model
+onnx_model = ketone.convert_keras(model, model.name)
+
+# runtime prediction
+content = onnx_model.SerializeToString()
+sess = onnxruntime.InferenceSession(content)
+x = x if isinstance(x, list) else [x]
+feed = dict([(input.name, x[n]) for n, input in enumerate(sess.get_inputs())])
+pred_onnx = sess.run(None, feed)
+```
+
+An alternative way to load onnx model to runtime session is to save the model first:
+```
+import onnx
+temp_model_file = 'model.onnx'
+onnx.save_model(onnx_model, temp_model_file)
+sess = onnxruntime.InferenceSession(temp_model_file)
+```
+
 We converted successfully for the keras application models such as:
 Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201.
-The following unit test can be embedded in ```tests/test_layers.py``` for testing.
+Try the following models and convert them to onnx using the code above. 
 
 ```
-def test_Xception(self):
-    from keras.applications.xception import Xception
-    model = Xception(include_top=True, weights='imagenet')
-    self._test_keras_model(model, img_size=299, atol=5e-3)
+from keras.applications.xception import Xception
+model = Xception(include_top=True, weights='imagenet')
 
-def test_VGG16(self):
-    from keras.applications.vgg16 import VGG16
-    model = VGG16(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications.vgg16 import VGG16
+model = VGG16(include_top=True, weights='imagenet')
 
-def test_VGG19(self):
-    from keras.applications.vgg19 import VGG19
-    model = VGG19(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications.vgg19 import VGG19
+model = VGG19(include_top=True, weights='imagenet')
 
-def test_ResNet50(self):
-    from keras.applications.resnet50 import ResNet50
-    model = ResNet50(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications.resnet50 import ResNet50
+model = ResNet50(include_top=True, weights='imagenet')
 
-def test_InceptionV3(self):
-    from keras.applications.inception_v3 import InceptionV3
-    model = InceptionV3(include_top=True, weights='imagenet')
-    self._test_keras_model(model, rtol=1.e-3)
+from keras.applications.inception_v3 import InceptionV3
+model = InceptionV3(include_top=True, weights='imagenet')
 
-def test_InceptionResNetV2(self):
-    from keras.applications.inception_resnet_v2 import InceptionResNetV2
-    model = InceptionResNetV2(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications.inception_resnet_v2 import InceptionResNetV2
+model = InceptionResNetV2(include_top=True, weights='imagenet')
 
-def test_DenseNet121(self):
-    from keras.applications.densenet import DenseNet121
-    model = DenseNet121(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications import mobilenet
+model = mobilenet.MobileNet(weights='imagenet')
 
-def test_DenseNet169(self):
-    from keras.applications.densenet import DenseNet169
-    model = DenseNet169(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications import mobilenet_v2
+model = mobilenet_v2.MobileNetV2(weights='imagenet')
 
-def test_DenseNet201(self):
-    from keras.applications.densenet import DenseNet201
-    model = DenseNet201(include_top=True, weights='imagenet')
-    self._test_keras_model(model)
+from keras.applications.densenet import DenseNet121
+model = DenseNet121(include_top=True, weights='imagenet')
+
+from keras.applications.densenet import DenseNet169
+model = DenseNet169(include_top=True, weights='imagenet')
+
+from keras.applications.densenet import DenseNet201
+model = DenseNet201(include_top=True, weights='imagenet')
 ```
