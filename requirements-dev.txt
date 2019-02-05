@@ -4,4 +4,6 @@ tf2onnx
 tensorflow
 keras
 onnx
+onnxtk
+pillow
 pytest
