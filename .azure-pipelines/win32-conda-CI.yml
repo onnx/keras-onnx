@@ -38,13 +38,14 @@ jobs:
   - script: |
       conda install -y -c conda-forge protobuf numpy
       python -m pip install --upgrade pip
-      pip install %COREML_PATH% %ONNX_PATH% cntk==2.5.1
       pip install -r requirements-dev.txt
+      test '$(python.version)' != '2.7' && pip install onnxruntime
       pip install %KERAS%
     displayName: 'Install dependencies'
 
   - script: |
       pip install -e .
+      test '$(python.version)' != '2.7' && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
