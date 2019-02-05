@@ -14,6 +14,11 @@ try:
 except ImportError:
     relu6 = None
 
+if not relu6:
+    try:
+        from keras.applications.mobilenet import relu6
+    except ImportError:
+        relu6 = None
 
 def convert_keras_activation(scope, operator, container):
     input_name = operator.input_full_names[0]
