@@ -50,12 +50,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = data if isinstance(data, list) else [data]
         feed = dict([(x.name, data[n]) for n, x in enumerate(sess.get_inputs())])
         actual = sess.run(None, feed)
-        if debug:
+        res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
+        if not res:
             print("expected:")
             print(expected)
             print("actual")
             print(actual)
-        res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
 
