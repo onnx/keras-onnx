@@ -35,7 +35,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8, debug=False):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8):
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
@@ -459,7 +459,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, debug=True))
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_GRU(self):
         from keras.layers import GRU
