@@ -7,7 +7,7 @@ import six
 import keras
 import tensorflow as tf
 from six.moves import queue
-from .common import ketone_logger
+from .common import keras2onnx_logger
 from .common.utils import GRAPH_OUTMOST_NAME
 from .ke2onnx import extract_inbound_nodes
 from .common.data_types import *
@@ -407,7 +407,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
                 advance_by_input(int_node, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph, bound_nodes)
 
             if isinstance(type_k, keras.layers.Layer):
-                ketone_logger().info('Processed a keras scope - (%s: %s)' % (type_k.name, type(type_k)))
+                keras2onnx_logger().info('Processed a keras scope - (%s: %s)' % (type_k.name, type(type_k)))
                 if get_converter(type(type_k)) is None:
                     _convert_general_scope(nodes, varset)
                 else:
@@ -415,7 +415,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
                 scope_processed = True
                 keras_layer_visited.add(type_k)
             elif type_k is not None:
-                ketone_logger().info('Processed a predefined scope - (%s)' % type_k)
+                keras2onnx_logger().info('Processed a predefined scope - (%s)' % type_k)
                 _ = _convert_predefined_scope(nodes, bound_nodes, curr_scope_name, varset, type_k)
                 scope_processed = True
             else:

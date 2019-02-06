@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # --------------------------------------------------------------------------
-import ketone
+import keras2onnx
 import unittest
 import keras
 import onnx
@@ -31,8 +31,8 @@ class TestOpsetComparison(unittest.TestCase):
         predicted = model.predict([trial1, trial2])
         self.assertIsNotNone(predicted)
 
-        converted_model_7 = ketone.convert_keras(model, target_opset=7)
-        converted_model_5 = ketone.convert_keras(model, target_opset=5)
+        converted_model_7 = keras2onnx.convert_keras(model, target_opset=7)
+        converted_model_5 = keras2onnx.convert_keras(model, target_opset=5)
 
         self.assertIsNotNone(converted_model_7)
         self.assertIsNotNone(converted_model_5)

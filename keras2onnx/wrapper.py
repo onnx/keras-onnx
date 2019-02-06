@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common import ketone_logger
+from .common import keras2onnx_logger
 from tf2onnx.tfonnx import *
 from .funcbook import set_converter
 
@@ -26,7 +26,7 @@ def tf2onnx_wrap(node_list, outputs, target_opset):
 
     except Exception as e:
         for node_ in node_list:
-            ketone_logger().debug("tfnode: {}".format(node_.name))
+            keras2onnx_logger().debug("tfnode: {}".format(node_.name))
         raise e
 
 

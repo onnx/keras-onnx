@@ -47,8 +47,8 @@ def is_keras_installed():
 
 
 @with_variable('logger')
-def ketone_logger():  # type: () -> logging.Logger
-    logger = logging.getLogger('ketone')
+def keras2onnx_logger():  # type: () -> logging.Logger
+    logger = logging.getLogger('keras2onnx')
     logger.setLevel(logging.WARNING)
     tf.logging.set_verbosity(tf.logging.WARN)
     return logger
