@@ -8,7 +8,7 @@ from tf2onnx.tfonnx import *
 from .funcbook import set_converter
 
 
-def tf2onnx_wrap(node_list, outputs, target_opset):
+def tf2onnx_wrap(topo, node_list, outputs, target_opset):
     """
     A wrapper function to invoke the basic node conversion from tf2onnx
     """
@@ -19,7 +19,7 @@ def tf2onnx_wrap(node_list, outputs, target_opset):
         ops = g.get_nodes()
         g.topological_sort(ops)
 
-        _ = tensorflow_onnx_mapping(g, False, {})
+        _ = tensorflow_onnx_mapping(g, topo.debug_mode, topo.custom_op_dict)
         g.topological_sort(g.get_nodes())
         g.update_proto()
         return g
@@ -34,7 +34,7 @@ def tfnode_convert(varset, operator, container):
     """
     merge the output node from tf2onnx into the final graph.
     """
-    g = operator.custom_op
+    g = operator.tf2onnx_graph
 
     # update attributes
     all_inputs = set()

@@ -29,6 +29,7 @@ class Operator:
         self.is_abandoned = False
         self.target_opset = target_opset
         self.shape_infer = None
+        self.tf2onnx_graph = None
 
     @property
     def full_name(self):

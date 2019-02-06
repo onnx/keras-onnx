@@ -14,8 +14,8 @@ from .proto import helper, onnx_proto
 
 class Topology:
 
-    def __init__(self, model, default_batch_size=1, initial_types=None,
-                 reserved_variable_names=None, reserved_operator_names=None, target_opset=None):
+    def __init__(self, model, default_batch_size=1, target_opset=None, custom_op_dict=None,
+                 reserved_variable_names=None, reserved_operator_names=None):
         """
         Initialize a Topology object, which is an intermediate representation of a computational graph.
 
@@ -23,19 +23,19 @@ class Topology:
         :param default_batch_size: batch_size prepend to scalar and array types from CoreML. It's usually 1 or 'None'.
         :param initial_types: A list providing some types for some root variables. Each element is a tuple of a variable
         name and a type defined in data_types.py.
+        :param target_opset: the onnx model targeted opset number.
         :param reserved_variable_names: A set of strings which are not allowed to be used as a variable name
         :param reserved_operator_names: A set of strings which are not allowed to be used as a operator name
-        :param custom_conversion_functions: a dictionary for specifying the user customized conversion function
-        :param custom_shape_calculators: a dictionary for specifying the user customized shape calculator
         """
         self.scopes = []
         self.raw_model = model
         self.scope_names = set()
         self.variable_name_set = reserved_variable_names if reserved_variable_names is not None else set()
         self.operator_name_set = reserved_operator_names if reserved_operator_names is not None else set()
-        self.initial_types = initial_types if initial_types else list()
         self.default_batch_size = default_batch_size
         self.target_opset = target_opset
+        self.debug_mode = False
+        self.custom_op_dict = {} if custom_op_dict is None else custom_op_dict
 
         # This attribute is used in optimizing the graph structure. If root_names is not empty, only the variables
         # specified will be treated as the roots (i.e., set is_fed to True in the beginning of a graph evaluation) of
