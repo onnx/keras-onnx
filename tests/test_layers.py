@@ -35,7 +35,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-5, atol=1.e-8, debug=False):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8, debug=False):
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
@@ -51,11 +51,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         feed = dict([(x.name, data[n]) for n, x in enumerate(sess.get_inputs())])
         actual = sess.run(None, feed)
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
-        if not res:
-            print("expected:")
-            print(expected)
-            print("actual")
-            print(actual)
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
 
