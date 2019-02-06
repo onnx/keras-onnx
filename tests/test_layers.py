@@ -9,6 +9,7 @@ import onnx
 import ketone
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
+from distutils.version import StrictVersion
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -34,7 +35,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-5, atol=1.e-8):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8):
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
@@ -631,6 +632,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_keras_model(model)
 
+    @unittest.skipIf(StrictVersion(keras.__version__) < StrictVersion("2.2.3"),
+                     "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         from keras.applications import mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')

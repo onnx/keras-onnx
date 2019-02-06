@@ -14,8 +14,6 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      # Python27:
-      #   python.version: '2.7'
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
@@ -38,8 +36,9 @@ jobs:
   - script: |
       conda install -y -c conda-forge protobuf numpy
       python -m pip install --upgrade pip
+      pip install %ONNX_PATH%
       pip install -r requirements-dev.txt
-      test '$(python.version)' != '2.7' && pip install onnxruntime
+      pip install onnxruntime==0.1.4
       pip install %KERAS%
     displayName: 'Install dependencies'
 
