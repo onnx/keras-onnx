@@ -43,8 +43,9 @@ def _build_opmap_from_keras(model):
     return output_dict
 
 
-def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, doc_string, channel_first_inputs=None):
-    # type: (str, tf.GraphDef, {}, [], int, str, []) -> onnx.ModelProto
+def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, doc_string, channel_first_inputs,
+                debug_mode, custom_op_conversions):
+    # type: (str, tf.GraphDef, {}, [], int, str, [], bool, {}) -> onnx.ModelProto
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
@@ -55,20 +56,27 @@ def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, 
 
         output_names = [GRAPH_OUTMOST_NAME + '/' + name for name in output_names]
 
-        topology = parse_graph(tf_graph, keras_op_table, target_opset, output_names)
+        raw_model_container = TfModelContainer(tf_graph)
+        topology = Topology(raw_model_container, default_batch_size=DEFAULT_BATCH_SIZE, target_opset=target_opset,
+                            custom_op_dict=custom_op_conversions)
+        topology.debug_mode = debug_mode
+        parse_graph(topology, tf_graph, keras_op_table, target_opset, output_names)
         topology.compile()
 
         return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
 
 
-def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
-    # type: (keras.Model, str, str, int, []) -> onnx.ModelProto
+def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
+                  custom_op_conversions=None):
+    # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
     """
     :param model: keras model
     :param name: the converted onnx model internal name
-    :param doc_string:
-    :param target_opset:
-    :param channel_first_inputs: A list of channel first input.
+    :param doc_string: doc string
+    :param target_opset: the targeted onnx model opset
+    :param channel_first_inputs: A list of channel first input
+    :param debug_mode: will enable the log and try to convert as much as possible on conversion
+    :param custom_op_conversions: the handler for custom operator conversion
     :return:
     """
     from keras import backend as K
@@ -82,7 +90,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     sess = K.get_session()
     out_node = [n_.replace(':0', '') for n_ in output_names]
     tf_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=out_node)
-    return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string, channel_first_inputs)
+    return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string, channel_first_inputs,
+                       debug_mode, custom_op_conversions)
 
 
 def convert_keras_tf(name, output_names, doc_string='', target_opset=None, channel_first_inputs=None):
@@ -97,4 +106,4 @@ def convert_keras_tf(name, output_names, doc_string='', target_opset=None, chann
     with tf.gfile.FastGFile(name, 'rb') as f:
         graph_def.ParseFromString(f.read())
 
-        return _convert_tf(name, graph_def, None, output_names, target_opset, doc_string, channel_first_inputs)
+        return _convert_tf(name, graph_def, None, output_names, target_opset, doc_string, channel_first_inputs, False, None)

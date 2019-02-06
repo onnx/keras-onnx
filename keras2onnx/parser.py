@@ -10,7 +10,7 @@ from six.moves import queue
 from .common import keras2onnx_logger
 from .common.utils import GRAPH_OUTMOST_NAME
 from .ke2onnx import extract_inbound_nodes
-from .common.data_types import *
+from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
 from .topology import Topology
 from .subgraph import get_node_by_name, is_placeholder_node, opname_to_node, create_subgraph
 from .funcbook import get_converter, create_pattern_dict, fb_id, fb_key, fb_additional
@@ -98,7 +98,7 @@ def _infer_variable_type(tensor, default_batch_size=DEFAULT_BATCH_SIZE):
     elif tensor_type == tf.float64:
         return DoubleTensorType(shape=tensor_shape)
     elif tensor_type == tf.bool:
-        return BoolTensorType(shape=tensor_shape)
+        return BooleanTensorType(shape=tensor_shape)
     else:
         raise ValueError('Unable to find out a correct type for tensor %s' % tensor)
 
@@ -211,7 +211,7 @@ def _convert_general_scope(node_list, varset):
         operator.add_input(ov)
 
 
-def _finalize_tf2onnx_op(operator, varset):
+def _finalize_tf2onnx_op(topo, operator, varset):
     subgraph = operator.subgraph  # type: tf.Graph
     basename = operator.basename
     node_list = subgraph.get_operations()
@@ -244,8 +244,8 @@ def _finalize_tf2onnx_op(operator, varset):
         #     tf.import_graph_def(graph_def)
         #     g = tf2onnx_wrap(sub_tf_graph.get_operations(), outputs, varset.target_opset)
         #     setattr(operator, 'custom_op', g)
-        g = tf2onnx_wrap(subgraph.get_operations(), outputs, varset.target_opset)
-        setattr(operator, 'custom_op', g)
+        g = tf2onnx_wrap(topo, subgraph.get_operations(), outputs, varset.target_opset)
+        operator.tf2onnx_graph = g
 
     return operator
 
@@ -265,7 +265,7 @@ def _infer_graph_shape(topology, top_level, varset):
 
             visited.add(oop)
             if oop.type == TFNODES:
-                _finalize_tf2onnx_op(oop, varset)
+                _finalize_tf2onnx_op(topology, oop, varset)
             else:
                 if isinstance(oop.raw_operator, keras.layers.Layer):
                     assert oop.outputs
@@ -441,13 +441,10 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
     return topology
 
 
-def parse_graph(graph, keras_op_table, target_opset, output_names):
-    # type: (tf.Graph, {}, int, []) -> Topology
+def parse_graph(topo, graph, keras_op_table, target_opset, output_names):
+    # type: (Topology, tf.Graph, {}, int, []) -> Topology
     global _SCOPE_TO_CONVERTER
     _SCOPE_TO_CONVERTER = create_pattern_dict()
 
-    raw_model_container = TfModelContainer(graph)
-    topology = Topology(raw_model_container, default_batch_size=DEFAULT_BATCH_SIZE, target_opset=target_opset)
-
-    top_level = topology.declare_scope(GRAPH_OUTMOST_NAME)
-    return _parse_graph_scope(graph, keras_op_table, topology, top_level, target_opset, output_names)
+    top_level = topo.declare_scope(GRAPH_OUTMOST_NAME)
+    return _parse_graph_scope(graph, keras_op_table, topo, top_level, target_opset, output_names)
