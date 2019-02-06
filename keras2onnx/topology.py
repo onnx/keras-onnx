@@ -4,7 +4,7 @@
 # license information.
 ###############################################################################
 
-from .common import utils, ketone_logger
+from .common import utils, keras2onnx_logger
 from .common.utils import GRAPH_OUTMOST_NAME
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
@@ -230,7 +230,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # Traverse the graph from roots to leaves
     for operator in topology.topological_operator_iterator():
         scope = next(scope for scope in topology.scopes if scope.name == operator.scope)
-        ketone_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
+        keras2onnx_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         get_converter(operator.type)(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list. However, in
@@ -258,7 +258,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         onnx_not_imported = 'onnxtk is not imported,'
         if nchw_inputs:
             raise Exception('{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
-        ketone_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
+        keras2onnx_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         nodes = container.nodes
 
     # Create a graph from its main components

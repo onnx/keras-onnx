@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import keras
 import onnx
-import ketone
+import keras2onnx
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 from distutils.version import StrictVersion
@@ -62,7 +62,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
-        onnx_model = ketone.convert_keras(model, 'test')
+        onnx_model = keras2onnx.convert_keras(model, 'test')
         data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
@@ -72,7 +72,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.Dense(5, input_shape=(4,), activation='sigmoid'))
         model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=True))
         model.compile('sgd', 'mse')
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = self.asarray(1, 0, 0, 1)
         expected = model.predict(data)
@@ -88,7 +88,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         added = keras.layers.Add()([x1, x2, x3])  # equivalent to added = keras.layers.add([x1, x2])
         model = keras.models.Model(inputs=[input1, input2, input3], outputs=added)
         model.compile('sgd', 'mse')
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = [self.asarray(1.2, 2.4, -2, 1), self.asarray(-1, -2, 0, 1, 2), self.asarray(0.5, 1.5, -3.14159)]
         expected = model.predict(data)
@@ -99,7 +99,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         inputs = [keras.layers.Input(shape=d.shape[1:]) for d in data2]
         layer = keras_layer_type()(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data2)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data2, expected))
@@ -144,7 +144,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(layer_type(output_channels, kernel_size, input_shape=input_shape, strides=strides, padding=padding,
                              dilation_rate=1, activation=activation, use_bias=bias, **kwargs))
         data = np.random.uniform(-0.5, 0.5, size=(1,) + input_shape).astype(np.float32)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, rtol=rtol, atol=atol))
@@ -227,7 +227,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.Sequential()
         model.add(keras.layers.core.Flatten(input_shape=(3, 2)))
         model.add(keras.layers.Dense(3))
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.array([[[1, 2], [3, 4], [5, 6]]]).astype(np.float32)
         expected = model.predict(data)
@@ -236,7 +236,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_reshape(self):
         model = keras.Sequential()
         model.add(keras.layers.core.Reshape((2, 3), input_shape=(3, 2)))
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.array([[[1, 2], [3, 4], [5, 6]]]).astype(np.float32)
 
@@ -246,7 +246,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_permute(self):
         model = keras.Sequential()
         model.add(keras.layers.core.Permute((2, 1), input_shape=(3, 2)))
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.array([[[1, 2], [3, 4], [5, 6]]]).astype(np.float32)
 
@@ -256,7 +256,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_repeat_vector(self):
         model = keras.Sequential()
         model.add(keras.layers.core.RepeatVector(3, input_shape=(4,)))
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = self.asarray(1, 2, 3, 4)
 
@@ -269,7 +269,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             (layer.__name__.startswith("Global")) else layer(2, input_shape=ishape)
 
         model.add(nlayer)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.random.uniform(-0.5, 0.5, size=(1,) + ishape).astype(np.float32)
 
@@ -295,7 +295,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         model = keras.Sequential()
         model.add(layer)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -374,7 +374,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         input = keras.Input(ishape)
         out = layer(input)
         model = keras.models.Model(input, out)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.random.uniform(-0.5, 0.5, size=(1,) + ishape).astype(np.float32)
 
@@ -402,7 +402,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         input_array = np.random.randint(1000, size=(1, 10)).astype(np.float32)
 
         model.compile('rmsprop', 'mse')
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(input_array)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, input_array, expected))
@@ -413,7 +413,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         layer = keras.layers.Dot(axes=-1, normalize=l2Normalize)(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -435,7 +435,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             scale=scale,
         )
         model.add(layer)
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -455,7 +455,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
         model = keras.Model(inputs=inputs1, outputs=[oname])
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
@@ -467,7 +467,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         cls = GRU(2, return_state=False, return_sequences=False)
         oname = cls(inputs1)
         model = keras.Model(inputs=inputs1, outputs=[oname])
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
@@ -480,7 +480,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         lstm1, state_h, state_c = cls(inputs1)
         model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
         data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
-        onnx_model = ketone.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -495,7 +495,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.Model(inputs=inputs1, outputs=output)
         model.compile(optimizer='sgd', loss='mse')
 
-        onnx_model = ketone.convert_keras(model, 'test')
+        onnx_model = keras2onnx.convert_keras(model, 'test')
         data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
@@ -508,7 +508,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                          data_format='channels_last', depth_multiplier=4))
         model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = ketone.convert_keras(model, 'test')
+        onnx_model = keras2onnx.convert_keras(model, 'test')
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('separable_convolution_1', onnx_model, x, expected))
 
@@ -517,7 +517,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.SeparableConv1D(filters=10, kernel_size=2, strides=1, padding='valid', input_shape=(H, C),
                          data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = ketone.convert_keras(model, 'test')
+        onnx_model = keras2onnx.convert_keras(model, 'test')
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
@@ -541,7 +541,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mapped2_2 = sub_model2(input2)
         sub_sum = Add()([mapped1_2, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
-        onnx_model = ketone.convert_keras(keras_model, keras_model.name)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
         x = [x, 2 * x]
         expected = keras_model.predict(x)
@@ -571,7 +571,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mapped2_2 = sub_model2(mapped2_1)
         sub_sum = Add()([mapped1_3, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
-        onnx_model = ketone.convert_keras(keras_model, keras_model.name)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
         x = [x, 2 * x]
         expected = keras_model.predict(x)
@@ -583,7 +583,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         inp2 = keras.layers.Input(batch_shape=(N, W, H, C), name='input2')
         output = keras.layers.Add()([inp1, inp2])
         model = keras.models.Model(inputs=[inp1, inp2], outputs=output)
-        onnx_model = ketone.convert_keras(model, model.name, channel_first_inputs=['input1'])
+        onnx_model = keras2onnx.convert_keras(model, model.name, channel_first_inputs=['input1'])
         self.assertIsNotNone(onnx_model)
 
         data1 = np.random.rand(N, W, H, C).astype(np.float32).reshape((N, W, H, C))
@@ -604,7 +604,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), data_format='channels_last'))
 
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = ketone.convert_keras(model, channel_first_inputs=[model.inputs[0].name])
+        onnx_model = keras2onnx.convert_keras(model, channel_first_inputs=[model.inputs[0].name])
 
         expected = model.predict(x)
         self.assertIsNotNone(expected)
@@ -622,7 +622,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             x = preprocess_input(x)
 
             preds = model.predict(x)
-            onnx_model = ketone.convert_keras(model, model.name)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(self.run_onnx_runtime(model_name, onnx_model, x, preds, rtol=rtol, atol=atol))
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')

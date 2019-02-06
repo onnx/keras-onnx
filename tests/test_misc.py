@@ -2,7 +2,7 @@ import unittest
 import tensorflow as tf
 import numpy as np
 
-from ketone.subgraph import create_subgraph
+from keras2onnx.subgraph import create_subgraph
 
 
 class SubgraphTestCase(unittest.TestCase):

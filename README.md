@@ -1,4 +1,4 @@
-# Ketone
+# keras2onnx
 
 | Linux | Windows |
 |-------|---------|
@@ -6,10 +6,10 @@
 
 
 # Introduction 
-Ketone (Ke-T-ON = Keras-Tensorflow-ONNX) enables you convert the keras models into [ONNX](https://onnx.ai).
-Initially Keras converter was developer in the project onnxmltools. To support more kinds of keras models and reduce the complexity of mixing multiple converters, ketone was created to convert the keras model only. 
+keras2onnx enables you convert the keras models into [ONNX](https://onnx.ai).
+Initially Keras converter was developer in the project onnxmltools. To support more kinds of keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the keras model only.
 
-Ketone supports the keras lambda/custom layer by parsing the TF graph built from Keras model.
+keras2onnx supports the keras lambda/custom layer by parsing the TF graph built from Keras model.
 More intro will be coming soon...
 
 # Testing
@@ -18,8 +18,8 @@ More intro will be coming soon...
 It will be useful to convert the models from Keras to ONNX from a python script.
 You can use the following API:
 ```
-import ketone
-ketone.convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
+import keras2onnx
+keras2onnx.convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None):
     # type: (keras.Model, str, str, int, []) -> onnx.ModelProto
     """
     :param model: keras model
@@ -36,7 +36,7 @@ Use the following script to convert keras application models to onnx, and then p
 import numpy as np
 from keras.preprocessing import image
 from keras.applications.resnet50 import preprocess_input
-import ketone
+import keras2onnx
 import onnxruntime
 
 # image preprocessing
@@ -52,7 +52,7 @@ from keras.applications.resnet50 import ResNet50
 model = ResNet50(include_top=True, weights='imagenet')
 
 # convert to onnx model
-onnx_model = ketone.convert_keras(model, model.name)
+onnx_model = keras2onnx.convert_keras(model, model.name)
 
 # runtime prediction
 content = onnx_model.SerializeToString()

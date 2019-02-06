@@ -5,7 +5,7 @@
 ###############################################################################
 import re
 import tensorflow as tf
-from .common import ketone_logger
+from .common import keras2onnx_logger
 
 ge = tf.contrib.graph_editor
 
@@ -19,7 +19,7 @@ class InputCopyHandler(object):
             return self.replacement[t]
         ts_new = ge.transform.keep_t_if_possible_handler(info, t)
         self.replacement[t] = ts_new
-        ketone_logger().debug("{} -> {}".format(t, ts_new))
+        keras2onnx_logger().debug("{} -> {}".format(t, ts_new))
         return ts_new
 
 
