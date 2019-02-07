@@ -151,7 +151,7 @@ class YOLO(object):
         y1, y2, y3 = self.yolo_model(image_input)
         out_boxes, out_scores, out_classes = \
             YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
-                inputs=[y1, y2, y2, input_image_shape])
+                inputs=[y1, y2, y3, input_image_shape])
         self.final_model = keras.Model(inputs=[image_input, input_image_shape],
                                        outputs=[out_boxes, out_scores, out_classes])
         self.final_model.save('model_data/merged_keras.h5')
