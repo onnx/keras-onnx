@@ -1,5 +1,5 @@
 # Introduction 
-The original keras model was coming from: https://github.com/qqwweee/keras-yolo3, clone the project and follow the 'Quick Start' to get the pre-trained model.
+The original keras model was coming from: <https://github.com/qqwweee/keras-yolo3>, clone the project and follow the 'Quick Start' to get the pre-trained model.
 
 # Convert
 ```

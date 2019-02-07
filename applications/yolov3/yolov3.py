@@ -42,8 +42,8 @@ class YOLOEvaluationLayer(keras.layers.Layer):
         return config
 
     def call(self, inputs, **kwargs):
-        yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
         """Evaluate YOLO model on given input and return filtered boxes."""
+        yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
         num_layers = len(yolo_outputs)
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]] if num_layers == 3 else [[3, 4, 5],
                                                                                  [1, 2, 3]]  # default setting
