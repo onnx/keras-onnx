@@ -7,3 +7,4 @@ onnx
 onnxtk
 pillow
 pytest
+onnxruntime

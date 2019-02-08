@@ -25,7 +25,7 @@ pkgname = packages[0]
 version_str = '0.1.0.0000'
 with (open(os.path.join(this, '{}/__init__.py'.format(pkgname)), "r")) as f:
     line = [_ for _ in [_.strip("\r\n ")
-                                for _ in f.readlines()] if _.startswith("__version__")]
+                        for _ in f.readlines()] if _.startswith("__version__")]
     if len(line) > 0:
         version_str = line[0].split('=')[1].strip('" ')
 
@@ -33,6 +33,9 @@ with (open(os.path.join(this, '{}/__init__.py'.format(pkgname)), "r")) as f:
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
+    start_pos = long_description.find('## Introduction')
+    if start_pos >= 0:
+        long_description = long_description[start_pos:]
 
 setup(
     name=pkgname,
