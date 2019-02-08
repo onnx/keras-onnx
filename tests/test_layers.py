@@ -613,7 +613,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
         self.assertTrue(self.run_onnx_runtime('channel_last_input', onnx_model, x, expected))
 
-    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-4, atol=1.e-8, img_size=224):
+    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, img_size=224):
         img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
         try:
             img = image.load_img(img_path, target_size=(img_size, img_size))

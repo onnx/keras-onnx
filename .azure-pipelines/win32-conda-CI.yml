@@ -34,12 +34,11 @@ jobs:
       packageSpecs: 'python=$(python.version)'
 
   - script: |
-      conda install -y -c conda-forge protobuf numpy
       python -m pip install --upgrade pip
       pip install %ONNX_PATH%
-      pip install -r requirements-dev.txt
-      pip install onnxruntime==0.1.4
       pip install %KERAS%
+      pip install -r requirements.txt
+      pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
 
   - script: |
