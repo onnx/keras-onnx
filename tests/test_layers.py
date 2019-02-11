@@ -94,6 +94,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_dense_add', onnx_model, data, expected))
 
+    def test_dense_softmax(self):
+        data = self.asarray(1, 2, 3, 4)
+        model = keras.models.Sequential()
+        model.add(keras.layers.Dense(5, input_shape=(4,), activation='softmax'))
+        model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=True))
+        model.compile('sgd', 'mse')
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('dense_softmax_1', onnx_model, data, expected))
+
+        model = keras.models.Sequential()
+        model.add(keras.layers.Dense(5, input_shape=(4,)))
+        model.add(keras.layers.Activation('softmax'))
+        model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=True))
+        model.compile('sgd', 'mse')
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('dense_softmax_2', onnx_model, data, expected))
+
     def mergelayer_helper(self, keras_layer_type, *data):
         data2 = [self.asarray(*d) for d in data]
         inputs = [keras.layers.Input(shape=d.shape[1:]) for d in data2]
