@@ -39,3 +39,7 @@ dist
 htmlcov
 coverage.xml
 .coverage
+docs/auto_examples/*
+docs/examples/imagenet*.json
+docs/examples/*.onnx
+docs/examples/tiny_yolov2*
