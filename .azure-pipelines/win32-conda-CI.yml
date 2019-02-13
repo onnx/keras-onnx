@@ -23,7 +23,7 @@ jobs:
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.3.0
-        NUMPY_PATH: numpy==1.15.4
+        NUMPY_PATH: numpy
         KERAS: keras
 
     maxParallel: 3
@@ -35,6 +35,7 @@ jobs:
       cleanEnvironment: true
       environmentName: 'py$(python.version)'
       packageSpecs: 'python=$(python.version)'
+      createOptions: 'numpy'
 
   - script: |
       python -m pip install --upgrade pip
