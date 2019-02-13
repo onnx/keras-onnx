@@ -18,6 +18,7 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
+        NUMPY_PATH: numpy
 
       Python36:
         python.version: '3.6'
@@ -38,6 +39,7 @@ jobs:
   - script: |
       python -m pip install --upgrade pip
       pip install %NUMPY_PATH%
+      echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install %KERAS%
       pip install -r requirements.txt
@@ -46,7 +48,7 @@ jobs:
 
   - script: |
       pip install -e .
-      test '$(python.version)' != '2.7' && echo Test onnxruntime installation... && python -c "import onnxruntime"
+      echo Test onnxruntime installation... && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
