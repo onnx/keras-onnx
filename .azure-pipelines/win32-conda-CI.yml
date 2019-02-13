@@ -22,7 +22,7 @@ jobs:
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.3.0
-        NUMPY_PATH: numpy
+        NUMPY_PATH: numpy==1.15.4
         KERAS: keras
 
     maxParallel: 3
@@ -46,7 +46,7 @@ jobs:
 
   - script: |
       pip install -e .
-      test '$(python.version)' != '2.7' && echo 'Test onnxruntime installation.' && python -c "import onnxruntime"
+      test '$(python.version)' != '2.7' && echo Test onnxruntime installation... && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
