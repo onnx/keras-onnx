@@ -37,9 +37,9 @@ jobs:
 
   - script: |
       python -m pip install --upgrade pip
+      pip install %NUMPY_PATH%
       pip install %ONNX_PATH%
       pip install %KERAS%
-      pip install %NUMPY_PATH%
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
