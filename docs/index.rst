@@ -58,10 +58,10 @@ Other converters can be found on `github/onnx <https://github.com/onnx/>`_,
 **Credits**
 
 The package was started by the following engineers and data scientists at 
-Microsoft starting from winter 2017: Zeeshan Ahmed, Wei-Sheng Chin, Aidan Crook, 
-Xavier Dupré, Costin Eseanu, Tom Finley, Lixin Gong, Scott Inglis, 
-Pei Jiang, Ivan Matantsev, Prabhat Roy, M. Zeeshan Siddiqui, 
-Shouheng Yi, Shauheen Zahirazami, Yiwen Zhu, Du Li, Xuan Li, Wenbing Li.
+Microsoft starting from winter 2017 (in alphabetical order): Zeeshan Ahmed, Wei-Sheng Chin, Aidan Crook,
+Xavier Dupré, Costin Eseanu, David Fan, Tom Finley, Lixin Gong, Scott Inglis,
+Pei Jiang, Du Li, Xuan Li, Wenbing Li, Ivan Matantsev, Prabhat Roy, M. Zeeshan Siddiqui,
+Shouheng Yi, Shauheen Zahirazami, Yiwen Zhu.
 
 **License**
 
