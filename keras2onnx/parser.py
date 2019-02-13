@@ -314,6 +314,7 @@ def _create_keras_nodelist(layer, node_list):
         newly |= set([ts_.op for ts_ in node_.output_tensors])
         ts_end |= set(node_.input_tensors)
 
+    output_nodes = [get_node_by_name(node_list, GRAPH_OUTMOST_NAME + '/' + n_.name, exact_match=True) for n_ in newly]
     visited = set()
     while newly:
         visited |= newly
@@ -323,7 +324,7 @@ def _create_keras_nodelist(layer, node_list):
                 if i_ not in ts_end and i_.op not in visited:
                     newly.add(i_.op)
 
-    return [get_node_by_name(node_list, GRAPH_OUTMOST_NAME + '/' + n_.name, exact_match=True) for n_ in visited]
+    return [get_node_by_name(node_list, GRAPH_OUTMOST_NAME + '/' + n_.name, exact_match=True) for n_ in visited], output_nodes
 
 
 def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset, output_names):
@@ -388,12 +389,19 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
             continue
 
         activated_keras_nodes = set()
+        keras_output_nodes = []
         if isinstance(type_k, keras.layers.Layer):
-            activated_keras_nodes = _create_keras_nodelist(type_k, node_list)
+            activated_keras_nodes, keras_output_nodes = _create_keras_nodelist(type_k, node_list)
         q_subgraph = queue.Queue()
         i_subgraph = set()
         bound_nodes = []
         advance_by_input(node, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph, bound_nodes)
+        for ot_ in keras_output_nodes:
+            if ot_ not in nodes:
+                advance_by_input(ot_, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph,
+                                 bound_nodes)
+                visited.add(ot_)
+                nodes.append(ot_)
 
         scope_processed = False
         while not scope_processed:
