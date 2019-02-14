@@ -31,11 +31,11 @@ jobs:
   steps:
   - task: CondaEnvironment@1
     inputs:
-      createCustomEnvironment: true
+      createCustomEnvironment: false
       cleanEnvironment: true
       environmentName: 'py$(python.version)'
       packageSpecs: 'python=$(python.version)'
-      createOptions: 'numpy'
+      createOptions: '-c conda-forge numpy protobuf'
 
   - script: |
       python -m pip install --upgrade pip
