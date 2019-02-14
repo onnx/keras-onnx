@@ -55,14 +55,6 @@ Other converters can be found on `github/onnx <https://github.com/onnx/>`_,
 `ONNX-MXNet API <https://mxnet.incubator.apache.org/api/python/contrib/onnx.html>`_,
 `Microsoft.ML.Onnx <https://www.nuget.org/packages/Microsoft.ML.Onnx/>`_...
 
-**Credits**
-
-The package was started by the following engineers and data scientists at 
-Microsoft starting from winter 2017: Zeeshan Ahmed, Wei-Sheng Chin, Aidan Crook, 
-Xavier Dupré, Costin Eseanu, Tom Finley, Lixin Gong, Scott Inglis, 
-Pei Jiang, Ivan Matantsev, Prabhat Roy, M. Zeeshan Siddiqui, 
-Shouheng Yi, Shauheen Zahirazami, Yiwen Zhu, Du Li, Xuan Li, Wenbing Li.
-
 **License**
 
 It is licensed with `MIT License <../LICENSE>`_.
