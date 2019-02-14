@@ -309,7 +309,7 @@ def _is_same_subgraph(node, predecessor, key, scope_name):
 
 def _create_keras_nodelist(layer, node_list):
     newly = set()
-    ts_end = set()
+    ts_end = set()  # the input tensor set of the whole layer/model.
     for node_ in extract_inbound_nodes(layer):
         newly |= set([ts_.op for ts_ in node_.output_tensors])
         ts_end |= set(node_.input_tensors)
