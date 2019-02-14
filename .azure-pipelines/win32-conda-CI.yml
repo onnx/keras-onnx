@@ -31,7 +31,7 @@ jobs:
   steps:
   - task: CondaEnvironment@1
     inputs:
-      createCustomEnvironment: false
+      createCustomEnvironment: true
       cleanEnvironment: true
       environmentName: 'py$(python.version)'
       packageSpecs: 'python=$(python.version)'
