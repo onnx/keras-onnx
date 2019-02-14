@@ -27,14 +27,21 @@ jobs:
     maxParallel: 3
 
   steps:
-  - task: CondaEnvironment@1
+  - task: UsePythonVersion@0
     inputs:
-      createCustomEnvironment: true
-      environmentName: 'py$(python.version)'
-      packageSpecs: 'python=$(python.version)'
+      versionSpec: '$(python.version)'
+      architecture: 'x64'
+
+  - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
+    displayName: Add conda to PATH
+
+  - script: conda create --yes --quiet --name py$(python.version) -c conda-forge python=$(python.version) numpy protobuf
+    displayName: Create Anaconda environment
 
   - script: |
-      python -m pip install --upgrade pip
+      call activate py$(python.version)
+      python -m pip install --upgrade pip numpy
+      echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install %KERAS%
       pip install -r requirements.txt
@@ -42,8 +49,9 @@ jobs:
     displayName: 'Install dependencies'
 
   - script: |
+      call activate py$(python.version)
       pip install -e .
-      test '$(python.version)' != '2.7' && python -c "import onnxruntime"
+      echo Test onnxruntime installation... && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
