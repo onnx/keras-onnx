@@ -47,7 +47,7 @@ def tfnode_convert(varset, operator, container):
             tensor = numpy_helper.from_array(const_val, op.output[0])
             initializers.append(tensor)
             continue
-        elif op.is_graph_input():
+        elif op.type in ["Placeholder", "PlaceholderWithDefault", "PlaceholderV2"]:
             continue
         else:
             onnx_op = op.op
