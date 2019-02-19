@@ -170,8 +170,6 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     # in this Keras layer.
     apply_activation_function = _activation_map[op.activation]
     activation_output_name = scope.get_unique_variable_name('activation_output')
-    apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
-
     if apply_activation_function in [_get_activation('softmax'), keras.activations.softmax]:
         apply_softmax(scope, intermediate_output_name, activation_output_name, container, axis=-1)
     else:
