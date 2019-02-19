@@ -405,7 +405,7 @@ def apply_identity(scope, input_name, output_name, container, operator_name=None
     container.add_node('Identity', input_name, output_name, name=name)
 
 
-def apply_softmax(scope, input_name, output_name, container, operator_name=None, axis=-1):
+def apply_softmax(scope, input_name, output_name, container, operator_name=None, axis=1):
     name = _create_name_or_use_existing_one(scope, 'Softmax', operator_name)
     container.add_node('Softmax', input_name, output_name, name=name, axis=axis)
 

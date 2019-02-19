@@ -6,6 +6,7 @@
 from .common import keras2onnx_logger
 from tf2onnx.tfonnx import *
 from .funcbook import set_converter
+from distutils.version import StrictVersion
 
 
 def tf2onnx_wrap(topo, node_list, outputs, target_opset):
@@ -38,25 +39,41 @@ def tfnode_convert(varset, operator, container):
 
     # update attributes
     all_inputs = set()
-    # create initializers for constant nodes
-    initializers = []
-    for op in g.get_nodes():
-        all_inputs |= set(op.input)
-        if op.is_const():
-            const_val = op.get_tensor_value(as_list=False)
-            tensor = numpy_helper.from_array(const_val, op.output[0])
-            initializers.append(tensor)
-            continue
-        elif op.type in ["Placeholder", "PlaceholderWithDefault", "PlaceholderV2"]:
-            continue
-        else:
+    if StrictVersion(tf2onnx.__version__) <= StrictVersion('0.3.2'):
+        for op in g.get_nodes():
+            all_inputs |= set(op.input)
             onnx_op = op.op
             op_inputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.input]
-            op_outputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.output]
+            op_outputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in
+                          onnx_op.output]
             onnx_op.name = varset.get_unique_operator_name(onnx_op.name).encode('utf-8')
             onnx_op.input[:] = op_inputs
             onnx_op.output[:] = op_outputs
             container.add_onnx_node(onnx_op, op_version=container.target_opset)
+
+        # create input_tensor_values, initializers
+        # if initilizer is not used as input by any node, then it will be ignored
+        initializers = [i for i in list(g.initializers.values()) if i.name in all_inputs]
+    else:
+        # create initializers for constant nodes
+        initializers = []
+        for op in g.get_nodes():
+            all_inputs |= set(op.input)
+            if op.is_const():
+                const_val = op.get_tensor_value(as_list=False)
+                tensor = numpy_helper.from_array(const_val, op.output[0])
+                initializers.append(tensor)
+                continue
+            elif op.is_graph_input():
+                continue
+            else:
+                onnx_op = op.op
+                op_inputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.input]
+                op_outputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.output]
+                onnx_op.name = varset.get_unique_operator_name(onnx_op.name).encode('utf-8')
+                onnx_op.input[:] = op_inputs
+                onnx_op.output[:] = op_outputs
+                container.add_onnx_node(onnx_op, op_version=container.target_opset)
 
     for init_tensor_ in initializers:
         init_tensor_.name = varset.get_local_variable_or_declare_one(init_tensor_.name).full_name.encode('utf-8')
