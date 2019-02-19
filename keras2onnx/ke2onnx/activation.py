@@ -20,6 +20,17 @@ if not relu6:
     except ImportError:
         relu6 = None
 
+
+_activation_map = {_get_activation('sigmoid'): apply_sigmoid,
+                   _get_activation('softmax'): apply_softmax,
+                   _get_activation('linear'): apply_identity,
+                   _get_activation('relu'): apply_relu,
+                   _get_activation('elu'): apply_elu,
+                   _get_activation('selu'): apply_selu,
+                   _get_activation('tanh'): apply_tanh,
+                   _get_activation('hard_sigmoid'): apply_hard_sigmoid}
+
+
 def convert_keras_activation(scope, operator, container):
     input_name = operator.input_full_names[0]
     output_name = operator.output_full_names[0]
