@@ -510,9 +510,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         input_dim = 7
         sequence_len = 3
         inputs1 = keras.Input(shape=(sequence_len, input_dim))
-        cls = keras.layers.LSTM(units=5, return_state=True, return_sequences=True)
+        cls = keras.layers.LSTM(units=5, return_state=False, return_sequences=True)
         lstm1 = cls(inputs1)
-        output = keras.layers.Reshape((sequence_len, 5))(lstm1[0])
+        output = keras.layers.Reshape((sequence_len, 5))(lstm1)
         model = keras.Model(inputs=inputs1, outputs=output)
         model.compile(optimizer='sgd', loss='mse')
 
