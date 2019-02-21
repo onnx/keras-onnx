@@ -4,14 +4,46 @@
 # license information.
 ###############################################################################
 import os
+import tensorflow as tf
+import keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
-from .ke2onnx import *
-from .parser import *
-from ._builtin import *
+from .common.utils import GRAPH_OUTMOST_NAME
+from .ke2onnx import static_set_ke2onnx_converters
+from .parser import parse_graph, DEFAULT_BATCH_SIZE
+from .topology import Topology
+from ._builtin import set_converter
 
-_TF_SESSION = None
+
+class KerasTfModelContainer(object):
+    def __init__(self, graph, model=None):
+        self._input_raw_names = list()
+        self._output_raw_names = list()
+        self.tf_graph = graph
+        self.model = model
+
+    @property
+    def raw_model(self):
+        return self.tf_graph
+
+    def add_input_name(self, name):
+        # The order of adding strings matters. The final model's input names are sequentially added as this list
+        if name not in self._input_raw_names:
+            self._input_raw_names.append(name)
+
+    def add_output_name(self, name):
+        # The order of adding strings matters. The final model's output names are sequentially added as this list
+        if name not in self._output_raw_names:
+            self._output_raw_names.append(name)
+
+    @property
+    def input_names(self):
+        return [name for name in self._input_raw_names]
+
+    @property
+    def output_names(self):
+        return [name for name in self._output_raw_names]
 
 
 @with_variable('pb_visual_writer')
@@ -25,27 +57,9 @@ def get_tensorboard_writer():
     return pb_visual_writer
 
 
-def _build_opmap_from_keras(model):
-    # type: (keras.Model) -> []
-
-    static_set_ke2onnx_converters(set_converter)
-    output_dict = {}
-    for l_ in model.layers:
-        if hasattr(l_, 'layers'):
-            dict = _build_opmap_from_keras(l_)
-            output_dict.update(dict)
-            continue
-
-        for node_ in extract_inbound_nodes(l_):
-            for ts_ in node_.output_tensors:
-                output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_
-
-    return output_dict
-
-
-def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, doc_string, channel_first_inputs,
+def _convert_tf(name, tf_graph_def, model, output_names, target_opset, doc_string, channel_first_inputs,
                 debug_mode, custom_op_conversions):
-    # type: (str, tf.GraphDef, {}, [], int, str, [], bool, {}) -> onnx.ModelProto
+
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
@@ -56,11 +70,11 @@ def _convert_tf(name, tf_graph_def, keras_op_table, output_names, target_opset, 
 
         output_names = [GRAPH_OUTMOST_NAME + '/' + name for name in output_names]
 
-        raw_model_container = TfModelContainer(tf_graph)
+        raw_model_container = KerasTfModelContainer(tf_graph, model)
         topology = Topology(raw_model_container, default_batch_size=DEFAULT_BATCH_SIZE, target_opset=target_opset,
                             custom_op_dict=custom_op_conversions)
         topology.debug_mode = debug_mode
-        parse_graph(topology, tf_graph, keras_op_table, target_opset, output_names)
+        parse_graph(topology, tf_graph, target_opset, output_names)
         topology.compile()
 
         return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
@@ -84,13 +98,14 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     if name is None:
         name = model.name
 
-    op_dict = _build_opmap_from_keras(model)
     output_names = [n.name for n in model.outputs]
+
+    static_set_ke2onnx_converters(set_converter)
 
     sess = K.get_session()
     out_node = [n_.replace(':0', '') for n_ in output_names]
     tf_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=out_node)
-    return _convert_tf(name, tf_graph_def, op_dict, output_names, target_opset, doc_string, channel_first_inputs,
+    return _convert_tf(name, tf_graph_def, model, output_names, target_opset, doc_string, channel_first_inputs,
                        debug_mode, custom_op_conversions)
 
 
@@ -99,7 +114,10 @@ def convert_keras_tf(name, output_names, doc_string='', target_opset=None, chann
     """
     Convert the frozen tensorflow model originally defined by Keras
     :param name:
-    :param lstm_scope_name:
+    :param output_names:
+    :param doc_string:
+    :param target_opset:
+    :param channel_first_inputs:
     :return:
     """
     graph_def = tf.GraphDef()

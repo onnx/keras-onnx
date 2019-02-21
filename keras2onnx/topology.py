@@ -260,6 +260,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             raise Exception('{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
         keras2onnx_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         nodes = container.nodes
+    except Exception:
+        # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
+        nodes = container.nodes
 
     # Create a graph from its main components
     graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
