@@ -494,6 +494,23 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+
+    def test_GRU_2(self):
+        from keras.layers import GRU
+        #GRU(rnn_units1, return_sequences=True, return_state=True, recurrent_activation="sigmoid", reset_after='true',
+            #name='gru_a')
+        num = 16
+        inputs1 = keras.Input(shape=(num, 1))
+        cls = GRU(2, return_state=True, return_sequences=True, recurrent_activation="sigmoid", reset_after='true')
+        oname, _ = cls(inputs1)
+        model = keras.Model(inputs=inputs1, outputs=[oname])
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+        data = np.random.randn(1, 1, num).astype(np.float32).reshape((1, num, 1))
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
+
     def test_LSTM(self):
         from keras.layers import LSTM
         inputs1 = keras.Input(shape=(3, 5))

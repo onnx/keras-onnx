@@ -49,8 +49,10 @@ def is_keras_installed():
 @with_variable('logger')
 def keras2onnx_logger():  # type: () -> logging.Logger
     logger = logging.getLogger('keras2onnx')
-    logger.setLevel(logging.WARNING)
-    tf.logging.set_verbosity(tf.logging.WARN)
+    #logger.setLevel(logging.WARNING)
+    #tf.logging.set_verbosity(tf.logging.WARN)
+    logger.setLevel(logging.ERROR)
+    tf.logging.set_verbosity(tf.logging.ERROR)
     return logger
 
 

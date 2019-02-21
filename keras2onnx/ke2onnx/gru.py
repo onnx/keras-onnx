@@ -13,7 +13,10 @@ from .common import extract_recurrent_activation
 def convert_keras_gru(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_size = op.get_input_shape_at(0)[-1]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
