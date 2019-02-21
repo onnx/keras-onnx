@@ -18,8 +18,9 @@ More intro will be coming soon...
 <span style="background-color: #FFFF00">Due to the recent tensorflow-onnx breaking change, please install tensorflow-onnx from github source instead of pypi
 package.</span>
 
-# Testing
-
+# Usage
+Before running the converter, please notice that tensorflow has to be installed in your python environment, 
+you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
 ## Validate pre-trained Keras application models
 It will be useful to convert the models from Keras to ONNX from a python script.
 You can use the following API:
