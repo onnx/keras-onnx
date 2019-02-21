@@ -14,6 +14,7 @@ from ..common.utils import GRAPH_OUTMOST_NAME
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
+from .dense import convert_keras_dense
 from .upsample import *
 from .conv import *
 from .pooling import *
@@ -86,6 +87,8 @@ keras_layer_to_operator = {
     DepthwiseConv2D: convert_keras_depthwise_conv_2d,
     SeparableConv1D: convert_keras_separable_conv1d,
     SeparableConv2D: convert_keras_separable_conv2d,
+
+    Dense: convert_keras_dense,
 
     MaxPooling1D: convert_keras_max_pooling_1d,
     MaxPooling2D: convert_keras_max_pooling_2d,
