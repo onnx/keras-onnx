@@ -14,6 +14,9 @@ keras2onnx supports the keras lambda/custom layer by parsing the TF graph built 
 keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
 
 More intro will be coming soon...
+# Note
+<span style="background-color: #FFFF00">Due to the recent tensorflow-onnx breaking change, please install tensorflow-onnx from github source instead of pypi
+package.</span>
 
 # Testing
 

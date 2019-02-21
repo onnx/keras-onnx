@@ -123,20 +123,18 @@ def _convert_keras_scope(node_list, layer, model, varset):
     operator.nodelist = node_list
 
     inputs = []
+    outputs = []
+    oshapes = []
     for nb_ in extract_inbound_nodes(layer):
         if _is_relevant_node(model, nb_):
             inputs += nb_.input_tensors
+            outputs += nb_.output_tensors
+            oshapes += nb_.output_shapes
 
     for i_ in inputs:
         iname = GRAPH_OUTMOST_NAME + '/' + i_.name
         i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
         operator.add_input(i0)
-
-    outputs = []
-    oshapes = []
-    for nb_ in extract_inbound_nodes(layer):
-        outputs += nb_.output_tensors
-        oshapes += nb_.output_shapes
 
     for n_, o_ in enumerate(outputs):
         oname = GRAPH_OUTMOST_NAME + '/' + o_.name
