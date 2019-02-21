@@ -112,6 +112,9 @@ def _locate_outputs(node_list, varset):
 
 def _is_relevant_node(model, node):
     # type: (keras.Model, object) -> bool
+    if not hasattr(model, '_nodes_by_depth'):
+        return True  # 'Sequential' object has no attribute '_nodes_by_depth' in the legacy keras version.
+
     for v in model._nodes_by_depth.values():
         if node in v:
             return True
