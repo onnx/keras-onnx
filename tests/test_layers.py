@@ -485,6 +485,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_GRU(self):
         from keras.layers import GRU
         inputs1 = keras.Input(shape=(3, 1))
+
         cls = GRU(2, return_state=False, return_sequences=False)
         oname = cls(inputs1)
         model = keras.Model(inputs=inputs1, outputs=[oname])
@@ -493,6 +494,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
+        # GRU with initial state
+        cls = GRU(2, return_state=False, return_sequences=False)
+        initial_state_input = keras.Input(shape=(2, ))
+        oname = cls(inputs1, initial_state=initial_state_input)
+        model = keras.Model(inputs=[inputs1, initial_state_input], outputs=[oname])
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+        data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
+        init_state = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
+        init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 1, 2))
+        expected = model.predict([data, init_state])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
     def test_LSTM(self):
         from keras.layers import LSTM
