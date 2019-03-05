@@ -77,20 +77,20 @@ def apply_batch_norm(scope, input_names, output_names, container, operator_name=
     name = _create_name_or_use_existing_one(scope, 'BatchNormalization', operator_name)
     attrs = {'name': name, 'epsilon': epsilon, 'momentum': momentum}
 
-    if container.target_opset < 9:
-        attrs['spatial'] = spatial
-        attrs['is_test'] = is_test
-        if container.target_opset < 6:
-            attrs['consumed_inputs'] = [0] * len(input_names)
-            if len(input_names) > 3:
-                attrs['consumed_inputs'][3] = 1
-            if len(input_names) > 4:
-                attrs['consumed_inputs'][4] = 2
-            op_version = 1
-        elif container.target_opset < 7:
-            op_version = 6
-        else:
-            op_version = 7
+    if container.target_opset < 9: attrs['spatial'] = spatial
+    if container.target_opset < 7: attrs['is_test'] = is_test
+
+    if container.target_opset < 6:
+        attrs['consumed_inputs'] = [0] * len(input_names)
+        if len(input_names) > 3:
+            attrs['consumed_inputs'][3] = 1
+        if len(input_names) > 4:
+            attrs['consumed_inputs'][4] = 2
+        op_version = 1
+    elif container.target_opset < 7:
+        op_version = 6
+    elif container.target_opset < 9:
+        op_version = 7
     else:
         op_version = 9
 
