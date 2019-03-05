@@ -429,13 +429,12 @@ def apply_upsample(scope, input_name, output_name, container, operator_name=None
         attrs['width_scale'] = float(scales[3])
         attrs['mode'] = mode.upper()
         op_version = 1
-    elif container.target_opset < 9:
-        attrs['scales'] = list(map(float, scales))
-        attrs['mode'] = mode.lower()
-        op_version = 7
     else:
         attrs['scales'] = list(map(float, scales))
         attrs['mode'] = mode.lower()
-        op_version = 9
+        if container.target_opset < 9:
+            op_version = 7
+        else:
+            op_version = 9
 
     container.add_node('Upsample', input_name, output_name, op_version=op_version, **attrs)
