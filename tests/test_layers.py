@@ -485,6 +485,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_GRU(self):
         from keras.layers import GRU
         inputs1 = keras.Input(shape=(3, 1))
+
         cls = GRU(2, return_state=False, return_sequences=False)
         oname = cls(inputs1)
         model = keras.Model(inputs=inputs1, outputs=[oname])
@@ -494,22 +495,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
-
-    def test_GRU_2(self):
-        from keras.layers import GRU
-        #GRU(rnn_units1, return_sequences=True, return_state=True, recurrent_activation="sigmoid", reset_after='true',
-            #name='gru_a')
-        num = 16
-        inputs1 = keras.Input(shape=(num, 1))
-        cls = GRU(2, return_state=True, return_sequences=True, recurrent_activation="sigmoid", reset_after='true')
-        oname, _ = cls(inputs1)
-        model = keras.Model(inputs=inputs1, outputs=[oname])
+        # GRU with initial state
+        cls = GRU(2, return_state=False, return_sequences=False)
+        initial_state_input = keras.Input(shape=(2, ))
+        oname = cls(inputs1, initial_state=initial_state_input)
+        model = keras.Model(inputs=[inputs1, initial_state_input], outputs=[oname])
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = np.random.randn(1, 1, num).astype(np.float32).reshape((1, num, 1))
-        expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
-
+        data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
+        init_state = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
+        init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 1, 2))
+        expected = model.predict([data, init_state])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
     def test_LSTM(self):
         from keras.layers import LSTM
