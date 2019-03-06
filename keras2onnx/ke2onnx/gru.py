@@ -85,12 +85,13 @@ def convert_keras_gru(scope, operator, container):
         op_version = 1
         attrs['output_sequence'] = 1 if output_seq else 0
     elif container.target_opset <= 5:
-        attrs['linear_before_reset'] = 0
         attrs['output_sequence'] = 1 if output_seq else 0
         op_version = 3
     else:
-        attrs['linear_before_reset'] = 0
         op_version = 7
+
+    if container.target_opset >= 3:
+        attrs['linear_before_reset'] = 1 if op.reset_after else 0
 
     # We use the collected information to build ONNX's GRU. ONNX GRU's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
