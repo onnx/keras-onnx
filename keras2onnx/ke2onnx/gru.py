@@ -12,12 +12,13 @@ from .common import extract_recurrent_activation
 
 def convert_keras_gru(scope, operator, container):
     op = operator.raw_operator
-    if hasattr(op, 'return_state') and op.return_state:
-        raise RuntimeError('support state in outputs not supported')
     hidden_size = op.units
-    input_size = op.input_shape[-1]
-    seq_length = op.input_shape[-2]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
     output_seq = op.return_sequences
+    output_state = op.return_state
     reverse_input = op.go_backwards
 
     op_type = 'GRU'
@@ -43,7 +44,8 @@ def convert_keras_gru(scope, operator, container):
     B = op.get_weights()[2]
     if op.use_bias and len(B) > 0:
         tensor_b_name = scope.get_unique_variable_name('tensor_b')
-        B = np.concatenate([B, np.zeros(3 * hidden_size)])
+        if B.size == 3 * hidden_size:
+            B = np.concatenate([B, np.zeros(3 * hidden_size)])
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 6 * hidden_size], B.flatten())
         gru_input_names.append(tensor_b_name)
     else:
@@ -52,7 +54,10 @@ def convert_keras_gru(scope, operator, container):
     # sequence lens
     gru_input_names.append('')
     # TODO: figure out keras way of inital_h
-    gru_input_names.append('')
+    if len(operator.inputs) == 1:
+        gru_input_names.append('')
+    else:
+        gru_input_names.append(operator.inputs[1].full_name)
 
     activation_types = []
     alphas = []
@@ -80,12 +85,13 @@ def convert_keras_gru(scope, operator, container):
         op_version = 1
         attrs['output_sequence'] = 1 if output_seq else 0
     elif container.target_opset <= 5:
-        attrs['linear_before_reset'] = 0
         attrs['output_sequence'] = 1 if output_seq else 0
         op_version = 3
     else:
-        attrs['linear_before_reset'] = 0
         op_version = 7
+
+    if container.target_opset >= 3:
+        attrs['linear_before_reset'] = 1 if op.reset_after else 0
 
     # We use the collected information to build ONNX's GRU. ONNX GRU's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
@@ -98,12 +104,15 @@ def convert_keras_gru(scope, operator, container):
     if output_seq:
         intermediate_result_name = scope.get_unique_variable_name('intermediate_result')
         perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, gru_y_name, intermediate_result_name, container, perm=[1, 0, 2])
+        apply_transpose(scope, gru_y_name, intermediate_result_name, container, perm=perm)
         apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, seq_length, hidden_size])
+                      desired_shape=[-1, 0, hidden_size])
     else:
         # Here we ignore ONNX GRU's first output because it's useless.
         intermediate_result_name = scope.get_unique_variable_name('intermediate_result')
         apply_transpose(scope, gru_h_name, intermediate_result_name, container, perm=[1, 0, 2])
         apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
                       desired_shape=[-1, hidden_size])
+
+    if output_state:
+        apply_reshape(scope, gru_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])

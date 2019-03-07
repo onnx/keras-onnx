@@ -14,9 +14,13 @@ keras2onnx supports the keras lambda/custom layer by parsing the TF graph built 
 keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
 
 More intro will be coming soon...
+# Note
+<span style="background-color: #FFFF00">Due to the recent tensorflow-onnx breaking change, please install tensorflow-onnx from github source instead of pypi
+package.</span>
 
-# Testing
-
+# Usage
+Before running the converter, please notice that tensorflow has to be installed in your python environment, 
+you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
 ## Validate pre-trained Keras application models
 It will be useful to convert the models from Keras to ONNX from a python script.
 You can use the following API:

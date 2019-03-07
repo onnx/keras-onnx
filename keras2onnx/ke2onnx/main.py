@@ -9,10 +9,12 @@ from keras.layers import advanced_activations as adv_activations
 
 from ..common import with_variable
 from ..common.onnx_ops import apply_identity, apply_reshape
+from ..common.utils import GRAPH_OUTMOST_NAME
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
+from .dense import convert_keras_dense
 from .upsample import *
 from .conv import *
 from .pooling import *
@@ -47,6 +49,23 @@ def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
 
+def build_opdict_from_keras(model):
+    # type: (keras.Model) -> []
+
+    output_dict = {}
+    for l_ in model.layers:
+        if hasattr(l_, 'layers'):
+            dict = build_opdict_from_keras(l_)
+            output_dict.update(dict)
+            continue
+
+        for node_ in extract_inbound_nodes(l_):
+            for ts_ in node_.output_tensors:
+                output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_
+
+    return output_dict
+
+
 keras_layer_to_operator = {
     UpSampling1D: convert_keras_upsample_1d,
     UpSampling2D: convert_keras_upsample_2d,
@@ -68,6 +87,8 @@ keras_layer_to_operator = {
     DepthwiseConv2D: convert_keras_depthwise_conv_2d,
     SeparableConv1D: convert_keras_separable_conv1d,
     SeparableConv2D: convert_keras_separable_conv2d,
+
+    Dense: convert_keras_dense,
 
     MaxPooling1D: convert_keras_max_pooling_1d,
     MaxPooling2D: convert_keras_max_pooling_2d,

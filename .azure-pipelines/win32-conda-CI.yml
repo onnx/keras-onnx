@@ -43,6 +43,7 @@ jobs:
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
+      pip install tensorflow
       pip install %KERAS%
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
