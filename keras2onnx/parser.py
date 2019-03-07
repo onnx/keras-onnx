@@ -9,7 +9,7 @@ import tensorflow as tf
 from six.moves import queue
 from .common import keras2onnx_logger
 from .common.utils import GRAPH_OUTMOST_NAME
-from .ke2onnx import extract_inbound_nodes
+from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
 from .topology import Topology
 from .subgraph import get_node_by_name, is_placeholder_node, opname_to_node, create_subgraph
@@ -18,35 +18,6 @@ from .wrapper import tf2onnx_wrap, TFNODES
 
 
 DEFAULT_BATCH_SIZE = 1
-
-
-class TfModelContainer(object):
-    def __init__(self, graph):
-        self._input_raw_names = list()
-        self._output_raw_names = list()
-        self.tf_graph = graph
-
-    @property
-    def raw_model(self):
-        return self.tf_graph
-
-    def add_input_name(self, name):
-        # The order of adding strings matters. The final model's input names are sequentially added as this list
-        if name not in self._input_raw_names:
-            self._input_raw_names.append(name)
-
-    def add_output_name(self, name):
-        # The order of adding strings matters. The final model's output names are sequentially added as this list
-        if name not in self._output_raw_names:
-            self._output_raw_names.append(name)
-
-    @property
-    def input_names(self):
-        return [name for name in self._input_raw_names]
-
-    @property
-    def output_names(self):
-        return [name for name in self._output_raw_names]
 
 
 # This dictionary will be updated on each conversion, since
@@ -139,22 +110,34 @@ def _locate_outputs(node_list, varset):
     return var_output
 
 
-def _convert_keras_scope(node_list, layer, scope_name, varset):
+def _is_relevant_node(model, node):
+    # type: (keras.Model, object) -> bool
+    if not hasattr(model, '_nodes_by_depth'):
+        return True  # 'Sequential' object has no attribute '_nodes_by_depth' in the legacy keras version.
+
+    for v in model._nodes_by_depth.values():
+        if node in v:
+            return True
+    return False
+
+
+def _convert_keras_scope(node_list, layer, model, varset):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
-    inputs = layer.input if isinstance(layer.input, list) else [layer.input]
+    inputs = []
+    outputs = []
+    oshapes = []
+    for nb_ in extract_inbound_nodes(layer):
+        if _is_relevant_node(model, nb_):
+            inputs += nb_.input_tensors
+            outputs += nb_.output_tensors
+            oshapes += nb_.output_shapes
+
     for i_ in inputs:
         iname = GRAPH_OUTMOST_NAME + '/' + i_.name
         i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
         operator.add_input(i0)
-
-    if isinstance(layer.output, list):
-        outputs = layer.output
-        oshapes = layer.output_shape
-    else:
-        outputs = [layer.output]
-        oshapes = [layer.output_shape]
 
     for n_, o_ in enumerate(outputs):
         oname = GRAPH_OUTMOST_NAME + '/' + o_.name
@@ -364,7 +347,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
     visited = set()  # since the output could be shared among the successor nodes.
     keras_layer_visited = set()
 
-    def advance_by_input(cur_node, t_key, workingset, scope_name, overall, subgraph, inputs, fronts):
+    def advance_by_input(cur_node, t_key, workingset, scope_name, subgraph, inputs, fronts):
         is_front = False
         for input_ in cur_node.inputs:
             predecessor = input_.op
@@ -375,7 +358,7 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
             else:
                 is_front = True
                 inputs.add(predecessor)
-                overall.put_nowait(predecessor)
+                q_overall.put_nowait(predecessor)
         if is_front:
             fronts.append(cur_node)
 
@@ -400,11 +383,10 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
         q_subgraph = queue.Queue()
         i_subgraph = set()
         bound_nodes = []
-        advance_by_input(node, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph, bound_nodes)
+        advance_by_input(node, type_k, activated_keras_nodes, curr_scope_name, q_subgraph, i_subgraph, bound_nodes)
         for ot_ in keras_output_nodes:
             if ot_ not in nodes:
-                advance_by_input(ot_, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph,
-                                 bound_nodes)
+                advance_by_input(ot_, type_k, activated_keras_nodes, curr_scope_name, q_subgraph, i_subgraph, bound_nodes)
                 visited.add(ot_)
                 nodes.append(ot_)
 
@@ -417,14 +399,14 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
 
                 visited.add(int_node)
                 nodes.append(int_node)
-                advance_by_input(int_node, type_k, activated_keras_nodes, curr_scope_name, q_overall, q_subgraph, i_subgraph, bound_nodes)
+                advance_by_input(int_node, type_k, activated_keras_nodes, curr_scope_name, q_subgraph, i_subgraph, bound_nodes)
 
             if isinstance(type_k, keras.layers.Layer):
                 keras2onnx_logger().info('Processed a keras scope - (%s: %s)' % (type_k.name, type(type_k)))
                 if get_converter(type(type_k)) is None:
                     _convert_general_scope(nodes, varset)
                 else:
-                    _convert_keras_scope(nodes, type_k, curr_scope_name, varset)
+                    _convert_keras_scope(nodes, type_k, topology.raw_model.model, varset)
                 scope_processed = True
                 keras_layer_visited.add(type_k)
             elif type_k is not None:
@@ -454,10 +436,13 @@ def _parse_graph_scope(graph, keras_op_table, topology, top_scope, target_opset,
     return topology
 
 
-def parse_graph(topo, graph, keras_op_table, target_opset, output_names):
-    # type: (Topology, tf.Graph, {}, int, []) -> Topology
+def parse_graph(topo, graph, target_opset, output_names):
+    # type: (Topology, tf.Graph, int, []) -> Topology
     global _SCOPE_TO_CONVERTER
     _SCOPE_TO_CONVERTER = create_pattern_dict()
+    keras_op_table = None
+    if topo.raw_model.model is not None:
+        keras_op_table = build_opdict_from_keras(topo.raw_model.model)
 
     top_level = topo.declare_scope(GRAPH_OUTMOST_NAME)
     return _parse_graph_scope(graph, keras_op_table, topo, top_level, target_opset, output_names)

@@ -8,7 +8,7 @@
 keras-tf-onnx
 This package converts keras and tensorflow models into ONNX for use with Windows Machine Learning
 """
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 __author__ = "Microsoft Corporation"
 __producer__ = "keras2onnx"
 
@@ -24,3 +24,9 @@ from .funcbook import set_converter
 
 
 def tfname_to_onnx(name): return Variable.tfname_to_onnx(name)
+
+
+try:
+    import tensorflow
+except ImportError as e:
+    raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')

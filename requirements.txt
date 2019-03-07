@@ -1,7 +1,6 @@
 numpy
 protobuf
 tf2onnx
-tensorflow
 keras
 onnx
 onnxtk
