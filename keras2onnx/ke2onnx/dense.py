@@ -5,7 +5,7 @@
 # --------------------------------------------------------------------------
 
 import keras
-from keras.activations import get as get_activation
+from keras.activations import get
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_sigmoid, apply_softmax, apply_identity, apply_relu, apply_add
 from ..common.onnx_ops import apply_elu, apply_selu, apply_tanh, apply_hard_sigmoid
@@ -39,7 +39,7 @@ def convert_keras_dense(scope, operator, container):
 
     # Create an activation function node and apply activation function to the intermediate tensor
     apply_activation_function = activation_map[operator.raw_operator.activation]
-    if apply_activation_function in [get_activation('softmax'), keras.activations.softmax]:
+    if apply_activation_function in [get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)

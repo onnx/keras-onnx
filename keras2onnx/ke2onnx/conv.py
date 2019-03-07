@@ -15,7 +15,7 @@ if StrictVersion(keras.__version__) >= StrictVersion('2.1.3'):
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
 from .activation import activation_map
-from keras.activations import get as get_activation
+from keras.activations import get
 
 
 def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation, perm):
@@ -170,7 +170,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     # in this Keras layer.
     apply_activation_function = activation_map[op.activation]
     activation_output_name = scope.get_unique_variable_name('activation_output')
-    if apply_activation_function in [get_activation('softmax'), keras.activations.softmax]:
+    if apply_activation_function in [get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, intermediate_output_name, activation_output_name, container, axis=-1)
     else:
         apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
