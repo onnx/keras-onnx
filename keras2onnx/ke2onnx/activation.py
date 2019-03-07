@@ -4,7 +4,7 @@
 # license information.
 # --------------------------------------------------------------------------
 import keras
-from keras.activations import get as _get_activation
+from keras.activations import get as get_activation
 from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_sigmoid, apply_tanh, \
     apply_softmax, apply_identity, apply_selu, apply_clip
 
@@ -21,35 +21,35 @@ if not relu6:
         relu6 = None
 
 
-_activation_map = {_get_activation('sigmoid'): apply_sigmoid,
-                   _get_activation('softmax'): apply_softmax,
-                   _get_activation('linear'): apply_identity,
-                   _get_activation('relu'): apply_relu,
-                   _get_activation('elu'): apply_elu,
-                   _get_activation('selu'): apply_selu,
-                   _get_activation('tanh'): apply_tanh,
-                   _get_activation('hard_sigmoid'): apply_hard_sigmoid}
+activation_map = {get_activation('sigmoid'): apply_sigmoid,
+                  get_activation('softmax'): apply_softmax,
+                  get_activation('linear'): apply_identity,
+                  get_activation('relu'): apply_relu,
+                  get_activation('elu'): apply_elu,
+                  get_activation('selu'): apply_selu,
+                  get_activation('tanh'): apply_tanh,
+                  get_activation('hard_sigmoid'): apply_hard_sigmoid}
 
 
 def convert_keras_activation(scope, operator, container):
     input_name = operator.input_full_names[0]
     output_name = operator.output_full_names[0]
     activation = operator.raw_operator.activation
-    if activation in [_get_activation('sigmoid'), keras.activations.sigmoid]:
+    if activation in [get_activation('sigmoid'), keras.activations.sigmoid]:
         apply_sigmoid(scope, input_name, output_name, container)
-    elif activation in [_get_activation('tanh'), keras.activations.tanh]:
+    elif activation in [get_activation('tanh'), keras.activations.tanh]:
         apply_tanh(scope, input_name, output_name, container)
-    elif activation in [_get_activation('relu'), keras.activations.relu]:
+    elif activation in [get_activation('relu'), keras.activations.relu]:
         apply_relu(scope, input_name, output_name, container)
-    elif activation in [_get_activation('softmax'), keras.activations.softmax]:
+    elif activation in [get_activation('softmax'), keras.activations.softmax]:
         apply_softmax(scope, input_name, output_name, container, axis=-1)
-    elif activation in [_get_activation('elu'), keras.activations.elu]:
+    elif activation in [get_activation('elu'), keras.activations.elu]:
         apply_elu(scope, input_name, output_name, container, alpha=1.0)
-    elif activation in [_get_activation('hard_sigmoid'), keras.activations.hard_sigmoid]:
+    elif activation in [get_activation('hard_sigmoid'), keras.activations.hard_sigmoid]:
         apply_hard_sigmoid(scope, input_name, output_name, container, alpha=0.2, beta=0.5)
-    elif activation in [_get_activation('linear'), keras.activations.linear]:
+    elif activation in [get_activation('linear'), keras.activations.linear]:
         apply_identity(scope, input_name, output_name, container)
-    elif activation in [_get_activation('selu'), keras.activations.selu]:
+    elif activation in [get_activation('selu'), keras.activations.selu]:
         apply_selu(scope, input_name, output_name, container, alpha=1.673263, gamma=1.050700)
     elif activation in [relu6]:
         # relu6(x) = min(relu(x), 6)
@@ -57,9 +57,9 @@ def convert_keras_activation(scope, operator, container):
         apply_clip(scope, output_name + "_relu6", output_name, container,
                    min=0, max=6)
     else:
-        if activation in [_get_activation('softsign'), keras.activations.softsign]:
+        if activation in [get_activation('softsign'), keras.activations.softsign]:
             op_type = 'Softsign'
-        elif activation in [_get_activation('softplus'), keras.activations.softplus]:
+        elif activation in [get_activation('softplus'), keras.activations.softplus]:
             op_type = 'Softplus'
         else:
             raise RuntimeError("Unsupported activation method within Activation layer '{}'".format(activation))
