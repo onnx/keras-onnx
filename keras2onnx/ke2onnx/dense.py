@@ -9,6 +9,7 @@ from keras.activations import get as _get_activation
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_sigmoid, apply_softmax, apply_identity, apply_relu, apply_add
 from ..common.onnx_ops import apply_elu, apply_selu, apply_tanh, apply_hard_sigmoid
+import numpy as np
 
 _activation_map = {_get_activation('sigmoid'): apply_sigmoid,
                    _get_activation('softmax'): apply_softmax,
@@ -35,7 +36,7 @@ def convert_keras_dense(scope, operator, container):
                        name=operator.full_name)
 
     # Allocate bias vector
-    bias = parameters[1]
+    bias = parameters[1] if len(parameters) > 1 else np.zeros((weight.shape[1],), dtype=np.float32)
     bias_name = scope.get_unique_variable_name('B')
     container.add_initializer(bias_name, onnx_proto.TensorProto.FLOAT, bias.shape, bias.flatten())
 
