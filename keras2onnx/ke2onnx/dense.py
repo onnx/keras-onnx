@@ -5,19 +5,12 @@
 # --------------------------------------------------------------------------
 
 import keras
-from keras.activations import get as _get_activation
+from keras.activations import get
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_sigmoid, apply_softmax, apply_identity, apply_relu, apply_add
 from ..common.onnx_ops import apply_elu, apply_selu, apply_tanh, apply_hard_sigmoid
-
-_activation_map = {_get_activation('sigmoid'): apply_sigmoid,
-                   _get_activation('softmax'): apply_softmax,
-                   _get_activation('linear'): apply_identity,
-                   _get_activation('relu'): apply_relu,
-                   _get_activation('elu'): apply_elu,
-                   _get_activation('selu'): apply_selu,
-                   _get_activation('tanh'): apply_tanh,
-                   _get_activation('hard_sigmoid'): apply_hard_sigmoid}
+import numpy as np
+from .activation import activation_map
 
 
 def convert_keras_dense(scope, operator, container):
@@ -36,7 +29,7 @@ def convert_keras_dense(scope, operator, container):
                        name=operator.full_name, op_version=target_opset)
 
     # Allocate bias vector
-    bias = parameters[1]
+    bias = parameters[1] if len(parameters) > 1 else np.zeros((weight.shape[1],), dtype=np.float32)
     bias_name = scope.get_unique_variable_name('B')
     container.add_initializer(bias_name, onnx_proto.TensorProto.FLOAT, bias.shape, bias.flatten())
 
@@ -46,8 +39,8 @@ def convert_keras_dense(scope, operator, container):
               axis=-1, broadcast=1)
 
     # Create an activation function node and apply activation function to the intermediate tensor
-    apply_activation_function = _activation_map[operator.raw_operator.activation]
-    if apply_activation_function in [_get_activation('softmax'), keras.activations.softmax]:
+    apply_activation_function = activation_map[operator.raw_operator.activation]
+    if apply_activation_function in [get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)
