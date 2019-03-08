@@ -60,14 +60,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected_list = expected[n_].flatten()
                 actual_list = actual[n_].flatten()
                 diff_list = abs(expected_list - actual_list)
-                count = 0
+                count_total = len(expected_list)
+                count_error = 0
+
                 for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
                     if d_ > atol + rtol * abs(a_):
-                        keras2onnx_logger().error("case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                                                  ", actual = " + str(a_))
-                        count = count + 1
-                        if count >= 10:  # print the first 10 mismatches
-                            break
+                        if count_error < 10:  # print the first 10 mismatches
+                            keras2onnx_logger().error(
+                                "case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                                ", actual = " + str(a_))
+                        count_error = count_error + 1
+
+                keras2onnx_logger().error("case = " + case_name + ", " +
+                                          str(count_error) + "mismatches out of " + str(count_total) + " for list " + str(n_))
             assert False
 
         return res
