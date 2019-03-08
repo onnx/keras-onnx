@@ -69,6 +69,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                         count = count + 1
                         if count >= 10:  # print mismatch for the first 10 values
                             break
+            assert False
         '''
         for n_ in range(len(expected)):
             expected_list = expected[n_].flatten()
@@ -81,6 +82,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 count = count + 1
                 if count >= 1:  # print mismatch for the first 10 values
                     break
+        assert False
 
         return res
 
