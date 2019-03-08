@@ -64,8 +64,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 count = 0
                 for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
                     if d_ > atol + rtol * abs(a_):
-                        keras2onnx_logger().error("case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                                                  ", actual = " + str(a_))
+                        print("case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                              ", actual = " + str(a_))
                         count = count + 1
                         if count >= 10:  # print mismatch for the first 10 values
                             break
@@ -77,8 +77,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             diff_list = abs(expected_list - actual_list)
             count = 0
             for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                keras2onnx_logger().error("case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                                          ", actual = " + str(a_))
+                print("case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                      ", actual = " + str(a_))
                 count = count + 1
                 if count >= 1:  # print mismatch for the first 10 values
                     break
