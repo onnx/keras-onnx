@@ -55,7 +55,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
 
-        '''
         if not res:
             for n_ in range(len(expected)):
                 expected_list = expected[n_].flatten()
@@ -64,25 +63,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 count = 0
                 for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
                     if d_ > atol + rtol * abs(a_):
-                        print("case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                              ", actual = " + str(a_))
+                        keras2onnx_logger().error("case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                                                  ", actual = " + str(a_))
                         count = count + 1
-                        if count >= 10:  # print mismatch for the first 10 values
+                        if count >= 10:  # print the first 10 mismatches
                             break
             assert False
-        '''
-        for n_ in range(len(expected)):
-            expected_list = expected[n_].flatten()
-            actual_list = actual[n_].flatten()
-            diff_list = abs(expected_list - actual_list)
-            count = 0
-            for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                print("case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                      ", actual = " + str(a_))
-                count = count + 1
-                if count >= 1:  # print mismatch for the first 10 values
-                    break
-        assert False
 
         return res
 
