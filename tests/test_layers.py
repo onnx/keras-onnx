@@ -10,6 +10,7 @@ import keras2onnx
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 from distutils.version import StrictVersion
+from keras2onnx.common import keras2onnx_logger
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -53,6 +54,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
+
+        if not res:
+            for n_ in range(len(expected)):
+                expected_list = expected[n_].flatten()
+                actual_list = actual[n_].flatten()
+                diff_list = abs(expected_list - actual_list)
+                count = 0
+                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+                    if d_ > atol + rtol * abs(a_):
+                        keras2onnx_logger().error("case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                                                  ", actual = " + str(a_))
+                        count = count + 1
+                        if count >= 10:  # print mismatch for the first 10 values
+                            break
 
         return res
 
