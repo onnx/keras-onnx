@@ -68,15 +68,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
     def test_dense(self):
-        model = keras.Sequential()
-        model.add(keras.layers.Dense(5, input_shape=(4,), activation='sigmoid'))
-        model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=True))
-        model.compile('sgd', 'mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        for bias_value in [True, False]:
+            model = keras.Sequential()
+            model.add(keras.layers.Dense(5, input_shape=(4,), activation='sigmoid'))
+            model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=bias_value))
+            model.compile('sgd', 'mse')
+            onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = self.asarray(1, 0, 0, 1)
-        expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime('dense', onnx_model, data, expected))
+            data = self.asarray(1, 0, 0, 1)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('dense', onnx_model, data, expected))
 
     def test_dense_add(self):
         input1 = keras.layers.Input(shape=(4,))
