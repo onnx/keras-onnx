@@ -3,15 +3,16 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common import keras2onnx_logger
-from tf2onnx.tfonnx import *
-from .funcbook import set_converter
 from distutils.version import StrictVersion
+import tf2onnx
+from tf2onnx.tfonnx import tflist_to_onnx, Graph, tensorflow_onnx_mapping, numpy_helper
+from .common import keras2onnx_logger
+from .funcbook import set_converter
 
 
 def tf2onnx_wrap(topo, node_list, outputs, target_opset):
     """
-    A wrapper function to invoke the basic node conversion from tf2onnx
+    A wrapper function to invoke the basic node conversion from *tf2onnx*.
     """
     try:
         onnx_nodes, op_cnt, attr_cnt, output_shapes, dtypes = tflist_to_onnx(node_list, {})
@@ -31,7 +32,7 @@ def tf2onnx_wrap(topo, node_list, outputs, target_opset):
         raise e
 
 
-def update_container(varset, op, container):
+def _update_container(varset, op, container):
     onnx_op = op.op
     op_inputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.input]
     op_outputs = [varset.get_local_variable_or_declare_one(n_).full_name.encode('utf-8') for n_ in onnx_op.output]
@@ -43,7 +44,7 @@ def update_container(varset, op, container):
 
 def tfnode_convert(varset, operator, container):
     """
-    merge the output node from tf2onnx into the final graph.
+    Merge the output node from *tf2onnx* into the final graph.
     """
     g = operator.tf2onnx_graph
 
@@ -52,7 +53,7 @@ def tfnode_convert(varset, operator, container):
     if StrictVersion(tf2onnx.__version__) <= StrictVersion('0.3.2'):
         for op in g.get_nodes():
             all_inputs |= set(op.input)
-            update_container(varset, op, container)
+            _update_container(varset, op, container)
 
         # create input_tensor_values, initializers
         # if initilizer is not used as input by any node, then it will be ignored
@@ -70,7 +71,7 @@ def tfnode_convert(varset, operator, container):
             elif op.is_graph_input():
                 continue
             else:
-                update_container(varset, op, container)
+                _update_container(varset, op, container)
 
     for init_tensor_ in initializers:
         init_tensor_.name = varset.get_local_variable_or_declare_one(init_tensor_.name).full_name.encode('utf-8')
