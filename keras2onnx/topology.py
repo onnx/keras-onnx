@@ -233,9 +233,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         keras2onnx_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         get_converter(operator.type)(scope, operator, container)
 
-    # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list. However, in
-    # ONNX initializers should also be model's (GraphProto) inputs. Thus, we create ValueInfoProto objects from
-    # initializers (type: TensorProto) directly and then add them into model's input list.
+    # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
+    # However, in ONNX, for target_opset < 9, ONNX initializers should also be model's (GraphProto) inputs.
+    # Thus, we create ValueInfoProto objects from initializers (type: TensorProto) directly and then add them into model's input list.
     extra_inputs = []  # ValueInfoProto list of the initializers
     for tensor in container.initializers:
         # Sometimes (especially when creating optional input values such as RNN's initial hidden state), an initializer
@@ -265,9 +265,10 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         nodes = container.nodes
 
     # Create a graph from its main components
-    graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
-                              container.outputs, container.initializers)
-
+    #graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
+    #                          container.outputs, container.initializers)
+    graph = helper.make_graph(nodes, model_name, container.inputs,
+                              container.outputs, container.initializers + extra_inputs)
     # Add extra information related to the graph
     graph.value_info.extend(container.value_info)
 

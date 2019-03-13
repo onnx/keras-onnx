@@ -63,6 +63,7 @@ def _convert_tf(name, tf_graph_def, model, output_names, target_opset, doc_strin
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
+    target_opset = 9
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(tf_graph_def, name=GRAPH_OUTMOST_NAME)
         if get_tensorboard_writer() is not None:
