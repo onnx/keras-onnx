@@ -10,6 +10,7 @@ import keras2onnx
 from keras.applications.resnet50 import preprocess_input
 from keras.preprocessing import image
 from distutils.version import StrictVersion
+from keras2onnx.common import keras2onnx_logger
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -54,6 +55,26 @@ class TestKerasTF2ONNX(unittest.TestCase):
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
 
+        if not res:
+            for n_ in range(len(expected)):
+                expected_list = expected[n_].flatten()
+                actual_list = actual[n_].flatten()
+                diff_list = abs(expected_list - actual_list)
+                count_total = len(expected_list)
+                count_error = 0
+
+                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+                    if d_ > atol + rtol * abs(a_):
+                        if count_error < 10:  # print the first 10 mismatches
+                            keras2onnx_logger().error(
+                                "case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                                ", actual = " + str(a_))
+                        count_error = count_error + 1
+
+                keras2onnx_logger().error("case = " + case_name + ", " +
+                                          str(count_error) + "mismatches out of " + str(count_total) + " for list " + str(n_))
+            assert False
+
         return res
 
     def test_keras_lambda(self):
@@ -68,15 +89,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
     def test_dense(self):
-        model = keras.Sequential()
-        model.add(keras.layers.Dense(5, input_shape=(4,), activation='sigmoid'))
-        model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=True))
-        model.compile('sgd', 'mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        for bias_value in [True, False]:
+            model = keras.Sequential()
+            model.add(keras.layers.Dense(5, input_shape=(4,), activation='sigmoid'))
+            model.add(keras.layers.Dense(3, input_shape=(5,), use_bias=bias_value))
+            model.compile('sgd', 'mse')
+            onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = self.asarray(1, 0, 0, 1)
-        expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime('dense', onnx_model, data, expected))
+            data = self.asarray(1, 0, 0, 1)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('dense', onnx_model, data, expected))
 
     def test_dense_add(self):
         input1 = keras.layers.Input(shape=(4,))
