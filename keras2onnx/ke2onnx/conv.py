@@ -13,8 +13,9 @@ if StrictVersion(keras.__version__) >= StrictVersion('2.1.3'):
     from keras.layers import SeparableConv1D
 
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_identity, apply_transpose
-from .dense import _activation_map
+from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
+from .activation import activation_map
+from keras.activations import get
 
 
 def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation, perm):
@@ -167,9 +168,12 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
 
     # The construction of convolution is done. Now, we create an activation operator to apply the activation specified
     # in this Keras layer.
-    apply_activation_function = _activation_map[op.activation]
+    apply_activation_function = activation_map[op.activation]
     activation_output_name = scope.get_unique_variable_name('activation_output')
-    apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
+    if apply_activation_function in [get('softmax'), keras.activations.softmax]:
+        apply_softmax(scope, intermediate_output_name, activation_output_name, container, axis=-1)
+    else:
+        apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
 
     # Permute the output back of its original format
     if not channels_first:
