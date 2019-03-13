@@ -1,5 +1,6 @@
 # Introduction
 The original lpcnet model was coming from: <https://github.com/mozilla/LPCNet/>, we made changes to adapt to convert to onnx model.
+To run this code, we need first install the original code from LPCNet, and then replace test_lpcnet.py with this one.
 
 # Inference
 ```
