@@ -85,7 +85,7 @@ dec_model_content = oxml_dec.SerializeToString()
 '''
 # The alternative way is to convert onnx model offline, then load it on the fly.
 import onnx
-onnx.save_model(oxml, 'lpcnetenc.onnx')
+onnx.save_model(oxml_enc, 'lpcnetenc.onnx')
 onnx.save_model(oxml_dec, 'lpcnetdec.onnx')
 enc_model_content = onnx.load_model('lpcnetenc.onnx').SerializeToString()
 dec_model_content = onnx.load_model('lpcnetdec.onnx').SerializeToString()
