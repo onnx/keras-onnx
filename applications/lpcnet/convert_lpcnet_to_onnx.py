@@ -17,5 +17,5 @@ oxml_dec = keras2onnx.convert_keras(dec, 'lpcnet_dec')
 oxml_enc = keras2onnx.convert_keras(enc, 'lpcnet_enc')
 
 import onnx
-onnx.save(oxml_enc, "lpcnetenc.onnx")
-onnx.save(oxml_dec, "lpcnetdec.onnx")
+onnx.save(oxml_enc, "lpcnet_enc.onnx")
+onnx.save(oxml_dec, "lpcnet_dec.onnx")
