@@ -13,8 +13,8 @@ model_file = sys.argv[1]
 model.load_weights(model_file)
 
 import keras2onnx
-oxml_dec = keras2onnx.convert_keras(dec, 'lpcnet_dec')
 oxml_enc = keras2onnx.convert_keras(enc, 'lpcnet_enc')
+oxml_dec = keras2onnx.convert_keras(dec, 'lpcnet_dec')
 
 import onnx
 onnx.save(oxml_enc, "lpcnet_enc.onnx")
