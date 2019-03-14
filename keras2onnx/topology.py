@@ -233,27 +233,18 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         keras2onnx_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         get_converter(operator.type)(scope, operator, container)
 
-    # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
-    # However, in ONNX, for target_opset < 9, ONNX initializers should also be model's (GraphProto) inputs.
-    # Thus, we create ValueInfoProto objects from initializers (type: TensorProto) directly and then add them into model's input list.
-    extra_inputs = []  # ValueInfoProto list of the initializers
-    for tensor in container.initializers:
-        # Sometimes (especially when creating optional input values such as RNN's initial hidden state), an initializer
-        # is also one of the original model's input, so it has been added into the container's input list. If this is
-        # the case, we need to skip one iteration to avoid duplicated inputs.
-        if tensor.name in [value_info.name for value_info in container.inputs]:
-            continue
-
-        # Initializers are always tensors so we can just call make_tensor_value_info(...)
-        value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
-        extra_inputs.append(value_info)
-
-
     # enable the ONNX optimizations
     try:
         import onnxtk
-        nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
-                              outputs=container.outputs)
+        if target_opset < 9:
+            nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+                                                   inputs=container.inputs + container.initializers,
+                                                   outputs=container.outputs)
+        else:
+            nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+                                                   inputs=container.inputs,
+                                                   outputs=container.outputs,
+                                                   initializers=container.initializers)
     except ImportError:
         onnx_not_imported = 'onnxtk is not imported,'
         if nchw_inputs:
@@ -265,10 +256,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         nodes = container.nodes
 
     # Create a graph from its main components
-    #graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
-    #                          container.outputs, container.initializers)
     graph = helper.make_graph(nodes, model_name, container.inputs,
-                              container.outputs, container.initializers + extra_inputs)
+                              container.outputs, container.initializers)
+
     # Add extra information related to the graph
     graph.value_info.extend(container.value_info)
 
