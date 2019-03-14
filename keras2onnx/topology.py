@@ -237,30 +237,23 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # However, In ONNX, for target opset < 9, initializers should also be model's (GraphProto) inputs.
     # Thus, we create ValueInfoProto objects from initializers (type: TensorProto) directly and then add them into model's input list.
     extra_inputs = []  # ValueInfoProto list of the initializers
-    if target_opset < 9:
-        for tensor in container.initializers:
-            # Sometimes (especially when creating optional input values such as RNN's initial hidden state), an initializer
-            # is also one of the original model's input, so it has been added into the container's input list. If this is
-            # the case, we need to skip one iteration to avoid duplicated inputs.
-            if tensor.name in [value_info.name for value_info in container.inputs]:
-                continue
+    for tensor in container.initializers:
+        # Sometimes (especially when creating optional input values such as RNN's initial hidden state), an initializer
+        # is also one of the original model's input, so it has been added into the container's input list. If this is
+        # the case, we need to skip one iteration to avoid duplicated inputs.
+        if tensor.name in [value_info.name for value_info in container.inputs]:
+            continue
 
-            # Initializers are always tensors so we can just call make_tensor_value_info(...)
-            value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
-            extra_inputs.append(value_info)
+        # Initializers are always tensors so we can just call make_tensor_value_info(...)
+        value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
+        extra_inputs.append(value_info)
+
 
     # enable the ONNX optimizations
     try:
         import onnxtk
-        if target_opset < 9:
-            nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
-                                                   inputs=container.inputs + extra_inputs,
-                                                   outputs=container.outputs)
-        else:
-            nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
-                                                   inputs=container.inputs,
-                                                   outputs=container.outputs,
-                                                   initializers=container.initializers)
+        nodes = onnxtk.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
+                              outputs=container.outputs)
     except ImportError:
         onnx_not_imported = 'onnxtk is not imported,'
         if nchw_inputs:
