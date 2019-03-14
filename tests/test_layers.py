@@ -72,7 +72,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                         count_error = count_error + 1
 
                 keras2onnx_logger().error("case = " + case_name + ", " +
-                                          str(count_error) + "mismatches out of " + str(count_total) + " for list " + str(n_))
+                                          str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_))
             assert False
 
         return res
