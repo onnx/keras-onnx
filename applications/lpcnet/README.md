@@ -1,8 +1,7 @@
 # Introduction
 This tool converts the lpcnet model to onnx.
 To run this code, we need first install the original lpcnet model from <https://github.com/mozilla/LPCNet/>.
-
-# Inference
+Then run
 ```
 python convert_lpcnet_to_onnx.py [model_file]
 ```
