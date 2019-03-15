@@ -9,7 +9,6 @@ from keras.layers import advanced_activations as adv_activations
 
 from ..common import with_variable
 from ..common.onnx_ops import apply_identity, apply_reshape
-from ..common.utils import GRAPH_OUTMOST_NAME
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -50,18 +49,22 @@ def convert_keras_training_only_layer(scope, operator, container):
 
 
 def build_opdict_from_keras(model):
-    # type: (keras.Model) -> []
+    # type: (keras.Model) -> {}
 
     output_dict = {}
     for l_ in model.layers:
         if hasattr(l_, 'layers'):
-            dict = build_opdict_from_keras(l_)
-            output_dict.update(dict)
-            continue
+            submodel_dict = build_opdict_from_keras(l_)
+            shared_layer = False
+            for node_ in extract_inbound_nodes(l_):
+                shared_layer |= any(
+                    ts_.name not in submodel_dict for ts_ in node_.output_tensors)
+            if not shared_layer:  # shared layer will be handled with the sub-model granularity.
+                continue
 
         for node_ in extract_inbound_nodes(l_):
             for ts_ in node_.output_tensors:
-                output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_
+                output_dict[ts_.name] = (l_, model)
 
     return output_dict
 
