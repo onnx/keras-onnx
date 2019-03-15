@@ -321,13 +321,36 @@ def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
-set_converter(ProposalLayer, convert_ProposalLayer)
-set_converter(PyramidROIAlign, convert_PyramidROIAlign)
-set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
-set_converter(DetectionLayer, convert_DetectionLayer)
+#set_converter(ProposalLayer, convert_ProposalLayer)
+#set_converter(PyramidROIAlign, convert_PyramidROIAlign)
+#set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
+#set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
-oml = keras2onnx.convert_keras(model.keras_model)
+
+def on_Round(ctx, node, name, args):
+    node.type = "Ceil"
+    return node
+
+
+def on_Where(ctx, node, name, args):
+    node.type = "NonZero"
+    return node
+
+
+def on_NonMaxSuppressionV3(ctx, node, name, args):
+    node.type = "NonMaxSuppression"
+    return node
+
+
+oml = keras2onnx.convert_keras(model.keras_model,
+                               custom_op_conversions={
+                               'Round': (on_Round, None),
+                               'Where': (on_Where, None),
+                               'CropAndResize': (on_Where, None),
+                               'NonMaxSuppressionV3': (on_NonMaxSuppressionV3, None),
+                               'Pad': (on_Where, None)})
+
 onnx.save_model(oml, './mrcnn.onnx')
 
 # class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
