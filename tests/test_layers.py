@@ -49,8 +49,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = [expected]
 
         data = data if isinstance(data, list) else [data]
-        feed = dict([(x.name, data[n]) for n, x in enumerate(sess.get_inputs())])
-        actual = sess.run(None, feed)
+        input_names = sess.get_inputs()
+        # to avoid too complicated test code, we restrict the input name in Keras test cases must be
+        # in alphabetical order. It's always true unless there is any trick preventing that.
+        feed = zip(sorted(i_.name for i_ in input_names), data)
+        actual = sess.run(None, dict(feed))
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
