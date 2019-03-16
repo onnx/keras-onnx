@@ -11,7 +11,6 @@ import logging
 import functools
 import tensorflow as tf
 
-GRAPH_OUTMOST_NAME = "imp_root_"  # import_root
 
 class FunctionStaticVariable(object):
     def __init__(self, *args, **kwargs):
@@ -47,11 +46,17 @@ def is_keras_installed():
 
 
 @with_variable('logger')
-def keras2onnx_logger():  # type: () -> logging.Logger
+def k2o_logger():  # type: () -> logging.Logger
     logger = logging.getLogger('keras2onnx')
     logger.setLevel(logging.WARNING)
     tf.logging.set_verbosity(tf.logging.WARN)
     return logger
+
+
+def set_logger_level(lvl):
+    logger = k2o_logger()
+    if logger.level != lvl:
+        logger.setLevel(lvl)
 
 
 def get_producer():
