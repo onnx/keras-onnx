@@ -131,6 +131,7 @@ def apply_cast(scope, input_name, output_name, container, operator_name=None, to
     else:
         # Enum value, for example, TensorProto.INT64
         # String casting is supported in opset 9
+        # TODO: Add unit test for string casting support
         if to in [onnx_proto.TensorProto.COMPLEX64, onnx_proto.TensorProto.COMPLEX128]:
             raise ValueError('Attribute "to" cannot correspond to a Complex TensorProto type.')
         attrs['to'] = to
