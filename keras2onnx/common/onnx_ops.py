@@ -56,8 +56,8 @@ def _apply_basic_numerical_operation(scope, op_type, input_names, output_name, c
 
 def _apply_pointwise_operation(scope, op_type, input_names, output_name, container, operator_name):
     name = _create_name_or_use_existing_one(scope, op_type, operator_name)
-    attrs = {}
 
+    attrs = {}
 
     if container.target_opset < 6:
         attrs['consumed_inputs'] = [0] * len(input_names)
@@ -68,6 +68,7 @@ def _apply_pointwise_operation(scope, op_type, input_names, output_name, contain
         op_version = 8
 
     container.add_node(op_type, input_names, output_name, op_version=op_version, name=name, **attrs)
+
 
 def apply_abs(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Abs', input_name, output_name, container, operator_name=operator_name)
@@ -175,8 +176,10 @@ def apply_clip(scope, input_name, output_name, container, operator_name=None, ma
 
     container.add_node('Clip', input_name, output_name, op_version=op_version, **attrs)
 
+
 def apply_instance_norm(scope, input_names, output_name, container, operator_name=None, epsilon=1e-5):
     name = _create_name_or_use_existing_one(scope, 'InstanceNormalization', operator_name)
+
     attrs = {'name': name, 'epsilon': epsilon}
 
     if container.target_opset < 2:

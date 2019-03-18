@@ -254,11 +254,11 @@ def convert_bidirectional(scope, operator, container):
             apply_transpose(scope, lstm_h_name, transposed_h_name, container, perm=perm)
 
             # Maintain backwards opset compatibility for 'Flatten'
-            target_opset = 1 if container.target_opset < 9 else 9
+            op_version = 1 if container.target_opset < 9 else 9
 
             # Flatten ONNX (N, D, C') into (N, D * C')
             container.add_node('Flatten', transposed_h_name, operator.outputs[0].full_name,
-                               name=scope.get_unique_variable_name('Flatten'), axis=1, op_version=target_opset)
+                               name=scope.get_unique_variable_name('Flatten'), axis=1, op_version=op_version)
         else:
             # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
             # forward/backward pass.
