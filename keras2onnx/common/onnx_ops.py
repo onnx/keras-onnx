@@ -9,13 +9,13 @@
 # for some historical reason, the scope here represent the object of InterimContext.
 from ..proto import onnx_proto
 
-# for some historical reason, the scope represent the object of InterimContext.
 
 def _create_name_or_use_existing_one(scope, op_type, name):
     if name is None:
         return scope.get_unique_operator_name(op_type)
     else:
         return name
+
 
 def _apply_unary_operation(scope, op_type, input_name, output_name, container, operator_name, **attrs):
     name = _create_name_or_use_existing_one(scope, op_type, operator_name)
@@ -28,6 +28,7 @@ def _apply_unary_operation(scope, op_type, input_name, output_name, container, o
         op_version = 6
 
     container.add_node(op_type, input_name, output_name, op_version=op_version, **attrs)
+
 
 def _apply_basic_numerical_operation(scope, op_type, input_names, output_name, container, operator_name,
                                      axis, broadcast):
@@ -52,9 +53,11 @@ def _apply_basic_numerical_operation(scope, op_type, input_names, output_name, c
 
     container.add_node(op_type, input_names, output_name, op_version=op_version, name=name, **attrs)
 
+
 def _apply_pointwise_operation(scope, op_type, input_names, output_name, container, operator_name):
     name = _create_name_or_use_existing_one(scope, op_type, operator_name)
     attrs = {}
+
 
     if container.target_opset < 6:
         attrs['consumed_inputs'] = [0] * len(input_names)
@@ -68,6 +71,7 @@ def _apply_pointwise_operation(scope, op_type, input_names, output_name, contain
 
 def apply_abs(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Abs', input_name, output_name, container, operator_name=operator_name)
+
 
 def apply_add(scope, input_names, output_name, container, operator_name=None, axis=None, broadcast=None):
     _apply_basic_numerical_operation(scope, 'Add', input_names, output_name, container, operator_name=operator_name,
@@ -97,6 +101,7 @@ def apply_batch_norm(scope, input_names, output_names, container, operator_name=
         op_version = 9
 
     container.add_node('BatchNormalization', input_names, output_names, op_version=op_version, **attrs)
+
 
 def apply_cast(scope, input_name, output_name, container, operator_name=None, to=None):
     '''
@@ -132,12 +137,15 @@ def apply_cast(scope, input_name, output_name, container, operator_name=None, to
 
     container.add_node('Cast', input_name, output_name, op_version=op_version, **attrs)
 
+
 def apply_div(scope, input_names, output_name, container, operator_name=None, axis=None, broadcast=None):
     _apply_basic_numerical_operation(scope, 'Div', input_names, output_name, container, operator_name=operator_name,
                                      axis=axis, broadcast=broadcast)
 
+
 def apply_exp(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Exp', input_name, output_name, container, operator_name=operator_name)
+
 
 def apply_concat(scope, input_names, output_name, container, operator_name=None, axis=0):
     name = _create_name_or_use_existing_one(scope, 'Concat', operator_name)
@@ -148,6 +156,7 @@ def apply_concat(scope, input_names, output_name, container, operator_name=None,
         op_version = 4
 
     container.add_node('Concat', input_names, output_name, op_version=op_version, name=name, axis=axis)
+
 
 def apply_clip(scope, input_name, output_name, container, operator_name=None, max=None, min=None):
     name = _create_name_or_use_existing_one(scope, 'Clip', operator_name)
@@ -178,21 +187,27 @@ def apply_instance_norm(scope, input_names, output_name, container, operator_nam
 
     container.add_node('InstanceNormalization', input_names, output_name, op_version=op_version, **attrs)
 
+
 def apply_log(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Log', input_name, output_name, container, operator_name=operator_name)
+
 
 def apply_max(scope, input_names, output_name, container, operator_name=None):
     _apply_pointwise_operation(scope, 'Max', input_names, output_name, container, operator_name)
 
+
 def apply_mean(scope, input_names, output_name, container, operator_name=None):
     _apply_pointwise_operation(scope, 'Mean', input_names, output_name, container, operator_name)
+
 
 def apply_min(scope, input_names, output_name, container, operator_name=None):
     _apply_pointwise_operation(scope, 'Min', input_names, output_name, container, operator_name)
 
+
 def apply_mul(scope, input_names, output_name, container, operator_name=None, axis=None, broadcast=None):
     _apply_basic_numerical_operation(scope, 'Mul', input_names, output_name, container, operator_name=operator_name,
                                      axis=axis, broadcast=broadcast)
+
 
 def apply_pad(scope, input_name, output_name, container, operator_name=None, mode=None, pads=None, value=None):
     name = _create_name_or_use_existing_one(scope, 'Pad', operator_name)
@@ -211,8 +226,10 @@ def apply_pad(scope, input_name, output_name, container, operator_name=None, mod
 
     container.add_node('Pad', input_name, output_name, op_version=op_version, **attrs)
 
+
 def apply_reciprocal(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Reciprocal', input_name, output_name, container, operator_name=operator_name)
+
 
 def apply_reshape(scope, input_name, output_name, container, operator_name=None, desired_shape=None):
     if len(list(i for i in desired_shape if i is not None and i < 0)) > 1:
@@ -230,6 +247,7 @@ def apply_reshape(scope, input_name, output_name, container, operator_name=None,
 
         # Create ONNX Reshape operator
         container.add_node('Reshape', [input_name, desired_shape_name], output_name, op_version=5, name=name)
+
 
 def apply_sqrt(scope, input_name, output_name, container, operator_name=None):
     _apply_unary_operation(scope, 'Sqrt', input_name, output_name, container, operator_name=operator_name)
