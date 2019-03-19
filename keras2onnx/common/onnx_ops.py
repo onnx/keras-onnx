@@ -361,11 +361,14 @@ def apply_upsample(scope, input_name, output_name, container, operator_name=None
         attrs['mode'] = mode.upper()
         op_version = 1
     else:
-        attrs['scales'] = list(map(float, scales))
         attrs['mode'] = mode.lower()
         if container.target_opset < 9:
+            attrs['scales'] = list(map(float, scales))
             op_version = 7
         else:
+            # scales moved from attribute to input in opset 9
+            scales_tensor_name = scope.get_unique_variable_name(name + '_scales')
+            container.add_initializer(scales_tensor_name, onnx_proto.TensorProto.FLOAT, [len(scales)], scales)
             op_version = 9
 
     container.add_node('Upsample', input_name, output_name, op_version=op_version, **attrs)
