@@ -23,9 +23,10 @@ def convert_keras_dense(scope, operator, container):
 
     # Do a numpy matmul. If the input is 2-D, it will be a standard matrix multiplication. Otherwise, it follows Numpy's
     # matmul behavior.
+    op_version = 1 if container.target_opset < 9 else 9
     transformed_tensor_name = scope.get_unique_variable_name('transformed_tensor')
     container.add_node('MatMul', [operator.inputs[0].full_name, weight_name], transformed_tensor_name,
-                       name=operator.full_name)
+                       name=operator.full_name, op_version=op_version)
 
     # Allocate bias vector
     bias = parameters[1] if len(parameters) > 1 else np.zeros((weight.shape[1],), dtype=np.float32)

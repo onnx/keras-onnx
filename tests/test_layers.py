@@ -36,7 +36,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
