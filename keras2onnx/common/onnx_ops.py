@@ -351,7 +351,7 @@ def apply_upsample(scope, input_name, output_name, container, operator_name=None
     :param scales: an integer list of scaling-up rate of all input dimensions
     '''
     name = _create_name_or_use_existing_one(scope, 'Upsample', operator_name)
-
+    inputs = input_name
     attrs = {'name': name}
     if container.target_opset < 7:
         if len(scales) != 4:
@@ -369,9 +369,10 @@ def apply_upsample(scope, input_name, output_name, container, operator_name=None
             # scales moved from attribute to input in opset 9
             scales_tensor_name = scope.get_unique_variable_name(name + '_scales')
             container.add_initializer(scales_tensor_name, onnx_proto.TensorProto.FLOAT, [len(scales)], scales)
+            inputs = [input_name, scales_tensor_name]
             op_version = 9
 
-    container.add_node('Upsample', input_name, output_name, op_version=op_version, **attrs)
+    container.add_node('Upsample', inputs, output_name, op_version=op_version, **attrs)
 
 
 def apply_leaky_relu(scope, input_name, output_name, container, operator_name=None, alpha=None):
