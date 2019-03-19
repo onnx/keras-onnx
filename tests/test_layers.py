@@ -1,6 +1,7 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT license.
 import os
+import sys
 import unittest
 
 import numpy as np
@@ -9,7 +10,6 @@ import onnx
 import keras2onnx
 from keras.preprocessing import image
 from distutils.version import StrictVersion
-from common_test_class import CommonTestCase
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -48,8 +48,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = [expected]
 
         data = data if isinstance(data, list) else [data]
-        feed = dict([(x.name, data[n]) for n, x in enumerate(sess.get_inputs())])
-        actual = sess.run(None, feed)
+        input_names = sess.get_inputs()
+        # to avoid too complicated test code, we restrict the input name in Keras test cases must be
+        # in alphabetical order. It's always true unless there is any trick preventing that.
+        feed = zip(sorted(i_.name for i_ in input_names), data)
+        actual = sess.run(None, dict(feed))
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
         if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
             self.model_files.append(temp_model_file)
@@ -65,14 +68,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
                     if d_ > atol + rtol * abs(a_):
                         if count_error < 10:  # print the first 10 mismatches
-                            keras2onnx_logger().error(
+                            print(
                                 "case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                                ", actual = " + str(a_))
+                                ", actual = " + str(a_), file=sys.stderr)
                         count_error = count_error + 1
 
-                keras2onnx_logger().error("case = " + case_name + ", " +
-                                          str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_))
-            assert False
+                print("case = " + case_name + ", " +
+                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
+                      file=sys.stderr)
 
         return res
 
@@ -627,7 +630,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mapped2_2 = sub_model2(mapped2_1)
         sub_sum = Add()([mapped1_3, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        keras_model.compile('sgd', loss='mse')
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
 
         x = [x, 2 * x]
         expected = keras_model.predict(x)
@@ -668,6 +672,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
         self.assertTrue(self.run_onnx_runtime('channel_last_input', onnx_model, x, expected))
+
 
 
 if __name__ == "__main__":

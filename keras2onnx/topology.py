@@ -4,8 +4,7 @@
 # license information.
 ###############################################################################
 
-from .common import utils, keras2onnx_logger
-from .common.utils import GRAPH_OUTMOST_NAME
+from .common import utils, k2o_logger
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
@@ -204,7 +203,6 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     nchw_inputs = []
     if channel_first_inputs is None:
         channel_first_inputs = []
-    channel_first_inputs = [GRAPH_OUTMOST_NAME + '/' + inputs for inputs in channel_first_inputs]
     for name in topology.raw_model.input_names:
         if name in tensor_inputs:
             onnx_input = tensor_inputs[name]  # type: Variable
@@ -230,7 +228,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # Traverse the graph from roots to leaves
     for operator in topology.topological_operator_iterator():
         scope = next(scope for scope in topology.scopes if scope.name == operator.scope)
-        keras2onnx_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
+        k2o_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         get_converter(operator.type)(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
@@ -258,7 +256,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         onnx_not_imported = 'onnxtk is not imported,'
         if nchw_inputs:
             raise Exception('{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
-        keras2onnx_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
+        k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         nodes = container.nodes
     except Exception:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.

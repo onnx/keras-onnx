@@ -21,8 +21,8 @@ class SubgraphTestCase(unittest.TestCase):
         self.assertNotEqual(t_add.op.inputs[0].op.type, 'Placeholder')
         node_list = g.get_operations()
         node_list.remove(i0.op)
-        sgv, replacement = create_subgraph(node_list)
-        self.assertEqual(sgv.graph.get_operation_by_name(t_add.op.name).inputs[0].op.type, 'Placeholder')
+        sgv, replacement = create_subgraph(g, node_list, tf.Session())
+        self.assertEqual(sgv.get_operation_by_name(t_add.op.name).inputs[0].op.type, 'Placeholder')
 
 
 if __name__ == '__main__':
