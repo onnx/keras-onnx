@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import keras
 import onnx
-from keras2onnx.common import keras2onnx_logger
+from keras2onnx.common import k2o_logger
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -62,12 +62,12 @@ class CommonTestCase(unittest.TestCase):
                 for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
                     if d_ > atol + rtol * abs(a_):
                         if count_error < 10:  # print the first 10 mismatches
-                            keras2onnx_logger().error(
+                            k2o_logger().error(
                                 "case = " + case_name + ", result mismatch for expected = " + str(e_) +
                                 ", actual = " + str(a_))
                         count_error = count_error + 1
 
-                keras2onnx_logger().error("case = " + case_name + ", " +
+                k2o_logger().error("case = " + case_name + ", " +
                                           str(count_error) + "mismatches out of " + str(count_total) + " for list " + str(n_))
             assert False
 
