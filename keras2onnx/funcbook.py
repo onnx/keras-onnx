@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from __future__ import division, absolute_import, print_function, unicode_literals
 from uuid import uuid4
 import re
 import six

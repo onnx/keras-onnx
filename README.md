@@ -18,6 +18,10 @@ More intro will be coming soon...
 <span style="background-color: #FFFF00">Due to the recent tensorflow-onnx breaking change, please install tensorflow-onnx from github source instead of pypi
 package.</span>
 
+# tf.keras v.s. keras.io
+Both Keras model types are supported now. If keras package was installed as the one from https://keras.io/, the converter converts the model as it was created by this keras.io package, otherwise it will convert as it was by tf.keras.<br>
+If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API. 
+
 # Usage
 Before running the converter, please notice that tensorflow has to be installed in your python environment, 
 you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)

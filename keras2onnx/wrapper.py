@@ -4,10 +4,8 @@
 # license information.
 ###############################################################################
 import tf2onnx
-import tensorflow as tf
-from keras import backend as K
 from distutils.version import StrictVersion
-from tf2onnx.tfonnx import tflist_to_onnx, tensorflow_onnx_mapping, Graph, process_tf_graph
+from tf2onnx.tfonnx import process_tf_graph
 from onnx import numpy_helper
 from .common import k2o_logger
 from .funcbook import set_converter

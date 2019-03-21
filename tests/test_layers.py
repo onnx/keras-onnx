@@ -1,15 +1,15 @@
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT license.
+# Licensed under the MIT License. See License.txt in the project root for
+# license information.
+###############################################################################
 import os
 import sys
-import unittest
-
-import numpy as np
-import keras
 import onnx
+import unittest
 import keras2onnx
-from keras.applications.resnet50 import preprocess_input
-from keras.preprocessing import image
+import numpy as np
+from keras2onnx.proto import keras, is_tf_keras
 from distutils.version import StrictVersion
 
 
@@ -521,7 +521,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
 
     def test_GRU(self):
-        from keras.layers import GRU
+        GRU = keras.layers.GRU
         inputs1 = keras.Input(shape=(3, 1))
 
         cls = GRU(2, return_state=False, return_sequences=False)
@@ -547,7 +547,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
     def test_LSTM(self):
-        from keras.layers import LSTM
+        LSTM = keras.layers.LSTM
         inputs1 = keras.Input(shape=(3, 5))
         cls = LSTM(units=2, return_state=True, return_sequences=True)
         lstm1, state_h, state_c = cls(inputs1)
@@ -595,7 +595,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
     def test_recursive_model(self):
-        from keras.layers import Input, Dense, Add
+        Input = keras.layers.Input
+        Dense = keras.layers.Dense
+        Add = keras.layers.Add
 
         N, C, D = 2, 3, 3
         x = np.random.rand(N, C).astype(np.float32, copy=False)
@@ -621,7 +623,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('recursive', onnx_model, x, expected))
 
     def test_recursive_and_shared_model(self):
-        from keras.layers import Input, Dense, Add, Activation
+        Input = keras.layers.Input
+        Dense = keras.layers.Dense
+        Add = keras.layers.Add
+        Activation = keras.layers.Activation
         N, C, D = 2, 3, 3
         x = np.random.rand(N, C).astype(np.float32, copy=False)
 
@@ -688,6 +693,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('channel_last_input', onnx_model, x, expected))
 
     def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, img_size=224):
+        preprocess_input = keras.applications.resnet50.preprocess_input
+        image = keras.preprocessing.image
+
         img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
         try:
             img = image.load_img(img_path, target_size=(img_size, img_size))
@@ -702,14 +710,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(False, 'The image data does not exist.')
 
     def test_MobileNet(self):
-        from keras.applications import mobilenet
+        mobilenet = keras.applications.mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_keras_model(model)
 
-    @unittest.skipIf(StrictVersion(keras.__version__) < StrictVersion("2.2.3"),
+    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
-        from keras.applications import mobilenet_v2
+        mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
 

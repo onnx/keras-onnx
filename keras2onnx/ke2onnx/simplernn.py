@@ -1,9 +1,8 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
-
+###############################################################################
 import numpy as np
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose

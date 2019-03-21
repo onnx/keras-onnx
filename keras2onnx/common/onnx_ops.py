@@ -1,8 +1,8 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
 # This file contains some high-level APIs for applying operations on variables specified by names. We should try our
 # best to use those functions because they can produce ONNX operators according to the ONNX version specified in the
 # `container` argument. Notice that those function behaviors are defined in a way very similar to ONNX-1.2.
