@@ -3,12 +3,13 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
 """
 keras-tf-onnx
 This package converts keras and tensorflow models into ONNX for use with Windows Machine Learning
 """
-__version__ = "1.3.2"
+
+
+__version__ = "1.3.3"
 __author__ = "Microsoft Corporation"
 __producer__ = "keras2onnx"
 

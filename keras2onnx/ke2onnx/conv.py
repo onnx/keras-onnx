@@ -1,21 +1,21 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
 import numpy
-import keras
-from distutils.version import StrictVersion
-from keras.layers import SeparableConv2D
-if StrictVersion(keras.__version__) >= StrictVersion('2.1.5'):
-    from keras.layers import DepthwiseConv2D
-if StrictVersion(keras.__version__) >= StrictVersion('2.1.3'):
-    from keras.layers import SeparableConv1D
-
+from .activation import activation_map
+from ..proto import keras
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
-from .activation import activation_map
-from keras.activations import get
+
+
+activation_get = keras.activations.get
+SeparableConv2D = keras.layers.SeparableConv2D
+DepthwiseConv2D = keras.layers.DepthwiseConv2D if \
+    hasattr(keras.layers, 'DepthwiseConv2D') else None
+SeparableConv1D = keras.layers.SeparableConv1D if \
+    hasattr(keras.layers, 'SeparableConv1D') else None
 
 
 def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation, perm):
@@ -68,8 +68,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                             output_perm_axes, weight_perm_axes):
     op = operator.raw_operator
 
-    is_separable_conv = isinstance(op, SeparableConv2D) or \
-                        (StrictVersion(keras.__version__) >= StrictVersion('2.1.3') and isinstance(op, SeparableConv1D))
+    is_separable_conv = isinstance(op, SeparableConv2D) or isinstance(op, SeparableConv1D)
 
     channels_first = n_dims > 1 and op.data_format == 'channels_first'
 
@@ -98,7 +97,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     kernel_size = weight_params.shape[:-2]
     assert (kernel_size == op.kernel_size)
 
-    if StrictVersion(keras.__version__) >= StrictVersion('2.1.5') and isinstance(op, DepthwiseConv2D):
+    if isinstance(op, DepthwiseConv2D):
         # see https://github.com/onnx/onnx-tensorflow/pull/266/files
         dm = op.depth_multiplier
         output_channels *= dm
@@ -170,7 +169,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     # in this Keras layer.
     apply_activation_function = activation_map[op.activation]
     activation_output_name = scope.get_unique_variable_name('activation_output')
-    if apply_activation_function in [get('softmax'), keras.activations.softmax]:
+    if apply_activation_function in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, intermediate_output_name, activation_output_name, container, axis=-1)
     else:
         apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
