@@ -8,12 +8,14 @@ import onnx
 import numpy as np
 import tensorflow as tf
 import keras
-import tf2onnx
 from PIL import Image, ImageFont, ImageDraw
 from keras import backend as K
 from keras.layers import Input
 from keras.models import load_model
 from keras2onnx import convert_keras
+from keras2onnx import set_converter
+from keras2onnx.common.onnx_ops import apply_transpose
+from tf2onnx import utils
 
 import yolo3
 from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body, yolo_boxes_and_scores
@@ -27,7 +29,7 @@ class YOLOEvaluationLayer(keras.layers.Layer):
         self.max_boxes = kwargs.get('max_boxes', 20)
         self.score_threshold = kwargs.get('score_threshold', .6)
         self.iou_threshold = kwargs.get('iou_threshold', .5)
-        self.anchors = kwargs.get('anchors')
+        self.anchors = np.array(kwargs.get('anchors'))
         self.num_classes = kwargs.get('num_classes')
 
     def get_config(self):
@@ -57,6 +59,34 @@ class YOLOEvaluationLayer(keras.layers.Layer):
             box_scores.append(_box_scores)
         boxes = K.concatenate(boxes, axis=0)
         box_scores = K.concatenate(box_scores, axis=0)
+        return [boxes, box_scores]
+
+    def compute_output_shape(self, input_shape):
+        assert isinstance(input_shape, list)
+        return [(None, 4, None), (None, None)]
+
+
+class YOLONMSLayer(keras.layers.Layer):
+    def __init__(self, **kwargs):
+        super(YOLONMSLayer, self).__init__()
+        self.max_boxes = kwargs.get('max_boxes', 20)
+        self.score_threshold = kwargs.get('score_threshold', .6)
+        self.iou_threshold = kwargs.get('iou_threshold', .5)
+        self.num_classes = kwargs.get('num_classes')
+
+    def get_config(self):
+        config = {
+            "max_boxes": self.max_boxes,
+            "score_threshold": self.score_threshold,
+            "iou_threshold": self.iou_threshold,
+            "num_classes": self.num_classes,
+        }
+
+        return config
+
+    def call(self, inputs, **kwargs):
+        boxes = inputs[0]
+        box_scores = inputs[1]
 
         mask = box_scores >= self.score_threshold
         max_boxes_tensor = K.constant(self.max_boxes, dtype='int32')
@@ -78,11 +108,13 @@ class YOLOEvaluationLayer(keras.layers.Layer):
         scores_ = K.concatenate(scores_, axis=0)
         classes_ = K.concatenate(classes_, axis=0)
 
-        return [boxes_, scores_, classes_]
+        boxes_r = tf.expand_dims(tf.expand_dims(boxes_, 0), 0)
+        scores_r = tf.expand_dims(tf.expand_dims(scores_, 0), 0)
+        return [boxes_r, scores_r]
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, 4), (None,), (None,)]
+        return [(None, None, None, 4), (None, None, None)]
 
 
 class YOLO(object):
@@ -98,6 +130,7 @@ class YOLO(object):
         self.model_image_size = (416, 416)  # fixed size or (None, None), hw
         self.boxes, self.scores, self.classes = self.generate()
         self.session = None
+        self.session_final = None
         self.final_model = None
         K.set_learning_phase(0)
 
@@ -123,10 +156,6 @@ class YOLO(object):
         anchors = [float(x) for x in anchors.split(',')]
         return np.array(anchors).reshape(-1, 2)
 
-    def onnx_inference(self, inputs, outputs):
-        sess = self.session
-        return sess.run([o.name for o in sess.get_outputs()], inputs)
-
     def load_model(self):
         model_path = self._get_data_path(self.model_path)
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
@@ -147,14 +176,21 @@ class YOLO(object):
                 'Mismatch between model and given anchor and class sizes'
 
         input_image_shape = keras.Input(shape=(2,))
-        image_input = keras.Input((None, None, 3), dtype='float32')
-        y1, y2, y3 = self.yolo_model(image_input)
-        out_boxes, out_scores, out_classes = \
+        y1 = keras.Input((None, None, 255), dtype='float32')
+        y2 = keras.Input((None, None, 255), dtype='float32')
+        y3 = keras.Input((None, None, 255), dtype='float32')
+
+        boxes, box_scores = \
             YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[y1, y2, y3, input_image_shape])
-        self.final_model = keras.Model(inputs=[image_input, input_image_shape],
-                                       outputs=[out_boxes, out_scores, out_classes])
-        self.final_model.save('model_data/merged_keras.h5')
+
+        out_boxes, out_scores = \
+            YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
+                inputs=[boxes, box_scores])
+
+        self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
+                                       outputs=[out_boxes, out_scores])
+        self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
     def generate(self):
@@ -205,11 +241,26 @@ class YOLO(object):
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
-        r = self.onnx_inference({'input_1_0': image_data},
+        r = self.session.run({'input_1_0': image_data},
                                 ['conv2d_59_BiasAdd_01',
                                  'conv2d_67_BiasAdd_01',
                                  'conv2d_75_BiasAdd_01'])
 
+        feed_f = dict(zip((n_.name for n_ in self.session_final.get_inputs()),
+             (r[0],
+              r[1],
+              r[2],
+              [image.size[1], image.size[0]])))
+        all_boxes, all_scores = self.session_final.run(feed_f)
+
+        out_boxes, out_scores, out_classes = [], [], []
+        for idx_, sc_ in np.ndenumerate(all_scores):
+            if sc_ > 0.0:
+                out_classes.append(idx_[1])
+                out_scores.append(all_scores[idx_])
+                out_boxes.append(all_boxes[idx_])
+
+        """
         out_boxes, out_scores, out_classes = self.sess.run(
             [self.boxes, self.scores, self.classes],
             feed_dict={
@@ -219,6 +270,7 @@ class YOLO(object):
                 self.input_image_shape: [image.size[1], image.size[0]],
                 K.learning_phase(): 0
             })
+        """
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
@@ -266,22 +318,148 @@ class YOLO(object):
 def detect_img(yolo, name):
     import onnxruntime
     image = Image.open(name)
-    yolo.session = onnxruntime.InferenceSession('model_data/yolov3_.onnx')
+    yolo.session = onnxruntime.InferenceSession('model_data/yolov3_0.onnx')
+    yolo.session_final = onnxruntime.InferenceSession('model_data/yolov3_1.onnx')
     r_image = yolo.detect_with_onnx(image)
 
     n_ext = name.rindex('.')
     score_file = name[0:n_ext] + '_score' + name[n_ext:]
     r_image.save(score_file, "JPEG")
 
+def on_StridedSlice(ctx, node, name, args):
+    # node.type = "Reverse"
+    # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
+    not_supported_attr = ["new_axis_mask"]
+    for attr_name in not_supported_attr:
+        attr = node.get_attr(attr_name)
+        if attr is not None and attr.i != 0:
+            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
+    input_shape = ctx.get_shape(node.input[0])
+    begin = node.inputs[1].get_tensor_value()
+    end = node.inputs[2].get_tensor_value()
+    strides = node.inputs[3].get_tensor_value()
+    max_size = sys.maxsize
+    begin_mask = node.get_attr("begin_mask")
+    begin_mask = begin_mask.i if begin_mask is not None else 0
+    end_mask = node.get_attr("end_mask")
+    end_mask = end_mask.i if end_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
+    shrink_axis_mask = node.get_attr("shrink_axis_mask")
+    shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
+    new_begin = []
+    new_end = []
+    axes = []
+    # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
+    needs_squeeze = []
+    reverse_axes = []
+    for idx, begin_item in enumerate(begin):
+        end_item = end[idx]
+        if strides[idx] == -1:
+            reverse_axes.append(idx)
+        # if strides[idx] != 1:
+        # raise ValueError("StridedSlice: only strides=1 is supported, current stride =" + str(strides[idx]))
+        axes.append(idx)
 
-def on_Where(ctx, node, name, args):
-    node.type = "NonZero"
-    return node
+        if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
+            new_begin.append(0)
+            new_end.append(max_size)
+            continue
 
+        if begin_item == 0 and end_item == 0:
+            new_begin.append(0)
+            new_end.append(max_size)
+            continue
 
-def on_NonMaxSuppressionV3(ctx, node, name, args):
-    node.type = "NonMaxSuppression"
-    return node
+        # an implicit condition is stride == 1 (checked in above)
+        if begin_item < 0 and end_item == 0:
+            end_item = max_size
+
+        mask = (shrink_axis_mask >> idx) & 1
+        if mask != 0:
+            new_begin.append(begin_item)
+            new_end.append(end_item)
+            if begin_item == 0 and end_item == 0:
+                aa = 1
+            needs_squeeze.append(idx)
+            continue
+
+        if (begin_mask >> idx) & 1 != 0:
+            new_begin.append(0)
+            new_end.append(end_item)
+            if end_item == 0:
+                aa = 1
+            continue
+
+        if (end_mask >> idx) & 1 != 0:
+            new_begin.append(begin_item)
+            new_end.append(max_size)
+            continue
+
+        if begin_item == 0 and end_item == 0:
+            aa = 1
+        new_begin.append(begin_item)
+        new_end.append(end_item)
+
+    node.set_attr("starts", new_begin)
+    node.set_attr("ends", new_end)
+    node.set_attr("axes", axes)
+    node.type = "Slice"
+    ctx.remove_input(node, node.input[3])
+    ctx.remove_input(node, node.input[2])
+    ctx.remove_input(node, node.input[1])
+    nodes = [node]
+    use_reverse_op = False
+    reverse_flag = False
+    if use_reverse_op and len(reverse_axes) > 0:
+        name = utils.make_name(node.name)
+        name = name + '_reverse'
+        reverse_node = ctx.insert_new_node_on_output("Reverse", node.output[0], name)
+        reverse_node.set_attr("axes", reverse_axes)
+        reverse_node.domain = 'com.microsoft'
+        nodes.append(reverse_node)
+        input_dtype = ctx.get_dtype(node.output[0])
+        ctx.set_dtype(reverse_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], reverse_node.output[0])
+        reverse_flag = True
+
+    if needs_squeeze:
+        name = utils.make_name(node.name)
+        if use_reverse_op:
+            if reverse_flag:
+                squeeze_node = ctx.insert_new_node_on_output("Squeeze", reverse_node.output[0], name)
+            else:
+                squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        else:
+            squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        squeeze_node.set_attr("axes", needs_squeeze)
+        nodes.append(squeeze_node)
+        input_dtype = ctx.get_dtype(node.output[0])
+        ctx.set_dtype(squeeze_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], squeeze_node.output[0])
+
+    # onnx slice as of opset 7 does only take float tensors ... cast if needed
+    '''
+    input_dtype = ctx.get_dtype(node.input[0])
+    if input_dtype != onnx_pb.TensorProto.FLOAT:
+        if node.inputs[0].type == "Cast":
+            # override the previous cast
+            cast_node = node.inputs[0]
+        else:
+            cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
+            nodes.insert(0, cast_node)
+        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+        ctx.copy_shape(node.input[0], cast_node.output[0])
+        # undo the cast afer slice
+        name = utils.make_name(node.name)
+        cast_node = ctx.insert_new_node_on_output("Cast", nodes[-1].output[0], name)
+        cast_node.set_attr("to", input_dtype)
+        ctx.set_dtype(cast_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], cast_node.output[0])
+        nodes.append(cast_node)
+    '''
+    return nodes
 
 
 def on_Round(ctx, node, name, args):
@@ -289,17 +467,54 @@ def on_Round(ctx, node, name, args):
     return node
 
 
-_custom_op_handlers={
-            'Where': on_Where,
-            'NonMaxSuppressionV3': on_NonMaxSuppressionV3,
-            'Round': on_Round }
+_custom_op_handlers = {
+    'Round': (on_Round, []),
+    'StridedSlice': (on_StridedSlice, [])}
 
 
-def convert_model(yolo, name):
+def create_onnx_node(scope, operator, container, type):
+    # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer, str) -> None
+
+    container.add_node(type, operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
+
+
+def convert_NMSLayer(scope, operator, container):
+    # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer) -> None
+    box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
+    score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
+
+    apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
+
+    box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
+    score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
+
+    container.add_node("Unsqueeze", box_transpose,
+                       box_batch, op_version=operator.target_opset, axes=[0])
+    container.add_node("Unsqueeze", score_transpose,
+                       score_batch, op_version=operator.target_opset, axes=[0])
+
+    layer = operator.raw_operator  # type: YOLONMSLayer
+
+    container.add_node("NonMaxSuppression", [box_batch, score_batch], operator.output_full_names,
+                       op_version=operator.target_opset, op_domain='com.microsoft',
+                       max_output_size=layer.max_boxes,
+                       iou_threshold=layer.iou_threshold,
+                       score_threshold=layer.score_threshold)
+
+
+set_converter(YOLONMSLayer, convert_NMSLayer)
+
+
+def convert_model(yolo, name0, name1):
     yolo.load_model()
-    onnxmodel = convert_keras(yolo.final_model, channel_first_inputs=['input_1'],
-                              debug_mode=True, custom_op_conversions=_custom_op_handlers)
-    onnx.save_model(onnxmodel, name)
+    if not os.path.exists(name0):
+        onnxmodel = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'],
+                                  debug_mode=True, custom_op_conversions=_custom_op_handlers)
+        onnx.save_model(onnxmodel, name0)
+
+    oxmlfinal = convert_keras(yolo.final_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
+    onnx.save_model(oxmlfinal, name1)
 
 
 if __name__ == '__main__':
@@ -308,6 +523,6 @@ if __name__ == '__main__':
         exit(-1)
 
     if '-c' in sys.argv:
-        convert_model(YOLO(), 'model_data/yolov3.onnx')
+        convert_model(YOLO(), 'model_data/yolov3_0.onnx', 'model_data/yolov3_1.onnx')
     else:
         detect_img(YOLO(), sys.argv[1])
