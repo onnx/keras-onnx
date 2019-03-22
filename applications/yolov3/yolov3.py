@@ -15,6 +15,7 @@ from keras.models import load_model
 from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose
+from keras2onnx.proto import onnx_proto
 from tf2onnx import utils
 
 import yolo3
@@ -496,11 +497,21 @@ def convert_NMSLayer(scope, operator, container):
 
     layer = operator.raw_operator  # type: YOLONMSLayer
 
-    container.add_node("NonMaxSuppression", [box_batch, score_batch], operator.output_full_names,
-                       op_version=operator.target_opset, op_domain='com.microsoft',
-                       max_output_size=layer.max_boxes,
-                       iou_threshold=layer.iou_threshold,
-                       score_threshold=layer.score_threshold)
+    max_output_size = scope.get_unique_variable_name('max_output_size')
+    iou_threshold = scope.get_unique_variable_name('iou_threshold')
+    score_threshold = scope.get_unique_variable_name('layer.score_threshold')
+
+    container.add_initializer(max_output_size, onnx_proto.TensorProto.INT32,
+                              [1], [layer.max_boxes])
+    container.add_initializer(iou_threshold, onnx_proto.TensorProto.FLOAT,
+                              [1], [layer.iou_threshold])
+    container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
+                              [1], [layer.score_threshold])
+
+    container.add_node("NonMaxSuppression",
+                       [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
+                       operator.output_full_names + ['no_use'],
+                       op_version=operator.target_opset, op_domain='com.microsoft')
 
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
