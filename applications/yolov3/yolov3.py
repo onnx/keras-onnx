@@ -15,6 +15,7 @@ from keras.models import load_model
 from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose
+from keras2onnx.proto import onnx_proto
 from tf2onnx import utils
 
 import yolo3
@@ -31,6 +32,8 @@ class YOLOEvaluationLayer(keras.layers.Layer):
         self.iou_threshold = kwargs.get('iou_threshold', .5)
         self.anchors = np.array(kwargs.get('anchors'))
         self.num_classes = kwargs.get('num_classes')
+        self.img_width = kwargs.get('img_width')
+        self.img_height = kwargs.get('img_height')
 
     def get_config(self):
         config = {
@@ -39,13 +42,17 @@ class YOLOEvaluationLayer(keras.layers.Layer):
             "iou_threshold": self.iou_threshold,
             "anchors": self.anchors,
             "num_classes": self.num_classes,
+            "img_width": self.img_width,
+            "img_height": self.img_height,
         }
 
         return config
 
     def call(self, inputs, **kwargs):
         """Evaluate YOLO model on given input and return filtered boxes."""
-        yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
+        # yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
+        yolo_outputs = inputs[0:3]
+        input_image_shape = np.array([self.img_width, self.img_height])
         num_layers = len(yolo_outputs)
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]] if num_layers == 3 else [[3, 4, 5],
                                                                                  [1, 2, 3]]  # default setting
@@ -128,7 +135,8 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.model_image_size = (416, 416)  # fixed size or (None, None), hw
-        self.boxes, self.scores, self.classes = self.generate()
+        #self.boxes, self.scores, self.classes = self.generate()
+        self.boxes, self.scores= self.generate()
         self.session = None
         self.session_final = None
         self.final_model = None
@@ -181,15 +189,18 @@ class YOLO(object):
         y3 = keras.Input((None, None, 255), dtype='float32')
 
         boxes, box_scores = \
-            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
+            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names), img_width = self.model_image_size[0], img_height = self.model_image_size[1])(
                 inputs=[y1, y2, y3, input_image_shape])
 
         out_boxes, out_scores = \
             YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[boxes, box_scores])
-
+        '''
         self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
                                        outputs=[out_boxes, out_scores])
+        '''
+        self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
+                                       outputs=[boxes, box_scores])
         self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -217,11 +228,18 @@ class YOLO(object):
 
         # Generate output tensor targets for filtered bounding boxes.
         self.input_image_shape = K.placeholder(shape=(2,))
+        '''
         boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
                                            len(self.class_names), self.input_image_shape,
                                            score_threshold=self.score, iou_threshold=self.iou)
-
+   
         return boxes, scores, classes
+        '''
+        boxes, scores = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
+                                           len(self.class_names), self.input_image_shape,
+                                           score_threshold=self.score, iou_threshold=self.iou)
+
+        return boxes, scores
 
     def detect_with_onnx(self, image):
         start = timer()
@@ -235,23 +253,61 @@ class YOLO(object):
                               image.height - (image.height % 32))
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
+        image_data /= 255.
+        image_data_keras = np.copy(image_data)
+        image_data_keras = image_data_keras.reshape(((1, ) + image_data_keras.shape))
         image_data = np.transpose(image_data, [2, 0, 1])
 
         print(image_data.shape)
-        image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-
-        r = self.session.run({'input_1_0': image_data},
+        '''
+        r = self.session.run({'input_1': image_data},
                                 ['conv2d_59_BiasAdd_01',
                                  'conv2d_67_BiasAdd_01',
                                  'conv2d_75_BiasAdd_01'])
+        '''
+        r = self.session.run(None, {'input_1:01': image_data})
+        feed_f = {'input_3:01': r[2],
+                  'input_4:01': r[1],
+                  'input_2:01': r[0]}
+        '''
+        feed_f = {'input_1_1:01': np.array([boxed_image.size[0], boxed_image.size[1]], dtype=np.float32),
+                  'input_3:01': r[1],
+                  'input_4:01': r[2],
+                  'input_2:01': r[0]}
+        '''
+        from onnx import numpy_helper
+        for k, v in feed_f.items():
+            tensor1 = numpy_helper.from_array(v, k)
+            with open(os.path.join('test_data', k.replace(':01', '.pb')), 'wb') as f:
+                f.write(tensor1.SerializeToString())
 
-        feed_f = dict(zip((n_.name for n_ in self.session_final.get_inputs()),
-             (r[0],
-              r[1],
-              r[2],
-              [image.size[1], image.size[0]])))
-        all_boxes, all_scores = self.session_final.run(feed_f)
+        all_boxes, all_scores = self.session_final.run(None, input_feed=feed_f)
+        model_path = self._get_data_path(self.model_path)
+        assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        # Load model, or construct model and load weights.
+        num_anchors = len(self.anchors)
+        num_classes = len(self.class_names)
+        is_tiny_version = num_anchors == 6  # default setting
+        try:
+            self.yolo_model = load_model(model_path, compile=False)
+        except:
+            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
+                if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
+            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+        else:
+            assert self.yolo_model.layers[-1].output_shape[-1] == \
+                   num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
+                'Mismatch between model and given anchor and class sizes'
+        r_e = self.yolo_model.predict(image_data_keras)
+        out_boxes, out_scores, out_classes = self.sess.run(
+            [self.boxes, self.scores, self.classes],
+            feed_dict={
+                self.yolo_model.input: image_data_keras,
+                self.input_image_shape: [boxed_image.size[1], boxed_image.size[0]],
+                K.learning_phase(): 0
+            })
+        res = all(np.allclose(r[n_], r_e[n_], rtol=1e-2, atol=1e-4) for n_ in range(len(r)))
 
         out_boxes, out_scores, out_classes = [], [], []
         for idx_, sc_ in np.ndenumerate(all_scores):
@@ -329,6 +385,8 @@ def detect_img(yolo, name):
 def on_StridedSlice(ctx, node, name, args):
     # node.type = "Reverse"
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
+    if name == "TFNodes/yolo_evaluation_layer_1/strided_slice":
+        aa = 1
     not_supported_attr = ["new_axis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
@@ -463,8 +521,21 @@ def on_StridedSlice(ctx, node, name, args):
 
 
 def on_Round(ctx, node, name, args):
+    '''
+    from onnx import onnx_pb
+    const_name = utils.make_name(node.name)
+    const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
+    cast_name = utils.make_name(node.name)
+    cast_node = ctx.insert_new_node_on_output("Cast", const_node.output[0], cast_name)
+    cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+    add_output_name = utils.make_name(node.name) + ':0'
+    add_node = ctx.make_node("Add", [node.input[0], cast_node.output[0]], shapes=[node.output_shapes[0]], dtypes=[node.output_dtypes], outputs=[add_output_name])
+    node.input[0] = add_output_name
     node.type = "Ceil"
-    return node
+    return [const_node, add_node, node]
+    '''
+    node.type = "Ceil"
 
 
 _custom_op_handlers = {
@@ -496,11 +567,21 @@ def convert_NMSLayer(scope, operator, container):
 
     layer = operator.raw_operator  # type: YOLONMSLayer
 
-    container.add_node("NonMaxSuppression", [box_batch, score_batch], operator.output_full_names,
-                       op_version=operator.target_opset, op_domain='com.microsoft',
-                       max_output_size=layer.max_boxes,
-                       iou_threshold=layer.iou_threshold,
-                       score_threshold=layer.score_threshold)
+    max_output_size = scope.get_unique_variable_name('max_output_size')
+    iou_threshold = scope.get_unique_variable_name('iou_threshold')
+    score_threshold = scope.get_unique_variable_name('layer.score_threshold')
+
+    container.add_initializer(max_output_size, onnx_proto.TensorProto.INT32,
+                              [1], [layer.max_boxes])
+    container.add_initializer(iou_threshold, onnx_proto.TensorProto.FLOAT,
+                              [1], [layer.iou_threshold])
+    container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
+                              [1], [layer.score_threshold])
+
+    container.add_node("NonMaxSuppression",
+                       [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
+                       operator.output_full_names + ['no_use'],
+                       op_version=operator.target_opset, op_domain='com.microsoft')
 
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
@@ -521,6 +602,7 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Need an image name to detect.")
         exit(-1)
+    #test_a = input('abc')
 
     if '-c' in sys.argv:
         convert_model(YOLO(), 'model_data/yolov3_0.onnx', 'model_data/yolov3_1.onnx')
