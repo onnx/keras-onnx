@@ -46,7 +46,8 @@ class YOLOEvaluationLayer(keras.layers.Layer):
 
     def call(self, inputs, **kwargs):
         """Evaluate YOLO model on given input and return filtered boxes."""
-        yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
+        yolo_outputs = inputs[0:3]
+        input_image_shape = K.squeeze(inputs[3], axis=0)
         num_layers = len(yolo_outputs)
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]] if num_layers == 3 else [[3, 4, 5],
                                                                                  [1, 2, 3]]  # default setting
@@ -243,15 +244,16 @@ class YOLO(object):
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
         r = self.session.run({'input_1_0': image_data},
-                                ['conv2d_59_BiasAdd_01',
-                                 'conv2d_67_BiasAdd_01',
-                                 'conv2d_75_BiasAdd_01'])
+                             ['conv2d_59_BiasAdd_01',
+                              'conv2d_67_BiasAdd_01',
+                              'conv2d_75_BiasAdd_01'])
 
         feed_f = dict(zip((n_.name for n_ in self.session_final.get_inputs()),
-             (r[0],
-              r[1],
-              r[2],
-              [image.size[1], image.size[0]])))
+                          ([boxed_image.size[1], boxed_image.size[0]],
+                           r[0],
+                           r[1],
+                           r[2],
+                           )))
         all_boxes, all_scores = self.session_final.run(feed_f)
 
         out_boxes, out_scores, out_classes = [], [], []
@@ -326,6 +328,7 @@ def detect_img(yolo, name):
     n_ext = name.rindex('.')
     score_file = name[0:n_ext] + '_score' + name[n_ext:]
     r_image.save(score_file, "JPEG")
+
 
 def on_StridedSlice(ctx, node, name, args):
     # node.type = "Reverse"
@@ -502,11 +505,11 @@ def convert_NMSLayer(scope, operator, container):
     score_threshold = scope.get_unique_variable_name('layer.score_threshold')
 
     container.add_initializer(max_output_size, onnx_proto.TensorProto.INT32,
-                              [1], [layer.max_boxes])
+                              [], [layer.max_boxes])
     container.add_initializer(iou_threshold, onnx_proto.TensorProto.FLOAT,
-                              [1], [layer.iou_threshold])
+                              [], [layer.iou_threshold])
     container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
-                              [1], [layer.score_threshold])
+                              [], [layer.score_threshold])
 
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
