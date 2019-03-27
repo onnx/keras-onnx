@@ -14,7 +14,7 @@ from keras.layers import Input
 from keras.models import load_model
 from keras2onnx import convert_keras
 from keras2onnx import set_converter
-from keras2onnx.common.onnx_ops import apply_transpose
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
 from keras2onnx.proto import onnx_proto
 from tf2onnx import utils
 
@@ -27,17 +27,11 @@ class YOLOEvaluationLayer(keras.layers.Layer):
 
     def __init__(self, **kwargs):
         super(YOLOEvaluationLayer, self).__init__()
-        self.max_boxes = kwargs.get('max_boxes', 20)
-        self.score_threshold = kwargs.get('score_threshold', .6)
-        self.iou_threshold = kwargs.get('iou_threshold', .5)
         self.anchors = np.array(kwargs.get('anchors'))
         self.num_classes = kwargs.get('num_classes')
 
     def get_config(self):
         config = {
-            "max_boxes": self.max_boxes,
-            "score_threshold": self.score_threshold,
-            "iou_threshold": self.iou_threshold,
             "anchors": self.anchors,
             "num_classes": self.num_classes,
         }
@@ -65,7 +59,7 @@ class YOLOEvaluationLayer(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, 4, None), (None, None)]
+        return [(None, 4), (None, None)]
 
 
 class YOLONMSLayer(keras.layers.Layer):
@@ -116,7 +110,7 @@ class YOLONMSLayer(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, None, None, 4), (None, None, None)]
+        return [(None, None, 4), (None, None, None)]
 
 
 class YOLO(object):
@@ -177,10 +171,10 @@ class YOLO(object):
                    num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
 
-        input_image_shape = keras.Input(shape=(2,))
-        y1 = keras.Input((None, None, 255), dtype='float32')
-        y2 = keras.Input((None, None, 255), dtype='float32')
-        y3 = keras.Input((None, None, 255), dtype='float32')
+        input_image_shape = keras.Input(shape=(2,), dtype='int32', name='image_shape')
+        y1 = keras.Input((None, None, 255), dtype='float32', name='y1')
+        y2 = keras.Input((None, None, 255), dtype='float32', name='y2')
+        y3 = keras.Input((None, None, 255), dtype='float32', name='y3')
 
         boxes, box_scores = \
             YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
@@ -243,18 +237,16 @@ class YOLO(object):
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
-        r = self.session.run({'input_1_0': image_data},
-                             ['conv2d_59_BiasAdd_01',
-                              'conv2d_67_BiasAdd_01',
-                              'conv2d_75_BiasAdd_01'])
+        r = self.session.run(['conv2d_59_BiasAdd_0',
+                              'conv2d_67_BiasAdd_0',
+                              'conv2d_75_BiasAdd_0'], input_feed={'input_1_01': image_data})
 
-        feed_f = dict(zip((n_.name for n_ in self.session_final.get_inputs()),
-                          ([boxed_image.size[1], boxed_image.size[0]],
+        feed_f = dict(zip(['image_shape:01', 'y1:01', 'y2:01', 'y3:01'],
+                          (np.array([boxed_image.size[1], boxed_image.size[0]], dtype=np.int32).reshape(1, 2),
                            r[0],
                            r[1],
-                           r[2],
-                           )))
-        all_boxes, all_scores = self.session_final.run(feed_f)
+                           r[2])))
+        all_boxes, all_scores = self.session_final.run(None, input_feed=feed_f)
 
         out_boxes, out_scores, out_classes = [], [], []
         for idx_, sc_ in np.ndenumerate(all_scores):
@@ -413,7 +405,7 @@ def on_StridedSlice(ctx, node, name, args):
     ctx.remove_input(node, node.input[2])
     ctx.remove_input(node, node.input[1])
     nodes = [node]
-    use_reverse_op = False
+    use_reverse_op = True
     reverse_flag = False
     if use_reverse_op and len(reverse_axes) > 0:
         name = utils.make_name(node.name)
@@ -467,8 +459,18 @@ def on_StridedSlice(ctx, node, name, args):
 
 
 def on_Round(ctx, node, name, args):
+    from onnx import onnx_pb
+    const_name = utils.make_name(node.name)
+    const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
+    cast_name = utils.make_name(node.name)
+    cast_node = ctx.insert_new_node_on_output("Cast", const_node.output[0], cast_name)
+    cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+    add_output_name = utils.make_name(node.name) + ':0'
+    add_node = ctx.make_node("Add", [node.input[0], cast_node.output[0]], shapes=[node.output_shapes[0]], dtypes=[node.output_dtypes], outputs=[add_output_name])
+    node.input[0] = add_output_name
     node.type = "Ceil"
-    return node
+    return [const_node, add_node, node]
 
 
 _custom_op_handlers = {
@@ -487,14 +489,15 @@ def convert_NMSLayer(scope, operator, container):
     box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
     score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
 
-    apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    # apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    apply_identity(scope, operator.inputs[0].full_name, box_transpose, container)
     apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
 
     box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
     score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
 
     container.add_node("Unsqueeze", box_transpose,
-                       box_batch, op_version=operator.target_opset, axes=[0])
+                       box_batch, op_version=operator.target_opset, axes=[0, 1])
     container.add_node("Unsqueeze", score_transpose,
                        score_batch, op_version=operator.target_opset, axes=[0])
 
@@ -511,10 +514,12 @@ def convert_NMSLayer(scope, operator, container):
     container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
                               [], [layer.score_threshold])
 
+    nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
                        operator.output_full_names + ['no_use'],
-                       op_version=operator.target_opset, op_domain='com.microsoft')
+                       op_version=operator.target_opset, op_domain='com.microsoft',
+                       name=nms_node.name)
 
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
@@ -524,7 +529,7 @@ def convert_model(yolo, name0, name1):
     yolo.load_model()
     if not os.path.exists(name0):
         onnxmodel = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'],
-                                  debug_mode=True, custom_op_conversions=_custom_op_handlers)
+                                  debug_mode=True, custom_op_conversions=_custom_op_handlers, target_opset=10)
         onnx.save_model(onnxmodel, name0)
 
     oxmlfinal = convert_keras(yolo.final_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
