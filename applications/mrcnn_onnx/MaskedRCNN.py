@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import numpy as np
 
@@ -7,6 +8,7 @@ from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
 
 import onnx
+import tf2onnx
 import keras2onnx
 
 from mrcnn.config import Config
@@ -321,13 +323,187 @@ def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
-set_converter(ProposalLayer, convert_ProposalLayer)
-set_converter(PyramidROIAlign, convert_PyramidROIAlign)
-set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
-set_converter(DetectionLayer, convert_DetectionLayer)
+def on_topK(ctx, node, name, args):
+    from onnx import onnx_pb
+    # T values, int32 indices = TopKV2(T input, int32 k, @bool sorted=true, @realnumbertype T)
+    # T values, I indices = TopK(T x, @int axis=-1, @int k). I: int64
+    topk_node_name = node.name
+    topk_output1 = node.output[0]
+    topk_output2 = node.output[1]
+
+    shapes = node.output_shapes
+    dtypes = node.output_dtypes
+    # k = node.inputs[1].get_tensor_value()
+    k = 2000
+    ctx.remove_node(topk_node_name)
+    new_topk_name = tf2onnx.utils.make_name(topk_node_name)
+    new_topk_node = ctx.make_node("TopK", [node.input[0]],
+                                  outputs=[topk_output1, tf2onnx.utils.port_name(new_topk_name, 1)],
+                                  name=new_topk_name, attr={"k": k},
+                                  shapes=shapes, dtypes=[dtypes[0], onnx_pb.TensorProto.INT64])
+
+    new_cast_name = tf2onnx.utils.make_name(topk_node_name)
+    cast_to_int32 = ctx.make_node("Cast", [new_topk_node.output[1]], outputs=[topk_output2],
+                                  name=new_cast_name, attr={"to": onnx_pb.TensorProto.INT32},
+                                  shapes=[shapes[1]], dtypes=[onnx_pb.TensorProto.INT32])
+
+
+
+
+def on_StridedSlice(ctx, node, name, args):
+    # node.type = "Reverse"
+    # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
+    not_supported_attr = ["new_axis_mask"]
+    for attr_name in not_supported_attr:
+        attr = node.get_attr(attr_name)
+        if attr is not None and attr.i != 0:
+            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
+    input_shape = ctx.get_shape(node.input[0])
+    begin = node.inputs[1].get_tensor_value()
+    end = node.inputs[2].get_tensor_value()
+    strides = node.inputs[3].get_tensor_value()
+    max_size = sys.maxsize
+    begin_mask = node.get_attr("begin_mask")
+    begin_mask = begin_mask.i if begin_mask is not None else 0
+    end_mask = node.get_attr("end_mask")
+    end_mask = end_mask.i if end_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
+    shrink_axis_mask = node.get_attr("shrink_axis_mask")
+    shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
+    new_begin = []
+    new_end = []
+    axes = []
+    # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
+    needs_squeeze = []
+    reverse_axes = []
+    for idx, begin_item in enumerate(begin):
+        end_item = end[idx]
+        if strides[idx] == -1:
+            reverse_axes.append(idx)
+        # if strides[idx] != 1:
+        # raise ValueError("StridedSlice: only strides=1 is supported, current stride =" + str(strides[idx]))
+        axes.append(idx)
+
+        if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
+            new_begin.append(0)
+            new_end.append(max_size)
+            continue
+
+        if begin_item == 0 and end_item == 0:
+            new_begin.append(0)
+            new_end.append(max_size)
+            continue
+
+        # an implicit condition is stride == 1 (checked in above)
+        if begin_item < 0 and end_item == 0:
+            end_item = max_size
+
+        mask = (shrink_axis_mask >> idx) & 1
+        if mask != 0:
+            new_begin.append(begin_item)
+            new_end.append(end_item)
+            if begin_item == 0 and end_item == 0:
+                aa = 1
+            needs_squeeze.append(idx)
+            continue
+
+        if (begin_mask >> idx) & 1 != 0:
+            new_begin.append(0)
+            new_end.append(end_item)
+            if end_item == 0:
+                aa = 1
+            continue
+
+        if (end_mask >> idx) & 1 != 0:
+            new_begin.append(begin_item)
+            new_end.append(max_size)
+            continue
+
+        if begin_item == 0 and end_item == 0:
+            aa = 1
+        new_begin.append(begin_item)
+        new_end.append(end_item)
+
+    node.set_attr("starts", new_begin)
+    node.set_attr("ends", new_end)
+    node.set_attr("axes", axes)
+    node.type = "Slice"
+    ctx.remove_input(node, node.input[3])
+    ctx.remove_input(node, node.input[2])
+    ctx.remove_input(node, node.input[1])
+    nodes = [node]
+    use_reverse_op = False
+    reverse_flag = False
+    if use_reverse_op and len(reverse_axes) > 0:
+        name = tf2onnx.utils.make_name(node.name)
+        name = name + '_reverse'
+        reverse_node = ctx.insert_new_node_on_output("Reverse", node.output[0], name)
+        reverse_node.set_attr("axes", reverse_axes)
+        reverse_node.domain = 'com.microsoft'
+        nodes.append(reverse_node)
+        input_dtype = ctx.get_dtype(node.output[0])
+        ctx.set_dtype(reverse_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], reverse_node.output[0])
+        reverse_flag = True
+
+    if needs_squeeze:
+        name = tf2onnx.utils.make_name(node.name)
+        if use_reverse_op:
+            if reverse_flag:
+                squeeze_node = ctx.insert_new_node_on_output("Squeeze", reverse_node.output[0], name)
+            else:
+                squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        else:
+            squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        squeeze_node.set_attr("axes", needs_squeeze)
+        nodes.append(squeeze_node)
+        input_dtype = ctx.get_dtype(node.output[0])
+        ctx.set_dtype(squeeze_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], squeeze_node.output[0])
+
+    # onnx slice as of opset 7 does only take float tensors ... cast if needed
+    '''
+    input_dtype = ctx.get_dtype(node.input[0])
+    if input_dtype != onnx_pb.TensorProto.FLOAT:
+        if node.inputs[0].type == "Cast":
+            # override the previous cast
+            cast_node = node.inputs[0]
+        else:
+            cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
+            nodes.insert(0, cast_node)
+        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+        ctx.copy_shape(node.input[0], cast_node.output[0])
+        # undo the cast afer slice
+        name = utils.make_name(node.name)
+        cast_node = ctx.insert_new_node_on_output("Cast", nodes[-1].output[0], name)
+        cast_node.set_attr("to", input_dtype)
+        ctx.set_dtype(cast_node.output[0], input_dtype)
+        ctx.copy_shape(node.output[0], cast_node.output[0])
+        nodes.append(cast_node)
+    '''
+    return nodes
+
+
+def on_Round(ctx, node, name, args):
+    node.type = "Ceil"
+    return node
+
+
+_custom_op_handlers = {
+    'Round': (on_Round, []),
+    'TopKV2': (on_topK, []),
+    'StridedSlice': (on_StridedSlice, [])}
+
+
+# set_converter(ProposalLayer, convert_ProposalLayer)
+# set_converter(PyramidROIAlign, convert_PyramidROIAlign)
+# set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
+# set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
-oml = keras2onnx.convert_keras(model.keras_model)
+oml = keras2onnx.convert_keras(model.keras_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
 onnx.save_model(oml, './mrcnn.onnx')
 
 # class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',

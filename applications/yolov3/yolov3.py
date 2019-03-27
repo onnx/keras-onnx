@@ -14,7 +14,7 @@ from keras.layers import Input
 from keras.models import load_model
 from keras2onnx import convert_keras
 from keras2onnx import set_converter
-from keras2onnx.common.onnx_ops import apply_transpose
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
 from keras2onnx.proto import onnx_proto
 from tf2onnx import utils
 
@@ -22,37 +22,27 @@ import yolo3
 from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body, yolo_boxes_and_scores
 from yolo3.utils import letterbox_image
 
+g_use_nms = True
 
 class YOLOEvaluationLayer(keras.layers.Layer):
 
     def __init__(self, **kwargs):
         super(YOLOEvaluationLayer, self).__init__()
-        self.max_boxes = kwargs.get('max_boxes', 20)
-        self.score_threshold = kwargs.get('score_threshold', .6)
-        self.iou_threshold = kwargs.get('iou_threshold', .5)
         self.anchors = np.array(kwargs.get('anchors'))
         self.num_classes = kwargs.get('num_classes')
-        self.img_width = kwargs.get('img_width')
-        self.img_height = kwargs.get('img_height')
 
     def get_config(self):
         config = {
-            "max_boxes": self.max_boxes,
-            "score_threshold": self.score_threshold,
-            "iou_threshold": self.iou_threshold,
             "anchors": self.anchors,
             "num_classes": self.num_classes,
-            "img_width": self.img_width,
-            "img_height": self.img_height,
         }
 
         return config
 
     def call(self, inputs, **kwargs):
         """Evaluate YOLO model on given input and return filtered boxes."""
-        # yolo_outputs, input_image_shape = (inputs[0:3], inputs[3])
         yolo_outputs = inputs[0:3]
-        input_image_shape = np.array([self.img_width, self.img_height])
+        input_image_shape = K.squeeze(inputs[3], axis=0)
         num_layers = len(yolo_outputs)
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]] if num_layers == 3 else [[3, 4, 5],
                                                                                  [1, 2, 3]]  # default setting
@@ -70,7 +60,7 @@ class YOLOEvaluationLayer(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, 4, None), (None, None)]
+        return [(None, 4), (None, None)]
 
 
 class YOLONMSLayer(keras.layers.Layer):
@@ -121,7 +111,7 @@ class YOLONMSLayer(keras.layers.Layer):
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, None, None, 4), (None, None, None)]
+        return [(None, None, 4), (None, None, None)]
 
 
 class YOLO(object):
@@ -135,8 +125,10 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.model_image_size = (416, 416)  # fixed size or (None, None), hw
-        #self.boxes, self.scores, self.classes = self.generate()
-        self.boxes, self.scores= self.generate()
+        if g_use_nms:
+            self.boxes, self.scores, self.classes = self.generate()
+        else:
+            self.boxes, self.scores= self.generate()
         self.session = None
         self.session_final = None
         self.final_model = None
@@ -183,24 +175,24 @@ class YOLO(object):
                    num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
 
-        input_image_shape = keras.Input(shape=(2,))
-        y1 = keras.Input((None, None, 255), dtype='float32')
-        y2 = keras.Input((None, None, 255), dtype='float32')
-        y3 = keras.Input((None, None, 255), dtype='float32')
+        input_image_shape = keras.Input(shape=(2,), dtype='int32', name='image_shape')
+        y1 = keras.Input((None, None, 255), dtype='float32', name='y1')
+        y2 = keras.Input((None, None, 255), dtype='float32', name='y2')
+        y3 = keras.Input((None, None, 255), dtype='float32', name='y3')
 
         boxes, box_scores = \
-            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names), img_width = self.model_image_size[0], img_height = self.model_image_size[1])(
+            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[y1, y2, y3, input_image_shape])
 
-        out_boxes, out_scores = \
-            YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
-                inputs=[boxes, box_scores])
-        '''
-        self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
-                                       outputs=[out_boxes, out_scores])
-        '''
-        self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
-                                       outputs=[boxes, box_scores])
+        if g_use_nms:
+            out_boxes, out_scores = \
+                YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
+                    inputs=[boxes, box_scores])
+            self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
+                                           outputs=[out_boxes, out_scores])
+        else:
+            self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
+                                           outputs=[boxes, box_scores])
         self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -228,18 +220,19 @@ class YOLO(object):
 
         # Generate output tensor targets for filtered bounding boxes.
         self.input_image_shape = K.placeholder(shape=(2,))
-        '''
-        boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
-                                           len(self.class_names), self.input_image_shape,
-                                           score_threshold=self.score, iou_threshold=self.iou)
-   
-        return boxes, scores, classes
-        '''
-        boxes, scores = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
-                                           len(self.class_names), self.input_image_shape,
-                                           score_threshold=self.score, iou_threshold=self.iou)
 
-        return boxes, scores
+        if g_use_nms:
+            boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
+                                               len(self.class_names), self.input_image_shape,
+                                               score_threshold=self.score, iou_threshold=self.iou)
+
+            return boxes, scores, classes
+        else:
+            boxes, scores = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
+                                      len(self.class_names), self.input_image_shape,
+                                      score_threshold=self.score, iou_threshold=self.iou)
+
+            return boxes, scores
 
     def detect_with_onnx(self, image):
         start = timer()
@@ -254,60 +247,17 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
         image_data /= 255.
-        image_data_keras = np.copy(image_data)
-        image_data_keras = image_data_keras.reshape(((1, ) + image_data_keras.shape))
         image_data = np.transpose(image_data, [2, 0, 1])
 
         print(image_data.shape)
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-        '''
-        r = self.session.run({'input_1': image_data},
-                                ['conv2d_59_BiasAdd_01',
-                                 'conv2d_67_BiasAdd_01',
-                                 'conv2d_75_BiasAdd_01'])
-        '''
-        r = self.session.run(None, {'input_1:01': image_data})
-        feed_f = {'input_3:01': r[2],
-                  'input_4:01': r[1],
-                  'input_2:01': r[0]}
-        '''
-        feed_f = {'input_1_1:01': np.array([boxed_image.size[0], boxed_image.size[1]], dtype=np.float32),
-                  'input_3:01': r[1],
-                  'input_4:01': r[2],
-                  'input_2:01': r[0]}
-        '''
-        from onnx import numpy_helper
-        for k, v in feed_f.items():
-            tensor1 = numpy_helper.from_array(v, k)
-            with open(os.path.join('test_data', k.replace(':01', '.pb')), 'wb') as f:
-                f.write(tensor1.SerializeToString())
-
+        r = self.session.run(None, input_feed={'input_1:01': image_data})
+        feed_f = dict(zip(['image_shape:01', 'y1:01', 'y2:01', 'y3:01'],
+                          (np.array([image.size[1], image.size[0]], dtype=np.int32).reshape(1, 2),
+                           r[0],
+                           r[1],
+                           r[2])))
         all_boxes, all_scores = self.session_final.run(None, input_feed=feed_f)
-        model_path = self._get_data_path(self.model_path)
-        assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
-        # Load model, or construct model and load weights.
-        num_anchors = len(self.anchors)
-        num_classes = len(self.class_names)
-        is_tiny_version = num_anchors == 6  # default setting
-        try:
-            self.yolo_model = load_model(model_path, compile=False)
-        except:
-            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
-                if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
-            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
-        else:
-            assert self.yolo_model.layers[-1].output_shape[-1] == \
-                   num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
-                'Mismatch between model and given anchor and class sizes'
-        r_e = self.yolo_model.predict(image_data_keras)
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [self.boxes, self.scores, self.classes],
-            feed_dict={
-                self.yolo_model.input: image_data_keras,
-                self.input_image_shape: [boxed_image.size[1], boxed_image.size[0]],
-                K.learning_phase(): 0
-            })
-        res = all(np.allclose(r[n_], r_e[n_], rtol=1e-2, atol=1e-4) for n_ in range(len(r)))
 
         out_boxes, out_scores, out_classes = [], [], []
         for idx_, sc_ in np.ndenumerate(all_scores):
@@ -382,11 +332,10 @@ def detect_img(yolo, name):
     score_file = name[0:n_ext] + '_score' + name[n_ext:]
     r_image.save(score_file, "JPEG")
 
+
 def on_StridedSlice(ctx, node, name, args):
     # node.type = "Reverse"
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    if name == "TFNodes/yolo_evaluation_layer_1/strided_slice":
-        aa = 1
     not_supported_attr = ["new_axis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
@@ -437,16 +386,12 @@ def on_StridedSlice(ctx, node, name, args):
         if mask != 0:
             new_begin.append(begin_item)
             new_end.append(end_item)
-            if begin_item == 0 and end_item == 0:
-                aa = 1
             needs_squeeze.append(idx)
             continue
 
         if (begin_mask >> idx) & 1 != 0:
             new_begin.append(0)
             new_end.append(end_item)
-            if end_item == 0:
-                aa = 1
             continue
 
         if (end_mask >> idx) & 1 != 0:
@@ -454,8 +399,6 @@ def on_StridedSlice(ctx, node, name, args):
             new_end.append(max_size)
             continue
 
-        if begin_item == 0 and end_item == 0:
-            aa = 1
         new_begin.append(begin_item)
         new_end.append(end_item)
 
@@ -467,7 +410,7 @@ def on_StridedSlice(ctx, node, name, args):
     ctx.remove_input(node, node.input[2])
     ctx.remove_input(node, node.input[1])
     nodes = [node]
-    use_reverse_op = False
+    use_reverse_op = True
     reverse_flag = False
     if use_reverse_op and len(reverse_axes) > 0:
         name = utils.make_name(node.name)
@@ -521,7 +464,6 @@ def on_StridedSlice(ctx, node, name, args):
 
 
 def on_Round(ctx, node, name, args):
-    '''
     from onnx import onnx_pb
     const_name = utils.make_name(node.name)
     const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
@@ -534,8 +476,6 @@ def on_Round(ctx, node, name, args):
     node.input[0] = add_output_name
     node.type = "Ceil"
     return [const_node, add_node, node]
-    '''
-    node.type = "Ceil"
 
 
 _custom_op_handlers = {
@@ -554,14 +494,15 @@ def convert_NMSLayer(scope, operator, container):
     box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
     score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
 
-    apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    # apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    apply_identity(scope, operator.inputs[0].full_name, box_transpose, container)
     apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
 
     box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
     score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
 
     container.add_node("Unsqueeze", box_transpose,
-                       box_batch, op_version=operator.target_opset, axes=[0])
+                       box_batch, op_version=operator.target_opset, axes=[0, 1])
     container.add_node("Unsqueeze", score_transpose,
                        score_batch, op_version=operator.target_opset, axes=[0])
 
@@ -572,16 +513,18 @@ def convert_NMSLayer(scope, operator, container):
     score_threshold = scope.get_unique_variable_name('layer.score_threshold')
 
     container.add_initializer(max_output_size, onnx_proto.TensorProto.INT32,
-                              [1], [layer.max_boxes])
+                              [], [layer.max_boxes])
     container.add_initializer(iou_threshold, onnx_proto.TensorProto.FLOAT,
-                              [1], [layer.iou_threshold])
+                              [], [layer.iou_threshold])
     container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
-                              [1], [layer.score_threshold])
+                              [], [layer.score_threshold])
 
+    nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
                        operator.output_full_names + ['no_use'],
-                       op_version=operator.target_opset, op_domain='com.microsoft')
+                       op_version=operator.target_opset, op_domain='com.microsoft',
+                       name=nms_node.name)
 
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
@@ -591,7 +534,7 @@ def convert_model(yolo, name0, name1):
     yolo.load_model()
     if not os.path.exists(name0):
         onnxmodel = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'],
-                                  debug_mode=True, custom_op_conversions=_custom_op_handlers)
+                                  debug_mode=True, custom_op_conversions=_custom_op_handlers, target_opset=10)
         onnx.save_model(onnxmodel, name0)
 
     oxmlfinal = convert_keras(yolo.final_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
@@ -602,7 +545,6 @@ if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("Need an image name to detect.")
         exit(-1)
-    #test_a = input('abc')
 
     if '-c' in sys.argv:
         convert_model(YOLO(), 'model_data/yolov3_0.onnx', 'model_data/yolov3_1.onnx')
