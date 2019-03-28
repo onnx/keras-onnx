@@ -496,8 +496,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
     def test_simpleRNN(self):
-        from keras.layers import SimpleRNN
-        inputs1 = keras.Input(shape=(3, 1))
+        from keras.layers import Input, Dense, SimpleRNN
+        inputs1 = Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
         model = keras.Model(inputs=inputs1, outputs=[oname])
@@ -506,6 +506,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
+        input = Input(shape=(1, 2))
+        state = Input(shape=(5,))
+        hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(input, initial_state=[state])
+        output = Dense(2, activation='sigmoid')(hidden_1)
+        keras_model = keras.Model(inputs=[input, state], outputs=output)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+
+        N, H, W, C = 3, 1, 2, 5
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
 
     def test_GRU(self):
         from keras.layers import GRU
