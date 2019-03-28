@@ -13,8 +13,11 @@ from .common import extract_recurrent_activation
 def convert_keras_simple_rnn(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_size = op.input_shape[-1]
-    seq_length = op.input_shape[-2]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
+    seq_length = input_shape[-2]
     output_seq = op.return_sequences
     reverse_input = op.go_backwards
 
@@ -47,7 +50,14 @@ def convert_keras_simple_rnn(scope, operator, container):
     # sequence_lens is not able to be converted from input_length
     rnn_input_names.append('')
     # inital_h: none
-    rnn_input_names.append('')
+    if len(operator.inputs) == 1:
+        rnn_input_names.append('')
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        input_reshape_name = scope.get_unique_variable_name('input_reshape')
+        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
+                      desired_shape=[1, -1, hidden_size])
+        rnn_input_names.append(input_reshape_name)
 
     if hasattr(op, 'activation'):
         activation_type, alpha, beta = extract_recurrent_activation(op.activation)
