@@ -107,11 +107,11 @@ class YOLONMSLayer(keras.layers.Layer):
 
         boxes_r = tf.expand_dims(tf.expand_dims(boxes_, 0), 0)
         scores_r = tf.expand_dims(tf.expand_dims(scores_, 0), 0)
-        return [boxes_r, scores_r]
+        return [boxes_r, scores_r, classes_]
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, None, 4), (None, None, None)]
+        return [(None, None, 4), (None, None, None), (None, None)]
 
 
 class YOLO(object):
@@ -185,14 +185,15 @@ class YOLO(object):
                 inputs=[y1, y2, y3, input_image_shape])
 
         if g_use_nms:
-            out_boxes, out_scores = \
+            out_boxes, out_scores, out_indices = \
                 YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                     inputs=[boxes, box_scores])
             self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
-                                           outputs=[out_boxes, out_scores])
+                                           outputs=[out_boxes, out_scores, out_indices])
         else:
             self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
                                            outputs=[boxes, box_scores])
+
         self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -251,20 +252,20 @@ class YOLO(object):
 
         print(image_data.shape)
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-        r = self.session.run(None, input_feed={'input_1:01': image_data})
+        r = self.session.run(None, input_feed={'input_1_01': image_data})
         feed_f = dict(zip(['image_shape:01', 'y1:01', 'y2:01', 'y3:01'],
                           (np.array([image.size[1], image.size[0]], dtype=np.int32).reshape(1, 2),
                            r[0],
                            r[1],
                            r[2])))
-        all_boxes, all_scores = self.session_final.run(None, input_feed=feed_f)
+        all_boxes, all_scores, indices = self.session_final.run(None, input_feed=feed_f)
 
         out_boxes, out_scores, out_classes = [], [], []
-        for idx_, sc_ in np.ndenumerate(all_scores):
-            if sc_ > 0.0:
-                out_classes.append(idx_[1])
-                out_scores.append(all_scores[idx_])
-                out_boxes.append(all_boxes[idx_])
+        for idx_ in indices:
+            out_classes.append(idx_[1])
+            out_scores.append(all_scores[tuple(idx_)])
+            idx_1 = (idx_[0], 0, idx_[2])
+            out_boxes.append(all_boxes[idx_1])
 
         """
         out_boxes, out_scores, out_classes = self.sess.run(
@@ -377,9 +378,12 @@ def convert_NMSLayer(scope, operator, container):
     nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
-                       operator.output_full_names + ['no_use'],
+                       operator.output_full_names[2],
                        op_version=operator.target_opset, op_domain='com.microsoft',
                        name=nms_node.name)
+
+    apply_identity(scope, box_batch, operator.output_full_names[0], container)
+    apply_identity(scope, score_batch, operator.output_full_names[1], container)
 
 
 set_converter(YOLONMSLayer, convert_NMSLayer)

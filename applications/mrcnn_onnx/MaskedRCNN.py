@@ -294,8 +294,6 @@ from keras2onnx import set_converter
 from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
 from mrcnn.model import ProposalLayer, PyramidROIAlign, DetectionTargetLayer, DetectionLayer, BatchNorm
 
-from keras2onnx.subgraph import create_subgraph
-
 
 def create_onnx_node(scope, operator, container, type):
     # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer, str) -> None
@@ -323,6 +321,10 @@ def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
+def on_Pad(ctx, node, name, args):
+    node.type = 'PadV2'
+    return node
+
 def on_topK(ctx, node, name, args):
     from onnx import onnx_pb
     # T values, int32 indices = TopKV2(T input, int32 k, @bool sorted=true, @realnumbertype T)
@@ -348,12 +350,10 @@ def on_topK(ctx, node, name, args):
                                   shapes=[shapes[1]], dtypes=[onnx_pb.TensorProto.INT32])
 
 
-
-
 def on_StridedSlice(ctx, node, name, args):
     # node.type = "Reverse"
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    not_supported_attr = ["new_axis_mask"]
+    not_supported_attr = [] #"new_axis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
         if attr is not None and attr.i != 0:
@@ -494,13 +494,15 @@ def on_Round(ctx, node, name, args):
 _custom_op_handlers = {
     'Round': (on_Round, []),
     'TopKV2': (on_topK, []),
+    'Pad': (on_Pad, []),
+    'PadV2': (on_Pad, []),
     'StridedSlice': (on_StridedSlice, [])}
 
 
-# set_converter(ProposalLayer, convert_ProposalLayer)
-# set_converter(PyramidROIAlign, convert_PyramidROIAlign)
-# set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
-# set_converter(DetectionLayer, convert_DetectionLayer)
+set_converter(ProposalLayer, convert_ProposalLayer)
+set_converter(PyramidROIAlign, convert_PyramidROIAlign)
+set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
+set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
 oml = keras2onnx.convert_keras(model.keras_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
