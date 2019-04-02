@@ -5,6 +5,7 @@
 ###############################################################################
 from .common.onnx_ops import apply_identity, apply_reshape
 from .funcbook import set_converter
+from .ke2onnx.main import apply_reshape
 
 
 def default_convert(scope, operator, container):
