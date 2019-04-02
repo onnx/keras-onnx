@@ -6,6 +6,7 @@
 from .common.onnx_ops import apply_identity, apply_reshape
 from .funcbook import set_converter
 
+
 def default_convert(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
