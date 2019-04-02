@@ -507,6 +507,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+        # with initial state
         inputs2 = Input(shape=(1, 2))
         state = Input(shape=(5,))
         hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
@@ -515,6 +516,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
 
         N, H, W, C = 3, 1, 2, 5
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
+
+        # with initial state and output state
+        input = Input(shape=(1, 2))
+        state_in = Input(shape=(10,))
+        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+                                  initial_state=[state_in])
+        output = Dense(2, activation='linear')(hidden_1)
+        keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        N, H, W, C = 3, 1, 2, 10
         x = np.random.rand(N, H, W).astype(np.float32, copy=False)
         s = np.random.rand(N, C).astype(np.float32, copy=False)
         expected = keras_model.predict([x, s])

@@ -19,6 +19,7 @@ def convert_keras_simple_rnn(scope, operator, container):
     input_size = input_shape[-1]
     seq_length = input_shape[-2]
     output_seq = op.return_sequences
+    output_state = op.return_state
     reverse_input = op.go_backwards
 
     attrs = {'name': operator.full_name}
@@ -95,3 +96,6 @@ def convert_keras_simple_rnn(scope, operator, container):
     else:
         # Here we ingore ONNX RNN's first output because it's useless.
         apply_reshape(scope, rnn_h_name, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
+
+    if output_state:
+        apply_reshape(scope, rnn_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
