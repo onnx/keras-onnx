@@ -491,13 +491,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 3)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
+        self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 3)
         self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
     def test_simpleRNN(self):
-        SimpleRNN = keras.layers.SimpleRNN
-        inputs1 = keras.Input(shape=(3, 1))
+        from keras.layers import Input, Dense, SimpleRNN
+        inputs1 = Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
         model = keras.Model(inputs=inputs1, outputs=[oname])
@@ -506,6 +507,35 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
+        # with initial state
+        inputs2 = Input(shape=(1, 2))
+        state = Input(shape=(5,))
+        hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
+        output = Dense(2, activation='sigmoid')(hidden_1)
+        keras_model = keras.Model(inputs=[inputs2, state], outputs=output)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+
+        N, H, W, C = 3, 1, 2, 5
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
+
+        # with initial state and output state
+        input = Input(shape=(1, 2))
+        state_in = Input(shape=(10,))
+        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+                                  initial_state=[state_in])
+        output = Dense(2, activation='linear')(hidden_1)
+        keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        N, H, W, C = 3, 1, 2, 10
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
 
     def test_GRU(self):
         GRU = keras.layers.GRU
@@ -642,6 +672,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = [x, 2 * x]
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
+
+    def test_timedistributed(self):
+        from keras import Sequential
+        from keras.layers import TimeDistributed, Dense, Conv2D
+
+        keras_model = Sequential()
+        keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
+        # keras_model.output_shape == (None, 10, 8)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(32, 10, 16).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+        keras_model = Sequential()
+        N, D, W, H, C = 5, 10, 15, 15, 3
+        keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
+                                  input_shape=(D, W, H, C)))
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(N, D, W, H, C).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_channel_first_input(self):
         N, W, H, C = 2, 5, 6, 3
