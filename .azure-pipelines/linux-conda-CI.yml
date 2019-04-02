@@ -24,7 +24,7 @@ jobs:
         python.version: '3.6'
         ONNX_PATH: onnx==1.4.1
         KERAS: keras
-        TF2ONNX: tf2onnx==0.4.2
+        TF2ONNX: tf2onnx
 
     maxParallel: 3
 
