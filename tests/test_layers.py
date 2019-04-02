@@ -651,6 +651,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
 
+    def test_timedistributed(self):
+        from keras import Sequential
+        from keras.layers import TimeDistributed, Dense, Conv2D
+
+        keras_model = Sequential()
+        keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
+        # keras_model.output_shape == (None, 10, 8)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(32, 10, 16).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+        keras_model = Sequential()
+        N, D, W, H, C = 5, 10, 15, 15, 3
+        keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
+                                  input_shape=(D, W, H, C)))
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(N, D, W, H, C).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
     def test_channel_first_input(self):
         N, W, H, C = 2, 5, 6, 3
         inp1 = keras.layers.Input(batch_shape=(N, W, H, C), name='input1')
