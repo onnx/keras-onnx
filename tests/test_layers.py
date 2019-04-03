@@ -91,6 +91,70 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
+    def test_unet(self):
+        import onnx
+        from keras.models import load_model
+        model = load_model(filepath="unet_model.h5")
+        onnx_model = keras2onnx.convert_keras(model=model, channel_first_inputs="input_1", debug_mode=True)
+        # onnx_model = keras2onnx.convert_keras(model=model, debug_mode=True)
+        onnx.save_model(onnx_model, "new_unet_0.onnx")
+
+        N, W, H, C = 2, 256, 512, 3
+        data1 = np.random.rand(N, W, H, C).astype(np.float32).reshape((N, W, H, C))
+        data_transpose = np.transpose(data1, (0, 3, 1, 2))
+        expected = model.predict(data1)
+        self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data_transpose, expected))
+
+    def test_unet_1(self):
+        from keras.models import load_model, save_model
+        from keras.layers import Input
+        model = keras.Sequential()
+        from onnx import numpy_helper
+        tensor = onnx.TensorProto()
+        with open('conv_weight_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        conv_weight = numpy_helper.to_array(tensor)
+        tensor = onnx.TensorProto()
+        with open('conv_bias_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        conv_bias = numpy_helper.to_array(tensor)
+        with open('bn_gamma_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        bn_gamma = numpy_helper.to_array(tensor)
+        tensor = onnx.TensorProto()
+        with open('bn_beta_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        bn_beta = numpy_helper.to_array(tensor)
+        with open('bn_mean_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        bn_mean = numpy_helper.to_array(tensor)
+        tensor = onnx.TensorProto()
+        with open('bn_variance_0.pb', 'rb') as f:
+            tensor.ParseFromString(f.read())
+        bn_variance = numpy_helper.to_array(tensor)
+        inputs = Input((256, 512, 3))
+        model.add(keras.layers.Conv2D(input_shape=(256, 512, 3), filters=64, kernel_size=(3, 3), strides=(1, 1),
+                                      padding="same", data_format="channels_last", dilation_rate=(1, 1),
+                                      activation="linear", use_bias=True))
+        model.add(keras.layers.BatchNormalization(
+            axis=-1,
+            momentum=0.99,
+            epsilon=0.001,
+            center=True,
+            scale=True
+        ))
+        model.add(keras.layers.Activation(activation="relu"))
+        model.layers[0].set_weights([conv_weight, conv_bias])
+        model.layers[1].set_weights([bn_gamma, bn_beta, bn_mean, bn_variance])
+        model.save('unet_1.h5')
+        onnx_model = keras2onnx.convert_keras(model=model, channel_first_inputs="conv2d_1_input_01", debug_mode=True)
+        onnx.save_model(onnx_model, "new_unet.onnx")
+        N, W, H, C = 2, 256, 512, 3
+        data1 = np.random.rand(N, W, H, C).astype(np.float32).reshape((N, W, H, C))
+        data_transpose = np.transpose(data1, (0, 3, 1, 2))
+        expected = model.predict(data1)
+        self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data_transpose, expected))
+
     def test_dense(self):
         for bias_value in [True, False]:
             model = keras.Sequential()

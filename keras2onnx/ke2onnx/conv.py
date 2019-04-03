@@ -84,7 +84,17 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     op_type = 'ConvTranspose' if is_transpose else 'Conv'
     convolution_input_names = [adjusted_input_name]
     parameters = op.get_weights()
-
+    '''
+    from onnx import numpy_helper
+    input_0_tensor = numpy_helper.from_array(parameters[0])
+    input_0_tensor.name = 'conv_weight'
+    with open("conv_weight_0.pb","wb") as f:
+        f.write(input_0_tensor.SerializeToString())
+    input_0_tensor = numpy_helper.from_array(parameters[1])
+    input_0_tensor.name = 'conv_bias'
+    with open("conv_bias_0.pb", "wb") as f:
+        f.write(input_0_tensor.SerializeToString())
+    '''
     if is_separable_conv:
         attrs = {'name': operator.full_name + '0'}
         assert (len(parameters) == 3 if op.use_bias else 2)
