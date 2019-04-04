@@ -107,6 +107,7 @@ def _get_tensor_safe(graph, name):
     return ts
 
 
+# This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
 def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     inputs = []
     ishapes = []
