@@ -27,7 +27,7 @@ set_converter('reshape_timedistributed', convert_reshape_timedistributed)
 
 def on_StridedSlice(ctx, node, name, args):
     # for now we implement common cases. Things like strides!=1, -1 are not mappable to onnx.
-    not_supported_attr = ["ellipsis_mask", "new_axis_mask"]
+    not_supported_attr = ["ellipsis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
         if attr is not None and attr.i != 0:
@@ -40,6 +40,8 @@ def on_StridedSlice(ctx, node, name, args):
     begin_mask = begin_mask.i if begin_mask is not None else 0
     end_mask = node.get_attr("end_mask")
     end_mask = end_mask.i if end_mask is not None else 0
+    new_axis_mask = node.get_attr("new_axis_mask")
+    new_axis_mask = new_axis_mask.i if new_axis_mask is not None else 0
     shrink_axis_mask = node.get_attr("shrink_axis_mask")
     shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
     new_begin = []
@@ -98,6 +100,22 @@ def on_StridedSlice(ctx, node, name, args):
     ctx.remove_input(node, node.input[2])
     ctx.remove_input(node, node.input[1])
     nodes = [node]
+
+    new_axis_axes = []
+    cur_idx = 0
+    while new_axis_mask > 0:
+        if new_axis_mask & 1:
+            new_axis_axes.append(cur_idx)
+        new_axis_mask = new_axis_mask >> 1
+        cur_idx = cur_idx + 1
+
+    if len(new_axis_axes) > 0:
+        unsqueeze_node = ctx.insert_new_node_on_input(node, "Unsqueeze", node.input[0])
+        unsqueeze_node.set_attr("axes", new_axis_axes)
+        nodes.append(unsqueeze_node)
+        input_dtype = ctx.get_dtype(node.output[0])
+        ctx.set_dtype(unsqueeze_node.output[0], input_dtype)
+
     use_reverse_op = True
     reverse_flag = False
     if use_reverse_op and len(reverse_axes) > 0:
