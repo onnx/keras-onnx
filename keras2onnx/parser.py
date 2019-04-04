@@ -108,6 +108,7 @@ def _get_tensor_safe(graph, name):
     return ts
 
 
+# This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
 def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
     operator.nodelist = node_list
@@ -164,9 +165,6 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
 
 def _convert_keras_scope(graph, node_list, layer, model, varset):
-    if isinstance(layer, keras.layers.wrappers.TimeDistributed):
-        return _convert_keras_timedistributed(graph, node_list, layer, model, varset)
-
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
@@ -470,7 +468,9 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
         k2o_logger().debug('Processed a keras layer - (%s: %s)' % (type_k.name, type(type_k)) if
                            type_k else (nodes[0].name, "Custom_Layer"))
-        if type_k is None or get_converter(type(type_k)) is None:
+        if isinstance(type_k, keras.layers.TimeDistributed):
+            _convert_keras_timedistributed(graph, nodes, type_k, model_, varset)
+        elif type_k is None or get_converter(type(type_k)) is None:
             _convert_general_scope(nodes, varset)
         else:
             _convert_keras_scope(graph, nodes, type_k, model_, varset)
