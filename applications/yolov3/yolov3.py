@@ -264,7 +264,7 @@ class YOLO(object):
         for idx_ in indices:
             out_classes.append(idx_[1])
             out_scores.append(all_scores[tuple(idx_)])
-            idx_1 = (idx_[0], 0, idx_[2])
+            idx_1 = (idx_[0], idx_[2])
             out_boxes.append(all_boxes[idx_1])
 
         """
@@ -281,7 +281,7 @@ class YOLO(object):
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
-        font = ImageFont.truetype(font='font/FiraMono-Medium.otf',
+        font = ImageFont.truetype(font=self._get_data_path('font/FiraMono-Medium.otf'),
                                   size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         thickness = (image.size[0] + image.size[1]) // 300
 
@@ -358,7 +358,7 @@ def convert_NMSLayer(scope, operator, container):
     score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
 
     container.add_node("Unsqueeze", box_transpose,
-                       box_batch, op_version=operator.target_opset, axes=[0, 1])
+                       box_batch, op_version=operator.target_opset, axes=[0])
     container.add_node("Unsqueeze", score_transpose,
                        score_batch, op_version=operator.target_opset, axes=[0])
 

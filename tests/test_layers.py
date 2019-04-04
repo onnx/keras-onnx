@@ -445,7 +445,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_embedding(self):
         model = keras.Sequential()
         model.add(keras.layers.Embedding(1000, 64, input_length=10))
-        input_array = np.random.randint(1000, size=(1, 10)).astype(np.float32)
+        input_array = np.random.randint(1000, size=(1, 10))
 
         model.compile('rmsprop', 'mse')
         onnx_model = keras2onnx.convert_keras(model, model.name)

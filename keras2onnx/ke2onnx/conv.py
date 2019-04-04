@@ -132,8 +132,8 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     attrs['kernel_shape'] = op.kernel_size
     attrs['group'] = group
 
-    input_shape = op._input_shape if op._input_shape else op.input_shape
-    output_shape = op._output_shape if op._output_shape else op.output_shape
+    input_shape = op._input_shape if hasattr(op, '_input_shape') else op.input_shape
+    output_shape = op._output_shape if hasattr(op, '_output_shape') else op.output_shape
 
     if op.padding == 'valid':
         attrs['auto_pad'] = 'VALID'

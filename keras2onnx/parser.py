@@ -169,9 +169,6 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
 
 def _convert_keras_scope(graph, node_list, layer, model, varset):
-    if isinstance(layer, keras.layers.wrappers.TimeDistributed):
-        return _convert_keras_timedistributed(graph, node_list, layer, model, varset)
-
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
@@ -399,13 +396,19 @@ def _build_keras_nodeset(inference_nodeset, keras_node_dict):
     return nodes
 
 
-def _get_output_nodes(node_list):
-    nodes_has_children = set()
-    for node in node_list:
-        if node:
-            for input_tensor in node.inputs:
-                nodes_has_children.add(input_tensor.op)
-    return set(node_list) - nodes_has_children
+def _get_output_nodes(node_list, layer, node):
+    if layer:
+        for nd_ in extract_inbound_nodes(layer):
+            name_set = set(tsname_to_node(ts_.name) for ts_ in nd_.output_tensors)
+            if node.name in name_set:
+                return set(n_ for n_ in node_list if n_.name in name_set)
+    else:
+        nodes_has_children = set()
+        for node in node_list:
+            if node:
+                for input_tensor in node.inputs:
+                    nodes_has_children.add(input_tensor.op)
+        return set(node_list) - nodes_has_children
 
 
 def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names):
@@ -457,7 +460,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
         q_subgraph = queue.Queue()
         i_subgraph = set()
         nodes = []
-        for ot_ in (_get_output_nodes(activated_keras_nodes
+        for ot_ in (_get_output_nodes(activated_keras_nodes, type_k, node
                                       ) if activated_keras_nodes else [node]):
             if ot_ not in nodes:
                 visited.add(ot_)
