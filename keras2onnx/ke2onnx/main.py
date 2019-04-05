@@ -95,6 +95,7 @@ keras_layer_to_operator = {
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
     _layer.Dense: convert_keras_dense,
+    _layer.Embedding: convert_keras_embed,
 
     _layer.MaxPooling1D: convert_keras_max_pooling_1d,
     _layer.MaxPooling2D: convert_keras_max_pooling_2d,
