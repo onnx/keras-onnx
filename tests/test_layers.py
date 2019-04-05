@@ -91,6 +91,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
+    def test_stridedslice(self):
+        _custom_op_handlers = {
+            'StridedSlice': (keras2onnx._builtin.on_StridedSlice, [])}
+        model = keras.models.Sequential()
+        import tensorflow as tf
+        model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis], input_shape=[2, 3, 5]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
+
+        data = np.random.rand(6 * 2 * 3 * 5).astype(np.float32).reshape(6, 2, 3, 5)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
+
     def test_dense(self):
         for bias_value in [True, False]:
             model = keras.Sequential()
@@ -507,6 +519,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+        # with initial state
         inputs2 = Input(shape=(1, 2))
         state = Input(shape=(5,))
         hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
@@ -515,6 +528,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
 
         N, H, W, C = 3, 1, 2, 5
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
+
+        # with initial state and output state
+        input = Input(shape=(1, 2))
+        state_in = Input(shape=(10,))
+        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+                                  initial_state=[state_in])
+        output = Dense(2, activation='linear')(hidden_1)
+        keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        N, H, W, C = 3, 1, 2, 10
         x = np.random.rand(N, H, W).astype(np.float32, copy=False)
         s = np.random.rand(N, C).astype(np.float32, copy=False)
         expected = keras_model.predict([x, s])
@@ -655,6 +683,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = [x, 2 * x]
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
+
+    def test_timedistributed(self):
+        from keras import Sequential
+        from keras.layers import TimeDistributed, Dense, Conv2D
+
+        keras_model = Sequential()
+        keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
+        # keras_model.output_shape == (None, 10, 8)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(32, 10, 16).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+        keras_model = Sequential()
+        N, D, W, H, C = 5, 10, 15, 15, 3
+        keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
+                                  input_shape=(D, W, H, C)))
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(N, D, W, H, C).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_channel_first_input(self):
         N, W, H, C = 2, 5, 6, 3
