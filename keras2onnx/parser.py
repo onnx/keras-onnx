@@ -4,10 +4,9 @@
 # license information.
 ###############################################################################
 import six
-import keras
 import tensorflow as tf
-from keras import backend as K
 from six.moves import queue
+from .proto import keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
@@ -201,7 +200,7 @@ def _convert_general_scope(node_list, varset):
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
     operator.nodelist = node_list
 
-    sess = K.get_session()
+    sess = keras.backend.get_session()
     subgraph, replacement = create_subgraph(sess.graph, node_list, sess, operator.full_name)
     setattr(operator, 'subgraph', subgraph)
     vars_, ts = _locate_inputs_by_node(node_list, varset)
