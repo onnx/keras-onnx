@@ -391,26 +391,39 @@ def apply_upsample(scope, input_name, output_name, container, operator_name=None
     :param mode: nearest or linear
     :param scales: an integer list of scaling-up rate of all input dimensions
     '''
-    name = _create_name_or_use_existing_one(scope, 'Upsample', operator_name)
-    inputs = input_name
-    attrs = {'name': name}
-    if container.target_opset < 7:
-        if len(scales) != 4:
-            raise ValueError('Need to specify a 4-element list the the scales of N-, C-, H-, and W-axes')
-        attrs['height_scale'] = float(scales[2])
-        attrs['width_scale'] = float(scales[3])
-        attrs['mode'] = mode.upper()
-        op_version = 1
-    else:
-        attrs['mode'] = mode.lower()
-        if container.target_opset < 9:
-            attrs['scales'] = list(map(float, scales))
-            op_version = 7
+    if container.target_opset < 10:
+        name = _create_name_or_use_existing_one(scope, 'Upsample', operator_name)
+        inputs = input_name
+        attrs = {'name': name}
+        if container.target_opset < 7:
+            if len(scales) != 4:
+                raise ValueError('Need to specify a 4-element list the the scales of N-, C-, H-, and W-axes')
+            attrs['height_scale'] = float(scales[2])
+            attrs['width_scale'] = float(scales[3])
+            attrs['mode'] = mode.upper()
+            op_version = 1
         else:
-            # scales moved from attribute to input in opset 9
-            scales_tensor_name = scope.get_unique_variable_name(name + '_scales')
-            container.add_initializer(scales_tensor_name, onnx_proto.TensorProto.FLOAT, [len(scales)], scales)
-            inputs = [input_name, scales_tensor_name]
-            op_version = 9
+            attrs['mode'] = mode.lower()
+            if container.target_opset < 9:
+                attrs['scales'] = list(map(float, scales))
+                op_version = 7
+            else:
+                # scales moved from attribute to input in opset 9
+                scales_tensor_name = scope.get_unique_variable_name(name + '_scales')
+                container.add_initializer(scales_tensor_name, onnx_proto.TensorProto.FLOAT, [len(scales)], scales)
+                inputs = [input_name, scales_tensor_name]
+                op_version = 9
 
-    container.add_node('Upsample', inputs, output_name, op_version=op_version, **attrs)
+        container.add_node('Upsample', inputs, output_name, op_version=op_version, **attrs)
+    else:
+        # TODO, we need verify this after onnx opset 10 release
+        name = _create_name_or_use_existing_one(scope, 'Resize', operator_name)
+        attrs = {'name': name}
+        attrs['mode'] = mode.lower()
+
+        scales_tensor_name = scope.get_unique_variable_name(name + '_scales')
+        container.add_initializer(scales_tensor_name, onnx_proto.TensorProto.FLOAT, [len(scales)], scales)
+        inputs = [input_name, scales_tensor_name]
+        op_version = 10
+
+        container.add_node('Resize', inputs, output_name, op_version=op_version, **attrs)
