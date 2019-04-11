@@ -104,7 +104,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
 
     def test_stridedslice(self):
-        self.test_stridedslice_with_version(9)
+        self._test_stridedslice_with_version(9)
         # TODO, test with opset 10, self.test_stridedslice_with_version(10)
 
     def test_dense(self):
