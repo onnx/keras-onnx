@@ -91,17 +91,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
-    def test_stridedslice(self):
+    def _test_stridedslice_with_version(self, target_opset):
         _custom_op_handlers = {
-            'StridedSlice': (keras2onnx._builtin.on_StridedSlice, [])}
+            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
         model = keras.models.Sequential()
         import tensorflow as tf
         model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis], input_shape=[2, 3, 5]))
-        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
 
         data = np.random.rand(6 * 2 * 3 * 5).astype(np.float32).reshape(6, 2, 3, 5)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
+
+    def test_stridedslice(self):
+        self.test_stridedslice_with_version(9)
+        # TODO, test with opset 10, self.test_stridedslice_with_version(10)
 
     def test_dense(self):
         for bias_value in [True, False]:
