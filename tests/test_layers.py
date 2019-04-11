@@ -105,7 +105,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_stridedslice(self):
         self._test_stridedslice_with_version(9)
-        # TODO, test with opset 10, self.test_stridedslice_with_version(10)
+        # TODO, test with opset 10, self._test_stridedslice_with_version(10)
 
     def test_dense(self):
         for bias_value in [True, False]:
