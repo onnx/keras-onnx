@@ -309,10 +309,6 @@ def convert_PyramidROIAlign(scope, operator, container):
     create_onnx_node(scope, operator, container, 'PyramidROIAlign')
 
 
-def convert_DetectionTargetLayer(scope, operator, container):
-    create_onnx_node(scope, operator, container, 'DetectionTargetLayer')
-
-
 def convert_DetectionLayer(scope, operator, container):
     create_onnx_node(scope, operator, container, 'DetectionLayer')
 
@@ -499,10 +495,9 @@ _custom_op_handlers = {
     'StridedSlice': (on_StridedSlice, [])}
 
 
-set_converter(ProposalLayer, convert_ProposalLayer)
+#set_converter(ProposalLayer, convert_ProposalLayer)
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
-set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
-set_converter(DetectionLayer, convert_DetectionLayer)
+#set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
 oml = keras2onnx.convert_keras(model.keras_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
