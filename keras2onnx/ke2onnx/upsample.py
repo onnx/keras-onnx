@@ -47,10 +47,10 @@ def convert_keras_upsample(scope, operator, container, n_dims):
     # If channels_first is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
     # conversion, a Transpose would be added.
     if channels_first:
-        apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container, scales=scales)
+        apply_upsample(scope, [input_tensor_name], operator.outputs[0].full_name, container, scales=scales)
     else:
         upsampled_tensor_name = scope.get_unique_variable_name(input_tensor_name + '_upsampled')
-        apply_upsample(scope, input_tensor_name, upsampled_tensor_name, container, scales=scales)
+        apply_upsample(scope, [input_tensor_name], upsampled_tensor_name, container, scales=scales)
         apply_transpose(scope, upsampled_tensor_name, operator.outputs[0].full_name, container, perm=output_perm_axes)
 
 
