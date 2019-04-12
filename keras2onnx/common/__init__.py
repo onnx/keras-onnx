@@ -8,3 +8,5 @@ from .utils import k2o_logger, set_logger_level
 from .cvtfunc import cvtfunc
 from .intop import Operator
 from .interim import OnnxObjectContainer, InterimContext, Variable
+
+# keras2onnx common code has been refactored into onnxconverter-common.
