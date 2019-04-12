@@ -48,10 +48,6 @@ jobs:
       pip install tensorflow
       pip install %KERAS%
       pip install %TF2ONNX%
-      git clone http://github.com/onnx/onnxmltools
-      cd onnxmltools/onnxutils
-      pip install -e .
-      cd ../..
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
