@@ -766,36 +766,43 @@ class TestKerasTF2ONNX(unittest.TestCase):
         from keras.applications import mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_with_inputs(x, model)
+        del model
 
     def _test_MobileNetV2(self, x):
         from keras.applications import mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_with_inputs(x, model)
+        del model
 
     def _test_VGG16(self, x):
         from keras.applications.vgg16 import VGG16
         model = VGG16(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model)
+        del model
 
     def _test_ResNet50(self, x):
         from keras.applications.resnet50 import ResNet50
         model = ResNet50(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model)
+        del model
 
     def _test_InceptionV3(self, x):
         from keras.applications.inception_v3 import InceptionV3
         model = InceptionV3(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model, rtol=1.e-3)
+        del model
 
     def _test_DenseNet121(self, x):
         from keras.applications.densenet import DenseNet121
         model = DenseNet121(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model)
+        del model
 
     def _test_Xception(self, x):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model, atol=5e-3)
+        del model
 
     def test_keras_applications(self):
         img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
