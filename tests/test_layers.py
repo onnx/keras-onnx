@@ -792,10 +792,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = DenseNet121(include_top=True, weights='imagenet')
         self._test_with_inputs(x, model)
 
-    def _test_Xception(self, x, img_size):
+    def _test_Xception(self, x):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, img_size=img_size, atol=5e-3)
+        self._test_with_inputs(x, model, atol=5e-3)
 
     def test_keras_applications(self):
         img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
@@ -814,7 +814,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         img_size = 299
         x = self._get_img_data(img_path, img_size=img_size)
         self._test_InceptionV3(x)
-        self._test_Xception(x, img_size)
+        self._test_Xception(x)
 
 if __name__ == "__main__":
     unittest.main()
