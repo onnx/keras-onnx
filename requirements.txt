@@ -3,4 +3,4 @@ protobuf
 tf2onnx
 keras
 onnx
-onnxconverter-common
+onnxconverter-common>=1.4.0
