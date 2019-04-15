@@ -20,11 +20,10 @@ tmp_path = os.path.join(working_path, 'temp')
 class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
-        self.model_files = []
+        pass
 
     def tearDown(self):
-        for fl in self.model_files:
-            os.remove(fl)
+        pass
 
     @staticmethod
     def asarray(*a):
@@ -37,11 +36,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         return os.path.join(tmp_path, name)
 
     def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
-        temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
-        onnx.save_model(onnx_model, temp_model_file)
         try:
             import onnxruntime
-            sess = onnxruntime.InferenceSession(temp_model_file)
+            sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
         except ImportError:
             return True
 
@@ -55,8 +52,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         feed = zip(sorted(i_.name for i_ in input_names), data)
         actual = sess.run(None, dict(feed))
         res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
-        if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
-            self.model_files.append(temp_model_file)
+        temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
+        if not res:  # save the onnx files for the failed case for the diagnosis.
+            onnx.save_model(onnx_model, temp_model_file)
 
         if not res:
             for n_ in range(len(expected)):
