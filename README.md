@@ -81,8 +81,8 @@ onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
 
-We converted successfully for the keras application models such as:
-Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201.
+We converted successfully for all keras application models such as:
+Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201, NASNetMobile, and NASNetLarge.
 Try the following models and convert them to onnx using the code above. 
 
 ```
@@ -118,4 +118,10 @@ model = DenseNet169(include_top=True, weights='imagenet')
 
 from keras.applications.densenet import DenseNet201
 model = DenseNet201(include_top=True, weights='imagenet')
+
+from keras.applications.nasnet import NASNetMobile
+model = NASNetMobile(include_top=True, weights='imagenet')
+
+from keras.applications.nasnet import NASNetLarge
+model = NASNetLarge(include_top=True, weights='imagenet')
 ```
