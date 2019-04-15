@@ -809,11 +809,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         self._test_VGG16(x)
         self._test_ResNet50(x)
-        self._test_InceptionV3(x)
         self._test_DenseNet121(x)
 
         img_size = 299
         x = self._get_img_data(img_path, img_size=img_size)
+        self._test_InceptionV3(x)
         self._test_Xception(x, img_size)
 
 if __name__ == "__main__":
