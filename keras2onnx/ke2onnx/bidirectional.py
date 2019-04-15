@@ -1,17 +1,17 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
 
 import collections
 import numbers
 import numpy as np
-from keras.layers import LSTM
 from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_split, apply_reshape
-from ..proto import onnx_proto
+from ..proto import onnx_proto, keras
 from .common import extract_recurrent_activation
+LSTM = keras.layers.LSTM
 
 
 def _calculate_keras_bidirectional_output_shapes(operator):
@@ -253,9 +253,12 @@ def convert_bidirectional(scope, operator, container):
             perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
             apply_transpose(scope, lstm_h_name, transposed_h_name, container, perm=perm)
 
+            # Maintain backwards opset compatibility for 'Flatten'
+            op_version = 1 if container.target_opset < 9 else 9
+
             # Flatten ONNX (N, D, C') into (N, D * C')
             container.add_node('Flatten', transposed_h_name, operator.outputs[0].full_name,
-                               name=scope.get_unique_variable_name('Flatten'), axis=1)
+                               name=scope.get_unique_variable_name('Flatten'), axis=1, op_version=op_version)
         else:
             # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
             # forward/backward pass.

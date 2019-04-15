@@ -5,11 +5,12 @@
 # --------------------------------------------------------------------------
 import keras2onnx
 import unittest
-import keras
 import onnx
+import numpy as np
 from distutils.version import StrictVersion
 
-from keras.layers import *
+from keras2onnx.proto import keras
+
 
 class TestOpsetComparison(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__) < StrictVersion("1.2"),

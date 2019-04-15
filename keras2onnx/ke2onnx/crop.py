@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
 from ..common.onnx_ops import apply_transpose
 from .common import get_permutation_config
 

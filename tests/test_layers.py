@@ -1,14 +1,15 @@
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT license.
+# Licensed under the MIT License. See License.txt in the project root for
+# license information.
+###############################################################################
 import os
 import sys
-import unittest
-
-import numpy as np
-import keras
 import onnx
+import unittest
 import keras2onnx
-from keras.preprocessing import image
+import numpy as np
+from keras2onnx.proto import keras, is_tf_keras
 from distutils.version import StrictVersion
 
 
@@ -35,7 +36,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-4, atol=1.e-8):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
@@ -89,6 +90,22 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
+
+    def _test_stridedslice_with_version(self, target_opset):
+        _custom_op_handlers = {
+            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
+        model = keras.models.Sequential()
+        import tensorflow as tf
+        model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis], input_shape=[2, 3, 5]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
+
+        data = np.random.rand(6 * 2 * 3 * 5).astype(np.float32).reshape(6, 2, 3, 5)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
+
+    def test_stridedslice(self):
+        self._test_stridedslice_with_version(9)
+        # TODO, test with opset 10, self._test_stridedslice_with_version(10)
 
     def test_dense(self):
         for bias_value in [True, False]:
@@ -495,8 +512,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
     def test_simpleRNN(self):
-        from keras.layers import SimpleRNN
-        inputs1 = keras.Input(shape=(3, 1))
+        from keras.layers import Input, Dense, SimpleRNN
+        inputs1 = Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
         model = keras.Model(inputs=inputs1, outputs=[oname])
@@ -506,8 +523,37 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+        # with initial state
+        inputs2 = Input(shape=(1, 2))
+        state = Input(shape=(5,))
+        hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
+        output = Dense(2, activation='sigmoid')(hidden_1)
+        keras_model = keras.Model(inputs=[inputs2, state], outputs=output)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+
+        N, H, W, C = 3, 1, 2, 5
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
+
+        # with initial state and output state
+        input = Input(shape=(1, 2))
+        state_in = Input(shape=(10,))
+        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+                                  initial_state=[state_in])
+        output = Dense(2, activation='linear')(hidden_1)
+        keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        N, H, W, C = 3, 1, 2, 10
+        x = np.random.rand(N, H, W).astype(np.float32, copy=False)
+        s = np.random.rand(N, C).astype(np.float32, copy=False)
+        expected = keras_model.predict([x, s])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
+
     def test_GRU(self):
-        from keras.layers import GRU
+        GRU = keras.layers.GRU
         inputs1 = keras.Input(shape=(3, 1))
 
         cls = GRU(2, return_state=False, return_sequences=False)
@@ -533,7 +579,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
     def test_LSTM(self):
-        from keras.layers import LSTM
+        LSTM = keras.layers.LSTM
         inputs1 = keras.Input(shape=(3, 5))
         cls = LSTM(units=2, return_state=True, return_sequences=True)
         lstm1, state_h, state_c = cls(inputs1)
@@ -581,7 +627,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
     def test_recursive_model(self):
-        from keras.layers import Input, Dense, Add
+        Input = keras.layers.Input
+        Dense = keras.layers.Dense
+        Add = keras.layers.Add
 
         N, C, D = 2, 3, 3
         x = np.random.rand(N, C).astype(np.float32, copy=False)
@@ -607,7 +655,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('recursive', onnx_model, x, expected))
 
     def test_recursive_and_shared_model(self):
-        from keras.layers import Input, Dense, Add, Activation
+        Input = keras.layers.Input
+        Dense = keras.layers.Dense
+        Add = keras.layers.Add
+        Activation = keras.layers.Activation
         N, C, D = 2, 3, 3
         x = np.random.rand(N, C).astype(np.float32, copy=False)
 
@@ -636,6 +687,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = [x, 2 * x]
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
+
+    def test_timedistributed(self):
+        from keras import Sequential
+        from keras.layers import TimeDistributed, Dense, Conv2D
+
+        keras_model = Sequential()
+        keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
+        # keras_model.output_shape == (None, 10, 8)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(32, 10, 16).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+        keras_model = Sequential()
+        N, D, W, H, C = 5, 10, 15, 15, 3
+        keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
+                                  input_shape=(D, W, H, C)))
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        x = np.random.rand(N, D, W, H, C).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_channel_first_input(self):
         N, W, H, C = 2, 5, 6, 3
@@ -673,6 +745,34 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
         self.assertTrue(self.run_onnx_runtime('channel_last_input', onnx_model, x, expected))
 
+    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, img_size=224):
+        preprocess_input = keras.applications.resnet50.preprocess_input
+        image = keras.preprocessing.image
+
+        img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
+        try:
+            img = image.load_img(img_path, target_size=(img_size, img_size))
+            x = image.img_to_array(img)
+            x = np.expand_dims(x, axis=0)
+            x = preprocess_input(x)
+
+            preds = model.predict(x)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(self.run_onnx_runtime(model_name, onnx_model, x, preds, rtol=rtol, atol=atol))
+        except FileNotFoundError:
+            self.assertTrue(False, 'The image data does not exist.')
+
+    def test_MobileNet(self):
+        mobilenet = keras.applications.mobilenet
+        model = mobilenet.MobileNet(weights='imagenet')
+        self._test_keras_model(model)
+
+    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
+                     "There is no mobilenet_v2 module before keras 2.2.3.")
+    def test_MobileNetV2(self):
+        mobilenet_v2 = keras.applications.mobilenet_v2
+        model = mobilenet_v2.MobileNetV2(weights='imagenet')
+        self._test_keras_model(model)
 
 
 if __name__ == "__main__":

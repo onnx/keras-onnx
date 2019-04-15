@@ -1,8 +1,20 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
+import os
+_tf_keras = os.environ.get('TF_KERAS')
+is_tf_keras = True
+if _tf_keras:
+    from tensorflow.python import keras
+else:
+    try:
+        import keras
+        is_tf_keras = False
+    except ImportError:
+        from tensorflow.python import keras
+
 
 def _check_onnx_version():
     import pkg_resources

@@ -4,9 +4,8 @@
 # license information.
 ###############################################################################
 import os
-import keras
 import logging
-from keras import backend as K
+from .proto import keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
@@ -83,7 +82,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
 
     static_set_ke2onnx_converters(set_converter)
 
-    sess = K.get_session()
+    sess = keras.backend.get_session()
     if get_tensorboard_writer() is not None:
         get_tensorboard_writer().add_graph(sess.graph)
     raw_model_container = KerasTfModelContainer(sess.graph, model)

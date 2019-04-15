@@ -4,10 +4,9 @@
 # license information.
 ###############################################################################
 import six
-import keras
 import tensorflow as tf
-from keras import backend as K
 from six.moves import queue
+from .proto import keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
@@ -108,6 +107,62 @@ def _get_tensor_safe(graph, name):
     return ts
 
 
+# This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
+def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
+    operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
+    operator.nodelist = node_list
+
+    inputs = []
+    ishapes = []
+    outputs = []
+    oshapes = []
+    num_relevant_keras_node = 0
+    for nb_ in extract_inbound_nodes(layer):
+        if _is_relevant_keras_node(model, nb_):
+            inputs += nb_.input_tensors
+            ishapes += nb_.input_shapes
+            outputs += nb_.output_tensors
+            oshapes += nb_.output_shapes
+            num_relevant_keras_node = num_relevant_keras_node + 1
+
+    assert num_relevant_keras_node == 1
+
+    i_ = inputs[0]
+    iname = i_.name
+    k2o_logger().debug('input: ' + iname)
+    i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
+    i0_reshape_name = i_.op.name + '_reshape_0:0'
+    i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_))
+    operator.add_input(i0_reshape)
+    i0_reshape_shape = (-1,) + ishapes[0][2:]
+    ishapes0 = [-1 if s_ is None else s_ for s_ in ishapes[0]]
+    model_reshape_0 = keras.layers.Reshape(i0_reshape_shape, input_shape=ishapes0)
+    operator_reshape_0 = varset.declare_local_operator('reshape_timedistributed', raw_model=model_reshape_0,
+                                                       op_name=layer.name + '_reshape_0')
+    operator_reshape_0.add_input(i0)
+    operator_reshape_0.add_output(i0_reshape)
+
+    o_ = outputs[0]
+    oname = o_.name
+    k2o_logger().debug('output: ' + oname)
+    o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
+    oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
+    model_reshape_1 = keras.layers.Reshape(oshapes1, input_shape=oshapes1)
+    operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed', raw_model=model_reshape_1,
+                                                       op_name=layer.name + '_reshape_1')
+    operator_reshape_1.add_output(o1)
+    o1_reshape_name = o_.op.name + '_reshape_1:0'
+    o1_reshape = varset.declare_local_variable(o1_reshape_name, _infer_variable_type(o_))
+    operator.add_output(o1_reshape)
+    operator_reshape_1.add_input(o1_reshape)
+
+    cvt = get_converter(type(layer.layer))
+    if cvt is not None and hasattr(cvt, 'shape_infer'):
+        operator.shape_infer = cvt.shape_infer
+
+    return operator
+
+
 def _convert_keras_scope(graph, node_list, layer, model, varset):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
@@ -145,7 +200,7 @@ def _convert_general_scope(node_list, varset):
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
     operator.nodelist = node_list
 
-    sess = K.get_session()
+    sess = keras.backend.get_session()
     subgraph, replacement = create_subgraph(sess.graph, node_list, sess, operator.full_name)
     setattr(operator, 'subgraph', subgraph)
     vars_, ts = _locate_inputs_by_node(node_list, varset)
@@ -412,7 +467,9 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
         k2o_logger().debug('Processed a keras layer - (%s: %s)' % (type_k.name, type(type_k)) if
                            type_k else (nodes[0].name, "Custom_Layer"))
-        if type_k is None or get_converter(type(type_k)) is None:
+        if isinstance(type_k, keras.layers.TimeDistributed):
+            _convert_keras_timedistributed(graph, nodes, type_k, model_, varset)
+        elif type_k is None or get_converter(type(type_k)) is None:
             _convert_general_scope(nodes, varset)
         else:
             _convert_keras_scope(graph, nodes, type_k, model_, varset)
