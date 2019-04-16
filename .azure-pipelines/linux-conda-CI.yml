@@ -18,13 +18,11 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
-        TF2ONNX: tf2onnx==0.4.2
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.4.1
         KERAS: keras
-        TF2ONNX: tf2onnx
 
     maxParallel: 3
 
@@ -41,7 +39,6 @@ jobs:
       pip install $(ONNX_PATH)
       pip install tensorflow
       pip install $(KERAS)
-      pip install $(TF2ONNX)
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
       pip install onnxruntime
