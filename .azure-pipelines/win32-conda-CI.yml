@@ -39,6 +39,7 @@ jobs:
     displayName: Create Anaconda environment
 
   - script: |
+      git submdoule update --init
       call activate py$(python.version)
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
