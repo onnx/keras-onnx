@@ -256,6 +256,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_conv2d_activation(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), activation='relu')
+        self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), activation='softmax')
 
     def test_conv2d_bias(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), bias=True)

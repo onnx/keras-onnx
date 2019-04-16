@@ -80,83 +80,54 @@ class TestKerasApplications(unittest.TestCase):
 
         return res
 
-    def _test_with_inputs(self, x, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5):
+    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, img_size=224):
+        preprocess_input = keras.applications.resnet50.preprocess_input
+        image = keras.preprocessing.image
+
+        img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
         try:
+            img = image.load_img(img_path, target_size=(img_size, img_size))
+            x = image.img_to_array(img)
+            x = np.expand_dims(x, axis=0)
+            x = preprocess_input(x)
+
             preds = model.predict(x)
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(self.run_onnx_runtime(model_name, onnx_model, x, preds, rtol=rtol, atol=atol))
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')
 
-    def _get_img_data(self, img_path, img_size):
-        preprocess_input = keras.applications.resnet50.preprocess_input
-        image = keras.preprocessing.image
-        img = image.load_img(img_path, target_size=(img_size, img_size))
-        x = image.img_to_array(img)
-        x = np.expand_dims(x, axis=0)
-        x = preprocess_input(x)
-        return x
-
-    def _test_MobileNet(self, x):
-        from keras.applications import mobilenet
+    def test_MobileNet(self):
+        mobilenet = keras.applications.mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
+        self._test_keras_model(model)
 
-    def _test_MobileNetV2(self, x):
-        from keras.applications import mobilenet_v2
+    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
+                     "There is no mobilenet_v2 module before keras 2.2.3.")
+    def test_MobileNetV2(self):
+        mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
+        self._test_keras_model(model)
 
-    def _test_VGG16(self, x):
-        from keras.applications.vgg16 import VGG16
-        model = VGG16(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
-
-    def _test_ResNet50(self, x):
+    def test_ResNet50(self):
         from keras.applications.resnet50 import ResNet50
         model = ResNet50(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
+        self._test_keras_model(model)
 
-    def _test_InceptionV3(self, x):
+    def test_InceptionV3(self):
         from keras.applications.inception_v3 import InceptionV3
         model = InceptionV3(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name, rtol=1.e-3)
-        del model
+        self._test_keras_model(model, img_size=299)
 
-    def _test_DenseNet121(self, x):
+    def test_DenseNet121(self):
         from keras.applications.densenet import DenseNet121
         model = DenseNet121(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
+        self._test_keras_model(model)
 
-    def _test_Xception(self, x):
+    def test_Xception(self):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name, atol=5e-3)
-        del model
-
-    def test_keras_applications(self):
-        img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
-        x = self._get_img_data(img_path, img_size=224)
-        self._test_MobileNet(x)
-
-        if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
-            self._test_MobileNetV2(x)
-        else:
-            print("There is no mobilenet_v2 module before keras 2.2.3.")
-
-        self._test_VGG16(x)
-        self._test_ResNet50(x)
-        self._test_DenseNet121(x)
-
-        img_size = 299
-        x = self._get_img_data(img_path, img_size=img_size)
-        self._test_InceptionV3(x)
-        self._test_Xception(x)
+        self._test_keras_model(model, atol=5e-3, img_size=299)
 
     if __name__ == "__main__":
         unittest.main()

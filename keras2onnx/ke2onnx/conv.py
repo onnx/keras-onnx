@@ -165,21 +165,23 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                                                               n_dims,
                                                               weight_perm_axes, parameters, attrs['auto_pad'])
 
+    # Permute the output back of its original format
+    transpose_output_name = scope.get_unique_variable_name('transpose_output')
+    if not channels_first:
+        # Generate a final transposer.
+        apply_transpose(scope, intermediate_output_name, transpose_output_name, container, perm=output_perm_axes)
+    else:
+        apply_identity(scope, intermediate_output_name, transpose_output_name, container)
+
     # The construction of convolution is done. Now, we create an activation operator to apply the activation specified
     # in this Keras layer.
     apply_activation_function = activation_map[op.activation]
-    activation_output_name = scope.get_unique_variable_name('activation_output')
-    if apply_activation_function in [activation_get('softmax'), keras.activations.softmax]:
-        apply_softmax(scope, intermediate_output_name, activation_output_name, container, axis=-1)
+    if op.activation in [activation_get('softmax'), keras.activations.softmax]:
+        apply_softmax(scope, transpose_output_name, operator.outputs[0].full_name, container, axis=-1)
     else:
-        apply_activation_function(scope, intermediate_output_name, activation_output_name, container)
+        apply_activation_function(scope, transpose_output_name, operator.outputs[0].full_name, container)
 
-    # Permute the output back of its original format
-    if not channels_first:
-        # Generate a final transposer.
-        apply_transpose(scope, activation_output_name, operator.outputs[0].full_name, container, perm=output_perm_axes)
-    else:
-        apply_identity(scope, activation_output_name, operator.outputs[0].full_name, container)
+
 
 
 def get_converter_config(dims, is_conv_transpose):
