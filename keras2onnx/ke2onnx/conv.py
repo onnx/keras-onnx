@@ -165,8 +165,8 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                                                               n_dims,
                                                               weight_perm_axes, parameters, attrs['auto_pad'])
 
-    transpose_output_name = scope.get_unique_variable_name('transpose_output')
     # Permute the output back of its original format
+    transpose_output_name = scope.get_unique_variable_name('transpose_output')
     if not channels_first:
         # Generate a final transposer.
         apply_transpose(scope, intermediate_output_name, transpose_output_name, container, perm=output_perm_axes)
