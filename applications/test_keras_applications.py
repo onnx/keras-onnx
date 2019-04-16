@@ -109,12 +109,6 @@ class TestKerasApplications(unittest.TestCase):
         self._test_with_inputs(x, model, model.name)
         del model
 
-    def _test_VGG16(self, x):
-        from keras.applications.vgg16 import VGG16
-        model = VGG16(include_top=True, weights='imagenet')
-        self._test_with_inputs(x, model, model.name)
-        del model
-
     def _test_ResNet50(self, x):
         from keras.applications.resnet50 import ResNet50
         model = ResNet50(include_top=True, weights='imagenet')
@@ -149,7 +143,6 @@ class TestKerasApplications(unittest.TestCase):
         else:
             print("There is no mobilenet_v2 module before keras 2.2.3.")
 
-        self._test_VGG16(x)
         self._test_ResNet50(x)
         self._test_DenseNet121(x)
 
