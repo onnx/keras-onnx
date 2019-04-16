@@ -1,3 +1,0 @@
-[submodule "keras2onnx/ktf2onnx"]
-	path = keras2onnx/ktf2onnx
-	url = https://github.com/onnx/tensorflow-onnx.git
