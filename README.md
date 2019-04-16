@@ -6,10 +6,10 @@
 
 
 # Introduction 
-The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
-Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). To support more kinds of Keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the Keras model only.
+This Keras model converter(keras2onnx) enables you convert the keras models into [ONNX](https://onnx.ai) model format .
+Initially Keras converter was developed in the project onnxmltools. To support more kinds of keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the keras model only.
 
-keras2onnx converter supports not only all keras built-in layers, but also the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded into the source tree directly now to avoid version conflicts and installation complexity.
+keras2onnx converter supports not only all keras built-in layers, but also the lambda/custom layer by working with [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which was embedded into the source tree directly to avoid the version conflict and install complexity. 
 
 keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
 
