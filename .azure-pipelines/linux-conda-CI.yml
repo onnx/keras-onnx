@@ -34,7 +34,6 @@ jobs:
       packageSpecs: 'python=$(python.version)'
 
   - script: |
-      git submodule update --init --recursive
       python -m pip install --upgrade pip
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
