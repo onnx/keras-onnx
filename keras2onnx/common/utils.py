@@ -31,20 +31,6 @@ class FunctionStaticVariable(object):
 with_variable = functools.partial(FunctionStaticVariable)
 
 
-@with_variable('keras_installed')
-def is_keras_installed():
-    """
-    Checks that *keras* is available.
-    """
-    try:
-        import keras
-        return True
-    except ImportError:
-        pass
-
-    return False
-
-
 @with_variable('logger')
 def k2o_logger():  # type: () -> logging.Logger
     logger = logging.getLogger('keras2onnx')

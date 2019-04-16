@@ -1,8 +1,8 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
 import numpy as np
 from ..common.onnx_ops import apply_batch_norm, apply_transpose
 from ..proto import onnx_proto
@@ -19,25 +19,6 @@ def convert_keras_batch_normalization(scope, operator, container):
     input_tensor_names = [adjusted_input_name]
 
     params = op.get_weights()
-    '''
-    from onnx import numpy_helper
-    input_0_tensor = numpy_helper.from_array(params[0])
-    input_0_tensor.name = 'bn_gamma'
-    with open("bn_gamma_0.pb", "wb") as f:
-        f.write(input_0_tensor.SerializeToString())
-    input_0_tensor = numpy_helper.from_array(params[1])
-    input_0_tensor.name = 'bn_beta'
-    with open("bn_beta_0.pb", "wb") as f:
-        f.write(input_0_tensor.SerializeToString())
-    input_0_tensor = numpy_helper.from_array(params[2])
-    input_0_tensor.name = 'bn_mean'
-    with open("bn_mean_0.pb", "wb") as f:
-        f.write(input_0_tensor.SerializeToString())
-    input_0_tensor = numpy_helper.from_array(params[3])
-    input_0_tensor.name = 'bn_variance'
-    with open("bn_variance_0.pb", "wb") as f:
-        f.write(input_0_tensor.SerializeToString())
-    '''
     # If scale and/or center flag is set in keras node, use keras default values for gamma and/or beta
     if not op.scale:
         params.insert(0, np.ones(params[0].shape, dtype=float))

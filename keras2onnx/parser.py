@@ -4,10 +4,9 @@
 # license information.
 ###############################################################################
 import six
-import keras
 import tensorflow as tf
-from keras import backend as K
 from six.moves import queue
+from .proto import keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
@@ -108,6 +107,7 @@ def _get_tensor_safe(graph, name):
     return ts
 
 
+# This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
 def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
     operator.nodelist = node_list
@@ -164,9 +164,6 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
 
 def _convert_keras_scope(graph, node_list, layer, model, varset):
-    if isinstance(layer, keras.layers.wrappers.TimeDistributed):
-        return _convert_keras_timedistributed(graph, node_list, layer, model, varset)
-
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
@@ -203,7 +200,7 @@ def _convert_general_scope(node_list, varset):
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
     operator.nodelist = node_list
 
-    sess = K.get_session()
+    sess = keras.backend.get_session()
     subgraph, replacement = create_subgraph(sess.graph, node_list, sess, operator.full_name)
     setattr(operator, 'subgraph', subgraph)
     vars_, ts = _locate_inputs_by_node(node_list, varset)
@@ -470,7 +467,9 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
         k2o_logger().debug('Processed a keras layer - (%s: %s)' % (type_k.name, type(type_k)) if
                            type_k else (nodes[0].name, "Custom_Layer"))
-        if type_k is None or get_converter(type(type_k)) is None:
+        if isinstance(type_k, keras.layers.TimeDistributed):
+            _convert_keras_timedistributed(graph, nodes, type_k, model_, varset)
+        elif type_k is None or get_converter(type(type_k)) is None:
             _convert_general_scope(nodes, varset)
         else:
             _convert_keras_scope(graph, nodes, type_k, model_, varset)
