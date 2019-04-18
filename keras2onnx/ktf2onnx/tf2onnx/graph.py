@@ -12,18 +12,14 @@ from __future__ import unicode_literals
 import collections
 import copy
 import logging
-import sys
-import traceback
 import six
 import numpy as np
 
-from distutils.version import StrictVersion
-from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, version
+from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto
 from tf2onnx import utils, __version__
 from tf2onnx.utils import port_name, find_opset
 from tf2onnx import optimizer
 from tf2onnx.schemas import get_schema
-
 
 logger = logging.getLogger(__name__)
 
@@ -434,9 +430,6 @@ class Graph(object):
 
         if name is None:
             name = utils.make_name(op_type)
-
-        if StrictVersion(version.version) < StrictVersion('1.4') and domain is None:
-            domain = ''
 
         if op_name_scope:
             name = "_".join([op_name_scope, name])
@@ -1043,18 +1036,19 @@ class Graph(object):
 
     def delete_unused_nodes(self, outputs_name):
         """Delete nodes not in subgraph ending with output_names."""
-        if outputs_name:
-            # we need keep those placeholders that are used as input of Loop's body graph.
-            # some of them are not used in the graph, but still need be there to keep the graph complete.
-            related_nodes = self.extract_sub_graph_nodes(outputs_name, ignore_unused_placeholder=False)
-            for node in related_nodes:
-                attr_body_graphs = node.get_body_graphs()
-                if attr_body_graphs:
-                    for _, body_graph in attr_body_graphs.items():
-                        body_graph.delete_unused_nodes(body_graph.outputs)
-            self.reset_nodes(related_nodes)
-        else:
-            print("WARNING: outputs not specified, delete_unused_nodes not taking effect.")
+        if not outputs_name:
+            logger.debug("Outputs not specified, delete_unused_nodes not taking effect.")
+            return
+
+        # we need keep those placeholders that are used as input of Loop's body graph.
+        # some of them are not used in the graph, but still need be there to keep the graph complete.
+        related_nodes = self.extract_sub_graph_nodes(outputs_name, ignore_unused_placeholder=False)
+        for node in related_nodes:
+            attr_body_graphs = node.get_body_graphs()
+            if attr_body_graphs:
+                for _, body_graph in attr_body_graphs.items():
+                    body_graph.delete_unused_nodes(body_graph.outputs)
+        self.reset_nodes(related_nodes)
 
 
 class GraphUtil(object):
@@ -1070,7 +1064,7 @@ class GraphUtil(object):
 
         Returns:
             model proto after optimization, if optimizer run successfully
-            or None, if exceptions happens
+            or onnx_model_proto, if exceptions happens
         """
         try:
             kwargs = GraphUtil.get_onnx_model_properties(onnx_model_proto)
@@ -1084,12 +1078,10 @@ class GraphUtil(object):
                 helper.set_model_props(model_proto, metadata_props)
             return model_proto
         except Exception:
-            # sometimes, onnx shape inference will fail for some reason, in this case,
-            # we just log the error, and skip the transpose optimizer.
-            type_, value_, traceback_ = sys.exc_info()
-            ex_ext = traceback.format_exception(type_, value_, traceback_)
-            print("NON-CRITICAL error in optimizer: ", ex_ext)
-            return None
+            # sometimes, onnx shape inference will fail for some reason,
+            # return onnx_model_proto for this case
+            logger.warning("Failed to optimize model proto", exc_info=1)
+            return onnx_model_proto
 
     @staticmethod
     def get_onnx_model_properties(onnx_model_proto):
