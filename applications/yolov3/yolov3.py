@@ -231,17 +231,13 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
         image_data /= 255.
-        image_data = np.transpose(image_data, [2, 0, 1])
 
         print(image_data.shape)
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-        r = self.session.run(None, input_feed={'input_1:01': image_data})
-        feed_f = dict(zip(['image_shape:01', 'y1:01', 'y2:01', 'y3:01'],
-                          (np.array([image.size[1], image.size[0]], dtype=np.int32).reshape(1, 2),
-                           r[0],
-                           r[1],
-                           r[2])))
-        all_boxes, all_scores, indices = self.session_final.run(None, input_feed=feed_f)
+        all_boxes, all_scores, indices = self.session.run(None, input_feed={'input_1:01': image_data,
+                                                                            'image_shape:01': np.array(
+                                                                                [image.size[1], image.size[0]],
+                                                                                dtype=np.int32).reshape(1, 2)})
 
         out_boxes, out_scores, out_classes = [], [], []
         for idx_ in indices:
@@ -249,18 +245,6 @@ class YOLO(object):
             out_scores.append(all_scores[tuple(idx_)])
             idx_1 = (idx_[0], idx_[2])
             out_boxes.append(all_boxes[idx_1])
-
-        """
-        out_boxes, out_scores, out_classes = self.sess.run(
-            [self.boxes, self.scores, self.classes],
-            feed_dict={
-                self.i0: r[0],
-                self.i1: r[1],
-                self.i2: r[2],
-                self.input_image_shape: [image.size[1], image.size[0]],
-                K.learning_phase(): 0
-            })
-        """
 
         print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
@@ -308,8 +292,7 @@ class YOLO(object):
 def detect_img(yolo, name):
     import onnxruntime
     image = Image.open(name)
-    yolo.session = onnxruntime.InferenceSession('model_data/yolov3_0.onnx')
-    yolo.session_final = onnxruntime.InferenceSession('model_data/yolov3_1.onnx')
+    yolo.session = onnxruntime.InferenceSession('model_data/yolov3.onnx')
     r_image = yolo.detect_with_onnx(image)
 
     n_ext = name.rindex('.')
