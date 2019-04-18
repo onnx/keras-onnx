@@ -290,9 +290,7 @@ model.load_weights(COCO_MODEL_PATH, by_name=True)
 
 from keras2onnx import set_converter
 from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
-from mrcnn.model import ProposalLayer, PyramidROIAlign, DetectionTargetLayer, DetectionLayer, BatchNorm
-
-from keras2onnx.subgraph import create_subgraph
+from mrcnn.model import PyramidROIAlign, BatchNorm
 
 
 def create_onnx_node(scope, operator, container, type):
@@ -300,31 +298,15 @@ def create_onnx_node(scope, operator, container, type):
     container.add_node(type, operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
 
 
-def convert_ProposalLayer(scope, operator, container):
-    node_list = operator.node_list
-    create_onnx_node(scope, operator, container, 'ProposalLayer')
-
-
 def convert_PyramidROIAlign(scope, operator, container):
     create_onnx_node(scope, operator, container, 'PyramidROIAlign')
-
-
-def convert_DetectionTargetLayer(scope, operator, container):
-    create_onnx_node(scope, operator, container, 'DetectionTargetLayer')
-
-
-def convert_DetectionLayer(scope, operator, container):
-    create_onnx_node(scope, operator, container, 'DetectionLayer')
 
 
 def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
-set_converter(ProposalLayer, convert_ProposalLayer)
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
-set_converter(DetectionTargetLayer, convert_DetectionTargetLayer)
-set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
 oml = keras2onnx.convert_keras(model.keras_model)
