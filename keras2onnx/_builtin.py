@@ -8,6 +8,7 @@ from .funcbook import set_converter
 import sys
 import numpy as np
 import tf2onnx
+from onnx import onnx_pb
 
 
 def default_convert(scope, operator, container):
@@ -301,7 +302,6 @@ def on_StridedSlice_9(ctx, node, name, args):
 
 
 def on_Round(ctx, node, name, args):
-    from onnx import onnx_pb
     const_name = tf2onnx.utils.make_name(node.name)
     const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
     cast_name = tf2onnx.utils.make_name(node.name)
@@ -313,3 +313,55 @@ def on_Round(ctx, node, name, args):
     node.input[0] = add_output_name
     node.type = "Ceil"
     return [const_node, add_node, node]
+
+
+def on_TopKV2(ctx, node, name, args):
+    # T values, int32 indices = TopKV2(T input, int32 k, @bool sorted=true, @realnumbertype T)
+    # T values, I indices = TopK(T x, @int axis=-1, @int k). I: int64
+    topk_node_name = node.name
+    topk_output1 = node.output[0]
+    topk_output2 = node.output[1]
+
+    shapes = node.output_shapes
+    dtypes = node.output_dtypes
+    ctx.remove_node(topk_node_name)
+    new_topk_name = tf2onnx.utils.make_name(topk_node_name)
+    # TODO: need onnx schema update for TopK
+    new_topk_node = ctx.make_node("TopKNew", node.input,
+                                  outputs=[topk_output1, tf2onnx.utils.port_name(new_topk_name, 1)],
+                                  name=new_topk_name,
+                                  shapes=shapes, dtypes=[dtypes[0], onnx_pb.TensorProto.INT64])
+
+    new_cast_name = tf2onnx.utils.make_name(topk_node_name)
+    cast_to_int32 = ctx.make_node("Cast", [new_topk_node.output[1]], outputs=[topk_output2],
+                                  name=new_cast_name, attr={"to": onnx_pb.TensorProto.INT32},
+                                  shapes=[shapes[1]], dtypes=[onnx_pb.TensorProto.INT32])
+
+
+def on_Pad(ctx, node, name, args):
+    # TODO: need onnx schema update for Pad
+    node.type = "PadNew"
+    # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
+    #  or PadV2(T input, int32 paddings, T constant_value, @type Tpaddings), CONST mode - default value specified
+    #  or MirrorPad(T input, int32 paddings, @type Tpaddings, @STRING mode), other mode.
+    # T output = Pad(T data, @STRING mode, @INTS pads, @FLOAT value)
+    mode = node.get_attr("mode")
+    if mode:
+        mode = mode.s.decode("utf-8").lower()
+        node.set_attr("mode", mode)
+    if mode not in [None, "constant", "reflect"]:
+        raise ValueError(mode + " pad mode is not supported")
+
+    origin_dtype = ctx.get_dtype(node.output[0])
+    if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,
+                            onnx_pb.TensorProto.DOUBLE]:
+        cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
+        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+        ctx.copy_shape(node.name, cast_node.output[0])
+
+        cast_back_node = ctx.insert_new_node_on_output("Cast", node.output[0],
+                                                       name=tf2onnx.utils.make_name(node.name) + "_castback")
+        cast_back_node.set_attr("to", origin_dtype)
+        ctx.set_dtype(cast_back_node.output[0], origin_dtype)
+        ctx.copy_shape(node.name, cast_back_node.output[0])

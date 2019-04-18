@@ -13,7 +13,7 @@ import keras2onnx
 from mrcnn.config import Config
 from mrcnn import model as modellib, utils
 
-from keras2onnx._builtin import on_StridedSlice, on_Round
+from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad
 
 
 ROOT_DIR = os.path.abspath("./")
@@ -314,7 +314,11 @@ set_converter(BatchNorm, convert_BatchNorm)
 
 _custom_op_handlers = {
     'Round': (on_Round, []),
-    'StridedSlice': (on_StridedSlice, [])}
+    'StridedSlice': (on_StridedSlice, []),
+    'TopKV2': (on_TopKV2, []),
+    'Pad': (on_Pad, []),
+    'PadV2': (on_Pad, []),
+}
 
 oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
 onnx.save_model(oml, './mrcnn.onnx')
