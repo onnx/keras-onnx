@@ -22,7 +22,6 @@ import yolo3
 from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body, yolo_boxes_and_scores
 from yolo3.utils import letterbox_image
 
-g_use_nms = True
 
 class YOLOEvaluationLayer(keras.layers.Layer):
 
@@ -125,12 +124,8 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.model_image_size = (416, 416)  # fixed size or (None, None), hw
-        if g_use_nms:
-            self.boxes, self.scores, self.classes = self.generate()
-        else:
-            self.boxes, self.scores= self.generate()
+        self.boxes, self.scores, self.classes = self.generate()
         self.session = None
-        self.session_final = None
         self.final_model = None
         K.set_learning_phase(0)
 
@@ -175,24 +170,20 @@ class YOLO(object):
                    num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
 
-        input_image_shape = keras.Input(shape=(2,), dtype='int32', name='image_shape')
-        y1 = keras.Input((None, None, 255), dtype='float32', name='y1')
-        y2 = keras.Input((None, None, 255), dtype='float32', name='y2')
-        y3 = keras.Input((None, None, 255), dtype='float32', name='y3')
+        image_input = keras.Input(shape=(None, None, 3), dtype='float32')
+        backbone = keras.models.clone_model(self.yolo_model)
+        y1, y2, y3 = backbone([image_input])
 
+        input_image_shape = keras.Input(shape=(2,), dtype='int32', name='image_shape')
         boxes, box_scores = \
             YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[y1, y2, y3, input_image_shape])
 
-        if g_use_nms:
-            out_boxes, out_scores, out_indices = \
-                YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
-                    inputs=[boxes, box_scores])
-            self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
-                                           outputs=[out_boxes, out_scores, out_indices])
-        else:
-            self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
-                                           outputs=[boxes, box_scores])
+        out_boxes, out_scores, out_indices = \
+            YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
+                inputs=[boxes, box_scores])
+        self.final_model = keras.Model(inputs=[image_input, input_image_shape],
+                                       outputs=[out_boxes, out_scores, out_indices])
 
         self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
@@ -222,18 +213,10 @@ class YOLO(object):
         # Generate output tensor targets for filtered bounding boxes.
         self.input_image_shape = K.placeholder(shape=(2,))
 
-        if g_use_nms:
-            boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
-                                               len(self.class_names), self.input_image_shape,
-                                               score_threshold=self.score, iou_threshold=self.iou)
-
-            return boxes, scores, classes
-        else:
-            boxes, scores = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
-                                      len(self.class_names), self.input_image_shape,
-                                      score_threshold=self.score, iou_threshold=self.iou)
-
-            return boxes, scores
+        boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
+                                           len(self.class_names), self.input_image_shape,
+                                           score_threshold=self.score, iou_threshold=self.iou)
+        return boxes, scores, classes
 
     def detect_with_onnx(self, image):
         start = timer()
@@ -389,16 +372,15 @@ def convert_NMSLayer(scope, operator, container):
 set_converter(YOLONMSLayer, convert_NMSLayer)
 
 
-def convert_model(yolo, name0, name1):
-    yolo.load_model()
+def convert_model(yolo, name):
+    # yolo.load_model()
     target_opset_number = 10
-    if not os.path.exists(name0):
-        onnxmodel = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'],
-                                  debug_mode=True, custom_op_conversions=_custom_op_handlers, target_opset=target_opset_number)
-        onnx.save_model(onnxmodel, name0)
-
-    oxmlfinal = convert_keras(yolo.final_model, debug_mode=True, custom_op_conversions=_custom_op_handlers, target_opset=target_opset_number)
-    onnx.save_model(oxmlfinal, name1)
+    kmlfinal = keras.models.load_model('model_data/final_model.h5',
+                                       custom_objects={'YOLOEvaluationLayer': YOLOEvaluationLayer,
+                                                       'YOLONMSLayer': YOLONMSLayer})
+    oxmlfinal = convert_keras(kmlfinal, debug_mode=True,
+                              custom_op_conversions=_custom_op_handlers, target_opset=target_opset_number)
+    onnx.save_model(oxmlfinal, name)
 
 
 if __name__ == '__main__':
@@ -407,6 +389,6 @@ if __name__ == '__main__':
         exit(-1)
 
     if '-c' in sys.argv:
-        convert_model(YOLO(), 'model_data/yolov3_0.onnx', 'model_data/yolov3_1.onnx')
+        convert_model(YOLO(), 'model_data/yolov3.onnx')
     else:
         detect_img(YOLO(), sys.argv[1])
