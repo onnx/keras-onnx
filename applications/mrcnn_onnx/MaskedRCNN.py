@@ -13,6 +13,8 @@ import keras2onnx
 from mrcnn.config import Config
 from mrcnn import model as modellib, utils
 
+from keras2onnx._builtin import on_StridedSlice, on_Round
+
 
 ROOT_DIR = os.path.abspath("./")
 
@@ -310,7 +312,11 @@ def convert_BatchNorm(scope, operator, container):
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
 set_converter(BatchNorm, convert_BatchNorm)
 
-oml = keras2onnx.convert_keras(model.keras_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
+_custom_op_handlers = {
+    'Round': (on_Round, []),
+    'StridedSlice': (on_StridedSlice, [])}
+
+oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
 onnx.save_model(oml, './mrcnn.onnx')
 
 # class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',

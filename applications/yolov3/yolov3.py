@@ -16,7 +16,7 @@ from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
 from keras2onnx.proto import onnx_proto
-from custom_ops import on_StridedSlice, on_Round
+from keras2onnx._builtin import on_StridedSlice, on_Round
 
 import yolo3
 from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body, yolo_boxes_and_scores
