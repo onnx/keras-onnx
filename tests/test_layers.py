@@ -508,6 +508,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 3)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
+        self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 3)
         self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
@@ -682,7 +683,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mapped2_2 = sub_model2(mapped2_1)
         sub_sum = Add()([mapped1_3, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
-        keras_model.compile('sgd', loss='mse')
+        m.compile('sgd', loss='mse')
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
 
         x = [x, 2 * x]

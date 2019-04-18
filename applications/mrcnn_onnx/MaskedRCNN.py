@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import numpy as np
 
@@ -309,7 +310,7 @@ def convert_BatchNorm(scope, operator, container):
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
 set_converter(BatchNorm, convert_BatchNorm)
 
-oml = keras2onnx.convert_keras(model.keras_model)
+oml = keras2onnx.convert_keras(model.keras_model, debug_mode=True, custom_op_conversions=_custom_op_handlers)
 onnx.save_model(oml, './mrcnn.onnx')
 
 # class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
