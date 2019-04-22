@@ -29,6 +29,10 @@ def convert_keras_upsample(scope, operator, container, n_dims):
     else:
         raise ValueError('Unsupported dimension %s when converting Keras Upsampling layer' % n_dims)
 
+    mode = 'nearest'
+    if hasattr(op, 'interpolation'):
+        mode = 'linear' if op.interpolation.endswith('linear') else op.interpolation
+
     # Derive permutation configuration. If the Keras input format is not channels_first, this configuration may be used
     # to manipulate the input and output of ONNX Upsample.
     input_perm_axes, output_perm_axes = get_permutation_config(n_dims)
@@ -47,10 +51,10 @@ def convert_keras_upsample(scope, operator, container, n_dims):
     # If channels_first is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
     # conversion, a Transpose would be added.
     if channels_first:
-        apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container, scales=scales)
+        apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container, mode=mode, scales=scales)
     else:
         upsampled_tensor_name = scope.get_unique_variable_name(input_tensor_name + '_upsampled')
-        apply_upsample(scope, input_tensor_name, upsampled_tensor_name, container, scales=scales)
+        apply_upsample(scope, input_tensor_name, upsampled_tensor_name, container, mode=mode, scales=scales)
         apply_transpose(scope, upsampled_tensor_name, operator.outputs[0].full_name, container, perm=output_perm_axes)
 
 
