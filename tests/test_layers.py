@@ -453,6 +453,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         ishape = (20, 20, 1)
         layer = keras.layers.UpSampling2D(size=(2, 3), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
+        if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
+            layer = keras.layers.UpSampling2D(size=(2, 3), data_format='channels_last', interpolation='bilinear')
+            self._misc_conv_helper(layer, ishape)
 
     def test_padding(self):
         ishape = (20, 20, 1)
