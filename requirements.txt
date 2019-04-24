@@ -1,6 +1,5 @@
 numpy
 protobuf
-tf2onnx
 keras
 onnx
-onnxtk
+onnxconverter-common>=1.4.0

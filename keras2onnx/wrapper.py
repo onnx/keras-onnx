@@ -3,31 +3,29 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common import keras2onnx_logger
-from tf2onnx.tfonnx import *
-from .funcbook import set_converter
+import tf2onnx
 from distutils.version import StrictVersion
+from tf2onnx.tfonnx import process_tf_graph
+from onnx import numpy_helper
+from .common import k2o_logger
+from .funcbook import set_converter
 
 
-def tf2onnx_wrap(topo, node_list, outputs, target_opset):
+def tf2onnx_wrap(topo, graph, outputs, target_opset):
     """
     A wrapper function to invoke the basic node conversion from tf2onnx
     """
     try:
-        onnx_nodes, op_cnt, attr_cnt, output_shapes, dtypes = tflist_to_onnx(node_list, {})
-
-        g = Graph(onnx_nodes, output_shapes, dtypes, opset=target_opset, output_names=outputs)
-        ops = g.get_nodes()
-        g.topological_sort(ops)
-
-        _ = tensorflow_onnx_mapping(g, topo.debug_mode, topo.custom_op_dict)
-        g.topological_sort(g.get_nodes())
-        g.update_proto()
+        g = process_tf_graph(graph,
+                         continue_on_error=topo.debug_mode,
+                         opset=target_opset,
+                         custom_op_handlers=topo.custom_op_dict,
+                         output_names=outputs)
         return g
 
     except Exception as e:
-        for node_ in node_list:
-            keras2onnx_logger().debug("tfnode: {}".format(node_.name))
+        k2o_logger().warning("Exception on this tf.graph\n" +
+                             '\n'.join(op_.name for op_ in graph.get_operations()))
         raise e
 
 
@@ -46,6 +44,7 @@ def tfnode_convert(varset, operator, container):
     merge the output node from tf2onnx into the final graph.
     """
     g = operator.tf2onnx_graph
+    g.update_proto()
 
     # update attributes
     all_inputs = set()

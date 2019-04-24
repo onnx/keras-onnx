@@ -1,13 +1,14 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
-
-import keras
-import keras.layers.advanced_activations as activations
+###############################################################################
+from ..proto import keras
 from distutils.version import StrictVersion
 from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu
+
+
+activations = keras.layers.advanced_activations
 
 
 def convert_keras_advanced_activation(scope, operator, container):

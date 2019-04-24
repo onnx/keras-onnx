@@ -1,8 +1,9 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
+###############################################################################
+from ..proto import keras
 
 
 def get_permutation_config(n_dims):
@@ -12,7 +13,7 @@ def get_permutation_config(n_dims):
 
 
 def extract_recurrent_activation(activation):
-    from keras import activations
+    activations = keras.activations
     alpha = None
     beta = None
     if activation == activations.sigmoid:
@@ -31,4 +32,4 @@ def extract_recurrent_activation(activation):
     else:
         raise NotImplementedError('The activation %s not supported' % activation)
 
-    return (onnx_op_type, alpha, beta)
+    return onnx_op_type, alpha, beta

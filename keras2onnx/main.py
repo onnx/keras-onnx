@@ -4,15 +4,15 @@
 # license information.
 ###############################################################################
 import os
-import tensorflow as tf
-import keras
+import logging
+from .proto import keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
-from .common.utils import GRAPH_OUTMOST_NAME
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, DEFAULT_BATCH_SIZE
 from .topology import Topology
+from .common.utils import set_logger_level
 from ._builtin import set_converter
 
 
@@ -57,29 +57,6 @@ def get_tensorboard_writer():
     return pb_visual_writer
 
 
-def _convert_tf(name, tf_graph_def, model, output_names, target_opset, doc_string, channel_first_inputs,
-                debug_mode, custom_op_conversions):
-
-    if target_opset is None:
-        target_opset = get_opset_number_from_onnx()
-
-    with tf.Graph().as_default() as tf_graph:
-        tf.import_graph_def(tf_graph_def, name=GRAPH_OUTMOST_NAME)
-        if get_tensorboard_writer() is not None:
-            get_tensorboard_writer().add_graph(tf_graph)
-
-        output_names = [GRAPH_OUTMOST_NAME + '/' + name for name in output_names]
-
-        raw_model_container = KerasTfModelContainer(tf_graph, model)
-        topology = Topology(raw_model_container, default_batch_size=DEFAULT_BATCH_SIZE, target_opset=target_opset,
-                            custom_op_dict=custom_op_conversions)
-        topology.debug_mode = debug_mode
-        parse_graph(topology, tf_graph, target_opset, output_names)
-        topology.compile()
-
-        return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
-
-
 def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
                   custom_op_conversions=None):
     # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
@@ -93,35 +70,26 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :param custom_op_conversions: the handler for custom operator conversion
     :return:
     """
-    from keras import backend as K
+    set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
 
     if name is None:
         name = model.name
+
+    if target_opset is None:
+        target_opset = get_opset_number_from_onnx()
 
     output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
 
-    sess = K.get_session()
-    out_node = [n_.replace(':0', '') for n_ in output_names]
-    tf_graph_def = tf.graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=out_node)
-    return _convert_tf(name, tf_graph_def, model, output_names, target_opset, doc_string, channel_first_inputs,
-                       debug_mode, custom_op_conversions)
+    sess = keras.backend.get_session()
+    if get_tensorboard_writer() is not None:
+        get_tensorboard_writer().add_graph(sess.graph)
+    raw_model_container = KerasTfModelContainer(sess.graph, model)
+    topology = Topology(raw_model_container, default_batch_size=DEFAULT_BATCH_SIZE, target_opset=target_opset,
+                        custom_op_dict=custom_op_conversions)
+    topology.debug_mode = debug_mode
+    parse_graph(topology, sess.graph, target_opset, output_names)
+    topology.compile()
 
-
-def convert_keras_tf(name, output_names, doc_string='', target_opset=None, channel_first_inputs=None):
-    # type: (str, [], str, int, []) -> onnx.ModelProto
-    """
-    Convert the frozen tensorflow model originally defined by Keras
-    :param name:
-    :param output_names:
-    :param doc_string:
-    :param target_opset:
-    :param channel_first_inputs:
-    :return:
-    """
-    graph_def = tf.GraphDef()
-    with tf.gfile.FastGFile(name, 'rb') as f:
-        graph_def.ParseFromString(f.read())
-
-        return _convert_tf(name, graph_def, None, output_names, target_opset, doc_string, channel_first_inputs, False, None)
+    return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)

@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from __future__ import division, absolute_import, print_function, unicode_literals
 from uuid import uuid4
 import re
 import six
@@ -25,7 +24,7 @@ def get_converter(op_type):
 def create_pattern_dict():
     dict_p = {}
     for k_, v_ in six.iteritems(_converters):
-        if hasattr(v_, 'patterns') and  len(v_.patterns) > 0:
+        if hasattr(v_, 'patterns') and len(v_.patterns) > 0:
             dict_p[re.compile(v_.patterns[0])] = (k_, uuid4(), [re.compile(p) for p in v_.patterns[1:]])
 
     return dict_p

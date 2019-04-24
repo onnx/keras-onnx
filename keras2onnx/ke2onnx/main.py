@@ -4,12 +4,10 @@
 # license information.
 ###############################################################################
 import six
-from keras.layers import *
-from keras.layers import advanced_activations as adv_activations
 
+from ..proto import keras
 from ..common import with_variable
 from ..common.onnx_ops import apply_identity, apply_reshape
-from ..common.utils import GRAPH_OUTMOST_NAME
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -19,6 +17,7 @@ from .upsample import *
 from .conv import *
 from .pooling import *
 from .crop import *
+from .embedding import convert_keras_embed
 from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
 from .lstm import convert_keras_lstm
@@ -50,65 +49,73 @@ def convert_keras_training_only_layer(scope, operator, container):
 
 
 def build_opdict_from_keras(model):
-    # type: (keras.Model) -> []
+    # type: (keras.Model) -> {}
 
     output_dict = {}
     for l_ in model.layers:
         if hasattr(l_, 'layers'):
-            dict = build_opdict_from_keras(l_)
-            output_dict.update(dict)
-            continue
+            submodel_dict = build_opdict_from_keras(l_)
+            shared_layer = False
+            for node_ in extract_inbound_nodes(l_):
+                shared_layer |= any(
+                    ts_.name not in submodel_dict for ts_ in node_.output_tensors)
+            if not shared_layer:  # shared layer will be handled with the sub-model granularity.
+                continue
 
         for node_ in extract_inbound_nodes(l_):
             for ts_ in node_.output_tensors:
-                output_dict[GRAPH_OUTMOST_NAME + '/' + ts_.op.name] = l_
+                output_dict[ts_.name] = (l_, model)
 
     return output_dict
 
 
+_layer = keras.layers
+_adv_activations = keras.layers.advanced_activations
+
 keras_layer_to_operator = {
-    UpSampling1D: convert_keras_upsample_1d,
-    UpSampling2D: convert_keras_upsample_2d,
-    UpSampling3D: convert_keras_upsample_3d,
-    BatchNormalization: convert_keras_batch_normalization,
+    _layer.UpSampling1D: convert_keras_upsample_1d,
+    _layer.UpSampling2D: convert_keras_upsample_2d,
+    _layer.UpSampling3D: convert_keras_upsample_3d,
+    _layer.BatchNormalization: convert_keras_batch_normalization,
 
-    adv_activations.LeakyReLU: convert_keras_advanced_activation,
-    adv_activations.ThresholdedReLU: convert_keras_advanced_activation,
-    adv_activations.ELU: convert_keras_advanced_activation,
-    adv_activations.PReLU: convert_keras_advanced_activation,
+    _adv_activations.LeakyReLU: convert_keras_advanced_activation,
+    _adv_activations.ThresholdedReLU: convert_keras_advanced_activation,
+    _adv_activations.ELU: convert_keras_advanced_activation,
+    _adv_activations.PReLU: convert_keras_advanced_activation,
 
-    Activation: convert_keras_activation,
+    _layer.Activation: convert_keras_activation,
 
-    Conv1D: convert_keras_conv1d,
-    Conv2D: convert_keras_conv2d,
-    Conv3D: convert_keras_conv3d,
-    Conv2DTranspose: convert_keras_conv_transpose_2d,
-    Conv3DTranspose: convert_keras_conv_transpose_3d,
-    DepthwiseConv2D: convert_keras_depthwise_conv_2d,
-    SeparableConv1D: convert_keras_separable_conv1d,
-    SeparableConv2D: convert_keras_separable_conv2d,
+    _layer.Conv1D: convert_keras_conv1d,
+    _layer.Conv2D: convert_keras_conv2d,
+    _layer.Conv3D: convert_keras_conv3d,
+    _layer.Conv2DTranspose: convert_keras_conv_transpose_2d,
+    _layer.Conv3DTranspose: convert_keras_conv_transpose_3d,
+    _layer.DepthwiseConv2D: convert_keras_depthwise_conv_2d,
+    _layer.SeparableConv1D: convert_keras_separable_conv1d,
+    _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
-    Dense: convert_keras_dense,
+    _layer.Dense: convert_keras_dense,
+    _layer.Embedding: convert_keras_embed,
 
-    MaxPooling1D: convert_keras_max_pooling_1d,
-    MaxPooling2D: convert_keras_max_pooling_2d,
-    MaxPooling3D: convert_keras_max_pooling_3d,
-    AveragePooling1D: convert_keras_average_pooling_1d,
-    AveragePooling2D: convert_keras_average_pooling_2d,
-    AveragePooling3D: convert_keras_average_pooling_3d,
+    _layer.MaxPooling1D: convert_keras_max_pooling_1d,
+    _layer.MaxPooling2D: convert_keras_max_pooling_2d,
+    _layer.MaxPooling3D: convert_keras_max_pooling_3d,
+    _layer.AveragePooling1D: convert_keras_average_pooling_1d,
+    _layer.AveragePooling2D: convert_keras_average_pooling_2d,
+    _layer.AveragePooling3D: convert_keras_average_pooling_3d,
 
-    Cropping1D: convert_keras_crop_1d,
-    Cropping2D: convert_keras_crop_2d,
-    Cropping3D: convert_keras_crop_3d,
+    _layer.Cropping1D: convert_keras_crop_1d,
+    _layer.Cropping2D: convert_keras_crop_2d,
+    _layer.Cropping3D: convert_keras_crop_3d,
 
-    Reshape: convert_keras_reshape,
+    _layer.Reshape: convert_keras_reshape,
 
-    Dropout: convert_keras_training_only_layer,
+    _layer.Dropout: convert_keras_training_only_layer,
 
-    SimpleRNN: convert_keras_simple_rnn,
-    GRU: convert_keras_gru,
-    LSTM: convert_keras_lstm,
-    Bidirectional: convert_bidirectional
+    _layer.SimpleRNN: convert_keras_simple_rnn,
+    _layer.GRU: convert_keras_gru,
+    _layer.LSTM: convert_keras_lstm,
+    _layer.Bidirectional: convert_bidirectional
 }
 
 

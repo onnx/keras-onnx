@@ -1,9 +1,8 @@
-# -------------------------------------------------------------------------
+###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
-# --------------------------------------------------------------------------
-
+###############################################################################
 import numpy as np
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose
@@ -57,7 +56,11 @@ def convert_keras_gru(scope, operator, container):
     if len(operator.inputs) == 1:
         gru_input_names.append('')
     else:
-        gru_input_names.append(operator.inputs[1].full_name)
+        # Add a reshape after initial_h, 2d -> 3d
+        input_reshape_name = scope.get_unique_variable_name('input_reshape')
+        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
+                      desired_shape=[1, -1, hidden_size])
+        gru_input_names.append(input_reshape_name)
 
     activation_types = []
     alphas = []
