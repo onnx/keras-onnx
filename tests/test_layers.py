@@ -353,7 +353,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.models.Sequential()
         model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), input_shape=(H, W, C), data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name) 
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
 
