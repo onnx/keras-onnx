@@ -469,7 +469,7 @@ def rewrite_incomplete_type_support_rs5(g, ops):
 
 
 def rewrite_incomplete_type_support_rs6(g, ops):
-    return rewrite_incomplete_type_support(g, ops, [
+    impacted_ops = [
         "Div",
         "Greater",
         "IsNaN",
@@ -482,7 +482,13 @@ def rewrite_incomplete_type_support_rs6(g, ops):
         "Tile",
         "Transpose",
         "Where"
-    ])
+    ]
+    # TODO: logic to insert cast has bug, not all inputs of one node need cast
+    # for example, slice's input "starts" doesn't need it.
+    if g.opset == 10:
+        impacted_ops.remove("Slice")
+
+    return rewrite_incomplete_type_support(g, ops, impacted_ops)
 
 
 def rewrite_conv2d_with_pad(g, ops):
@@ -686,13 +692,13 @@ def process_tf_graph(tf_graph, continue_on_error=False, verbose=False, target=No
         logger.warning("Argument verbose for process_tf_graph is deprecated. Please use --verbose option instead.")
     del verbose
 
-    opset = utils.find_opset(opset)
-    print("using tensorflow={}, onnx={}, opset={}, tfonnx={}/{}".format(
-        tf.__version__, utils.get_onnx_version(), opset,
-        tf2onnx.__version__, tf2onnx.version.git_version[:6]))
+    logger.info("Using tensorflow=%s, onnx=%s, tf2onnx=%s/%s",
+                tf.__version__, utils.get_onnx_version(), tf2onnx.__version__, tf2onnx.version.git_version[:6])
 
+    opset = utils.find_opset(opset)
+    logger.info("Using opset <onnx, %s>", opset)
     if opset > schemas.get_max_supported_opset_version():
-        logger.warning("currently installed onnx package %s is too low to support opset %s, "
+        logger.warning("Currently installed onnx package %s is too low to support opset %s, "
                        "please upgrade onnx package to avoid potential conversion issue.",
                        utils.get_onnx_version(), opset)
 

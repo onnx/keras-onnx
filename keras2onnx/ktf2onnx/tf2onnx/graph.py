@@ -12,18 +12,15 @@ from __future__ import unicode_literals
 import collections
 import copy
 import logging
-import sys
-import traceback
 import six
 import numpy as np
 
-from distutils.version import StrictVersion
-from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, version
+from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, TensorProto
 from tf2onnx import utils, __version__
 from tf2onnx.utils import port_name, find_opset
 from tf2onnx import optimizer
-from tf2onnx.schemas import get_schema
-
+from tf2onnx.schemas import get_schema, infer_onnx_shape_dtype
+from tf2onnx import constants
 
 logger = logging.getLogger(__name__)
 
@@ -423,7 +420,8 @@ class Graph(object):
         return node
 
     def make_node(self, op_type, inputs, attr=None, output_count=1, outputs=None, skip_conversion=True,
-                  op_name_scope=None, name=None, shapes=None, dtypes=None, domain=None):
+                  op_name_scope=None, name=None, shapes=None, dtypes=None, domain=constants.ONNX_DOMAIN,
+                  infer_shape_dtype=True):
         """Make a new onnx node in the graph"""
         if attr is None:
             attr = {}
@@ -434,9 +432,6 @@ class Graph(object):
 
         if name is None:
             name = utils.make_name(op_type)
-
-        if StrictVersion(version.version) < StrictVersion('1.4') and domain is None:
-            domain = ''
 
         if op_name_scope:
             name = "_".join([op_name_scope, name])
@@ -480,6 +475,9 @@ class Graph(object):
                             "output dtypes count %s not equal to output count %s", len(dtypes), output_count)
             for i in range(output_count):
                 self.set_dtype(node.output[i], dtypes[i])
+
+        if (not shapes or not dtypes) and infer_shape_dtype:
+            self.update_node_shape_dtype(node, override=False)
 
         self._nodes.append(node)
         return node
@@ -539,6 +537,66 @@ class Graph(object):
 
         self._dtypes = remained_dtypes
         self._output_shapes = remained_shapes
+
+    def update_node_shape_dtype(self, node, override=False):
+        """Try the best to infer shapes and dtypes for outputs of the node,
+        by default, we respect TF shapes and dtypes.
+        """
+        if node.is_const() or node.is_graph_input():
+            return
+        # NOTE: only support onnx node for now
+        if not utils.is_onnx_domain(node.domain):
+            return
+
+        logger.debug("Infer shape and dtype for [%s]", node.name)
+        # NOTE: shape inference for some ops need the input values of the op, e.g., Reshape
+        # op needs the "Shape" value to infer output shape.
+        initializers = []
+        for i, inp in enumerate(node.inputs):
+            if not inp:
+                if logger.isEnabledFor(logging.VERBOSE):
+                    logger.warning(
+                        "[%s] infer a inexistent node: [%s], please check the code",
+                        node.name, node.input[i]
+                    )
+                continue
+            if inp.is_const():
+                t = inp.get_attr("value")
+                tensor = helper.get_attribute_value(t)
+                tensor.name = inp.output[0]
+                initializers.append(tensor)
+
+        input_shapes = [self.get_shape(i) for i in node.input]
+        input_dtypes = [self.get_dtype(i) for i in node.input]
+
+        shapes, dtypes = infer_onnx_shape_dtype(node, self._opset, input_shapes, input_dtypes, initializers)
+        if not shapes or not dtypes:
+            return
+
+        for output, shape, dtype in zip(node.output, shapes, dtypes):
+            if dtype == TensorProto.UNDEFINED:
+                logger.debug("Inferred dtype for [%s, type: %s] is UNDEFINED, SKIP", node.name, node.type)
+            else:
+                existing_dtype = self.get_dtype(output)
+                if existing_dtype is not None and existing_dtype != dtype:
+                    if override:
+                        logger.warning("Override dtype of %s from %s to %s", output, existing_dtype, dtype)
+                    else:
+                        dtype = existing_dtype
+                self.set_dtype(output, dtype)
+                logger.debug("Set dtype of [%s] to %s", output, dtype)
+
+            if shape is None:
+                logger.debug("Inferred shape for [%s, type: %s] is None, SKIP", node.name, node.type)
+            else:
+                existing_shape = self.get_shape(output)
+                if existing_shape is not None and not utils.are_shapes_equal(existing_shape, shape):
+                    if override:
+                        logger.warning("Override shape of %s from %s to %s", output, existing_shape, shape)
+                    else:
+                        shape = existing_shape
+                self.set_shape(output, shape)
+                logger.debug("Set shape of [%s] to %s", output, shape)
 
     def update_proto(self):
         """Update the onnx protobuf from out internal Node structure."""
@@ -1043,18 +1101,19 @@ class Graph(object):
 
     def delete_unused_nodes(self, outputs_name):
         """Delete nodes not in subgraph ending with output_names."""
-        if outputs_name:
-            # we need keep those placeholders that are used as input of Loop's body graph.
-            # some of them are not used in the graph, but still need be there to keep the graph complete.
-            related_nodes = self.extract_sub_graph_nodes(outputs_name, ignore_unused_placeholder=False)
-            for node in related_nodes:
-                attr_body_graphs = node.get_body_graphs()
-                if attr_body_graphs:
-                    for _, body_graph in attr_body_graphs.items():
-                        body_graph.delete_unused_nodes(body_graph.outputs)
-            self.reset_nodes(related_nodes)
-        else:
-            print("WARNING: outputs not specified, delete_unused_nodes not taking effect.")
+        if not outputs_name:
+            logger.debug("Outputs not specified, delete_unused_nodes not taking effect.")
+            return
+
+        # we need keep those placeholders that are used as input of Loop's body graph.
+        # some of them are not used in the graph, but still need be there to keep the graph complete.
+        related_nodes = self.extract_sub_graph_nodes(outputs_name, ignore_unused_placeholder=False)
+        for node in related_nodes:
+            attr_body_graphs = node.get_body_graphs()
+            if attr_body_graphs:
+                for _, body_graph in attr_body_graphs.items():
+                    body_graph.delete_unused_nodes(body_graph.outputs)
+        self.reset_nodes(related_nodes)
 
 
 class GraphUtil(object):
@@ -1070,7 +1129,7 @@ class GraphUtil(object):
 
         Returns:
             model proto after optimization, if optimizer run successfully
-            or None, if exceptions happens
+            or onnx_model_proto, if exceptions happens
         """
         try:
             kwargs = GraphUtil.get_onnx_model_properties(onnx_model_proto)
@@ -1084,12 +1143,10 @@ class GraphUtil(object):
                 helper.set_model_props(model_proto, metadata_props)
             return model_proto
         except Exception:
-            # sometimes, onnx shape inference will fail for some reason, in this case,
-            # we just log the error, and skip the transpose optimizer.
-            type_, value_, traceback_ = sys.exc_info()
-            ex_ext = traceback.format_exception(type_, value_, traceback_)
-            print("NON-CRITICAL error in optimizer: ", ex_ext)
-            return None
+            # sometimes, onnx shape inference will fail for some reason,
+            # return onnx_model_proto for this case
+            logger.warning("Failed to optimize model proto", exc_info=1)
+            return onnx_model_proto
 
     @staticmethod
     def get_onnx_model_properties(onnx_model_proto):

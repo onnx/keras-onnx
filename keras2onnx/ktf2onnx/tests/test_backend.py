@@ -945,6 +945,42 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
+    @check_opset_min_version(10, "Slice in opset 10 can accept dymaic 'start' and 'ends'")
+    def test_slice_with_non_const(self):
+        x_val = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.float32)
+        t1 = np.array([0, 1], dtype=np.int32)
+        t2 = np.array([2, 2], dtype=np.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        t1_ = tf.placeholder(tf.int32, t1.shape, name=_TFINPUT1)
+        t2_ = tf.placeholder(tf.int32, t2.shape, name=_TFINPUT2)
+        x_ = tf.slice(x0, t1_, t2_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: t1, _INPUT2: t2})
+
+    @check_opset_min_version(10, "Slice in opset 10 can accept dymaic 'start' and 'ends'")
+    def test_slice_with_size_is_negative_one(self):
+        x_val = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.float32)
+        t1 = np.array([0, 1], dtype=np.int32)
+        # input "size" contains -1
+        t2 = np.array([2, -1], dtype=np.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        t1_ = tf.placeholder(tf.int32, t1.shape, name=_TFINPUT1)
+        t2_ = tf.placeholder(tf.int32, t2.shape, name=_TFINPUT2)
+        x_ = tf.slice(x0, t1_, t2_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: t1, _INPUT2: t2})
+
+    @skip_caffe2_backend()
+    def test_slice1(self):
+        # FIXME: only 1 dimension supported by caffe2 and msrt
+        x_val = np.array([[[1, 1, 1], [2, 2, 2]], [[3, 3, 3], [4, 4, 4]], [[5, 5, 5], [6, 6, 6]]], dtype=np.float32)
+        t1 = tf.constant([1, 0, 0], dtype=tf.int32)
+        t2 = tf.constant([1, 1, 3], dtype=tf.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = tf.slice(x0, t1, t2)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
     def test_split(self):
         x_val = np.linspace(1.0, 5 * 30.0, 5 * 30).astype(np.float32).reshape(5, 30)
         x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
@@ -1103,17 +1139,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
-    @unittest.skip("")
-    def test_slice1(self):
-        # FIXME: only 1 dimension supported by caffe2 and msrt
-        x_val = np.array([[[1, 1, 1], [2, 2, 2]], [[3, 3, 3], [4, 4, 4]], [[5, 5, 5], [6, 6, 6]]], dtype=np.float32)
-        t1 = tf.constant([1, 0, 0], dtype=tf.int32)
-        t2 = tf.constant([1, 1, 3], dtype=tf.int32)
-        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
-        x_ = tf.slice(x0, t1, t2)
-        _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val})
-
     @skip_caffe2_backend()
     @check_onnxruntime_incompatibility("Pow")
     def test_pow_scalar(self):
@@ -1180,6 +1205,33 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         # since results are random, compare the shapes only
         self._run_test_case([_OUTPUT], {}, check_value=False, check_shape=True)
+
+    @skip_caffe2_backend()
+    def test_randomuniform_dyn_shape(self):
+        # test for dynamic shape coming from a shape op
+        x_val = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+        x = tf.placeholder(x_val.dtype, name=_TFINPUT)
+        x_ = tf.stack([x, x])
+        x_ = tf.identity(x_)
+        x_ = tf.shape(x_, name="shape")
+        x_ = tf.random_uniform(x_, name="rand", dtype=tf.float32)
+        x_ = tf.identity(x_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        # since results are random, compare the shapes only
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_value=False, check_shape=True)
+
+    @skip_caffe2_backend()
+    def test_randomuniform_calc_shape(self):
+        # test for dynamic shape coming from some subgraph
+        x_val = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+        x = tf.placeholder(x_val.dtype, [None, 3], name=_TFINPUT)
+        x_ = tf.identity(x)
+        x_ = tf.shape(x_, name="shape")[1:]
+        x_ = tf.random_uniform(x_, name="rand", dtype=tf.float32)
+        x_ = tf.identity(x_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        # since results are random, compare the shapes only
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_value=False, check_shape=True)
 
     @skip_caffe2_backend()
     def test_argminmax(self):
@@ -1306,12 +1358,22 @@ class BackendTests(Tf2OnnxBackendTestBase):
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     @check_opset_min_version(6, "cast")
-    def test_topk(self):
+    def test_topk1(self):
         x_val = np.arange(3 * 2 * 3).astype("float32")
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         values, _ = tf.nn.top_k(x, 5, sorted=True)
         _ = tf.identity(values, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @check_opset_min_version(10, "TopK with dynamic K")
+    def test_topk2(self):
+        x_val = np.arange(3 * 2 * 3).astype("float32")
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        k_val = np.array(10).astype(np.int32)
+        k = tf.placeholder(tf.int32, name=_TFINPUT1)
+        values, _ = tf.nn.top_k(x, k, sorted=True)
+        _ = tf.identity(values, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: k_val})
 
     def test_stack_axis(self):
         for axis in [0, 1]:
@@ -2015,6 +2077,45 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x_ = tf.nn.softsign(x)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    def test_batch_to_spacend(self):
+        block_size = [2, 2]
+        crop = [[0, 1], [2, 1]]
+
+        input_val = np.random.random_sample([40, 3, 5, 100]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.batch_to_space_nd(input_x, block_size, crop, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+    def test_space_to_batchnd(self):
+        block_size = [2, 2]
+        pad = [[0, 1], [2, 1]]
+        input_val = np.random.random_sample([40, 5, 7, 66]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.space_to_batch_nd(input_x, block_size, pad, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+        tf.reset_default_graph()
+
+        pad = [[0, 0], [1, 2]]
+        input_val = np.random.random_sample([10, 6, 7, 66]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.space_to_batch_nd(input_x, block_size, pad, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+    @check_opset_min_version(10, "is_inf")
+    def test_isinf(self):
+        x_types = [np.float32, np.float64]
+        for x_type in x_types:
+            x_val1 = np.array([1.0, -2.0, 3.0, -4.0], dtype=x_type)
+            x_val2 = np.array([np.inf, np.inf, np.inf, np.inf], dtype=x_type).reshape((2, 2))
+            x_val3 = np.array([1.0, np.inf, -3.0, np.inf, 5.0, np.inf, -7.0, np.inf], dtype=x_type).reshape((2, 2, 2))
+            for x_val in [x_val1, x_val2, x_val3]:
+                x = tf.placeholder(x_type, x_val.shape, name=_TFINPUT)
+                x_ = tf.is_inf(x)
+                _ = tf.identity(x_, name=_TFOUTPUT)
+                self._run_test_case([_OUTPUT], {_INPUT: x_val})
+                tf.reset_default_graph()
 
 if __name__ == '__main__':
     unittest_main()
