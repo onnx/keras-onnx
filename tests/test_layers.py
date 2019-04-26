@@ -346,6 +346,25 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_pooling_max1d(self):
         self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6))
 
+    def test_pooling_max2d(self):
+        N, C, H, W = 2, 3, 5, 5
+        x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
+
+        model = keras.models.Sequential()
+        model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), input_shape=(H, W, C), data_format='channels_last'))
+        model.compile(optimizer='sgd', loss='mse')
+        onnx_model = keras2onnx.convert_keras(model, model.name) 
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
+
+        # test padding='same'
+        model = keras.models.Sequential()
+        model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), padding='same', input_shape=(H, W, C), data_format='channels_last'))
+        model.compile(optimizer='sgd', loss='mse')
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
+
     def test_pooling_global(self):
         self._pooling_test_helper(keras.layers.GlobalAveragePooling2D, (4, 6, 2))
 

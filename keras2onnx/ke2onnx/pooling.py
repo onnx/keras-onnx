@@ -29,7 +29,7 @@ def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
         if op.padding == 'valid':
             attrs['auto_pad'] = 'VALID'
         elif op.padding == 'same':
-            attrs['auto_pad'] = 'SAME_LOWER'
+            attrs['auto_pad'] = 'SAME_UPPER'
         else:
             raise RuntimeError("Unsupported padding type '{0}'".format(op.padding))
 
