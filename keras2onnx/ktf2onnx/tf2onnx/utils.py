@@ -13,6 +13,10 @@ import os
 import re
 import shutil
 import tempfile
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import six
 import numpy as np
 import tensorflow as tf
@@ -20,6 +24,7 @@ from tensorflow.core.framework import types_pb2, tensor_pb2
 from google.protobuf import text_format
 import onnx
 from onnx import helper, onnx_pb, defs, numpy_helper
+
 from . import constants
 
 #
@@ -165,6 +170,8 @@ def get_tf_tensor_data(tensor):
         is_raw = True
     elif tensor.float_val:
         data = tensor.float_val
+    elif tensor.half_val:
+        data = tensor.half_val
     elif tensor.dcomplex_val:
         data = tensor.dcomplex_val
     elif tensor.int_val:
@@ -242,7 +249,14 @@ def make_onnx_inputs_outputs(name, elem_type, shape, **kwargs):
        elem_type,  # type: TensorProto.DataType
        shape,  # type: Optional[Sequence[int]]
     """
-    return helper.make_tensor_value_info(name, elem_type, make_onnx_shape(shape), **kwargs)
+    if elem_type is None:
+        elem_type = onnx_pb.TensorProto.UNDEFINED
+    return helper.make_tensor_value_info(
+        name,
+        elem_type,
+        make_onnx_shape(shape),
+        **kwargs
+    )
 
 
 def find_opset(opset):
@@ -306,7 +320,7 @@ def construct_graph_from_nodes(parent_g, nodes, outputs, shapes, dtypes):
         all_outputs |= set(op.output)
 
         new_node = g.make_node(op.type, op.input, outputs=op.output, attr=op.attr, name=op.name,
-                               skip_conversion=op.skip_conversion)
+                               skip_conversion=op.skip_conversion, infer_shape_dtype=False)
         body_graphs = op.graph.contained_graphs.pop(op.name, None)
         if body_graphs:
             for attr_name, body_graph in body_graphs.items():
@@ -325,7 +339,7 @@ def construct_graph_from_nodes(parent_g, nodes, outputs, shapes, dtypes):
     new_output_names = []
     for output, shape, dtype in zip(outputs, shapes, dtypes):
         node = g.make_node("Identity", inputs=[output], op_name_scope="sub_graph_ending_node",
-                           shapes=[shape], dtypes=[dtype])
+                           shapes=[shape], dtypes=[dtype], infer_shape_dtype=False)
         new_output_names.append(node.output[0])
     g.outputs = new_output_names
     return g
@@ -455,3 +469,59 @@ def is_debug_mode():
 def set_debug_mode(enabled):
     global _is_debug_mode
     _is_debug_mode = enabled
+
+
+def get_max_value(np_dtype):
+    return np.iinfo(np_dtype).max
+
+
+def get_url(url, path, max_retries=5):
+    """ Download url and save to path. """
+    retries = Retry(total=max_retries, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retries)
+    session = requests.Session()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    response = session.get(url, allow_redirects=True)
+    if response.status_code not in [200]:
+        response.raise_for_status()
+
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+    with open(path, "wb") as f:
+        f.write(response.content)
+
+
+def is_reverse_op(op):
+    return op.type in ("ReverseV2", "ReverseSequence")
+
+
+def is_concat_op(op):
+    return op.type in ("Concat", "ConcatV2", "ConcatV3")
+
+
+def is_tensor_array_gather_op(op):
+    return op.type in ("TensorArrayGatherV2", "TensorArrayGatherV3")
+
+
+def is_tensor_array_write_op(op):
+    return op.type in ("TensorArrayWriteV2", "TensorArrayWriteV3")
+
+
+def is_tensor_array_op(op):
+    return op.type in ("TensorArrayV2", "TensorArrayV3")
+
+
+def is_loopcond_op(op):
+    return op.type == "LoopCond"
+
+
+def is_select_op(op):
+    return op.type == "Select"
+
+
+def is_slice_op(op):
+    return op.type == "Slice"
