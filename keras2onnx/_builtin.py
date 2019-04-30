@@ -156,9 +156,8 @@ def on_StridedSlice(ctx, node, name, args):
     return nodes
 
 
-# TODO, need clean up (remove reverse op) after opset 10 release
 def on_StridedSlice_9(ctx, node, name, args):
-    # for now we implement common cases. Things like strides!=1, -1 are not mappable to onnx.
+    # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
     not_supported_attr = ["ellipsis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
@@ -181,13 +180,10 @@ def on_StridedSlice_9(ctx, node, name, args):
     axes = []
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
-    reverse_axes = []
     for idx, begin_item in enumerate(begin):
         end_item = end[idx]
-        if strides[idx] == -1:
-            reverse_axes.append(idx)
-        if strides[idx] != 1 and strides[idx] != -1:
-            raise ValueError("StridedSlice: only strides=1, -1 are supported, current stride =" + str(strides[idx]))
+        if strides[idx] != 1:
+            raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
         axes.append(idx)
 
         if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
@@ -248,29 +244,9 @@ def on_StridedSlice_9(ctx, node, name, args):
         input_dtype = ctx.get_dtype(node.output[0])
         ctx.set_dtype(unsqueeze_node.output[0], input_dtype)
 
-    use_reverse_op = True
-    reverse_flag = False
-    if use_reverse_op and len(reverse_axes) > 0:
-        name = tf2onnx.utils.make_name(node.name)
-        name = name + '_reverse'
-        reverse_node = ctx.insert_new_node_on_output("Reverse", node.output[0], name)
-        reverse_node.set_attr("axes", reverse_axes)
-        reverse_node.domain = 'com.microsoft'
-        nodes.append(reverse_node)
-        input_dtype = ctx.get_dtype(node.output[0])
-        ctx.set_dtype(reverse_node.output[0], input_dtype)
-        ctx.copy_shape(node.output[0], reverse_node.output[0])
-        reverse_flag = True
-
     if needs_squeeze:
         name = tf2onnx.utils.make_name(node.name)
-        if use_reverse_op:
-            if reverse_flag:
-                squeeze_node = ctx.insert_new_node_on_output("Squeeze", reverse_node.output[0], name)
-            else:
-                squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
-        else:
-            squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
         squeeze_node.set_attr("axes", needs_squeeze)
         nodes.append(squeeze_node)
         input_dtype = ctx.get_dtype(node.output[0])
@@ -316,31 +292,18 @@ def on_Round(ctx, node, name, args):
 
 
 def on_TopKV2(ctx, node, name, args):
-    # T values, int32 indices = TopKV2(T input, int32 k, @bool sorted=true, @realnumbertype T)
-    # T values, I indices = TopK(T x, @int axis=-1, @int k). I: int64
-    topk_node_name = node.name
-    topk_output1 = node.output[0]
-    topk_output2 = node.output[1]
-
-    shapes = node.output_shapes
-    dtypes = node.output_dtypes
-    ctx.remove_node(topk_node_name)
-    new_topk_name = tf2onnx.utils.make_name(topk_node_name)
-    # TODO: need onnx schema update for TopK
-    new_topk_node = ctx.make_node("TopKNew", node.input,
-                                  outputs=[topk_output1, tf2onnx.utils.port_name(new_topk_name, 1)],
-                                  name=new_topk_name,
-                                  shapes=shapes, dtypes=[dtypes[0], onnx_pb.TensorProto.INT64])
-
-    new_cast_name = tf2onnx.utils.make_name(topk_node_name)
-    cast_to_int32 = ctx.make_node("Cast", [new_topk_node.output[1]], outputs=[topk_output2],
-                                  name=new_cast_name, attr={"to": onnx_pb.TensorProto.INT32},
-                                  shapes=[shapes[1]], dtypes=[onnx_pb.TensorProto.INT32])
-
+    # onnx only supports input K as a 1D tesor with dtype int64
+    # while in tf, K is a 0D tensor with dtype int32
+    k_0d = node.input[1]
+    cast = ctx.make_node("Cast", [k_0d], attr={"to": onnx_pb.TensorProto.INT64})
+    k_1d = ctx.make_node("Unsqueeze", cast.output, attr={"axes": [0]})
+    ctx.replace_input(node, k_0d, k_1d.output[0])
+    node.type = "TopK"
 
 def on_Pad(ctx, node, name, args):
     # TODO: need onnx schema update for Pad
-    node.type = "PadNew"
+    # node.type = "PadNew"
+    node.type = "Pad"
     # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
     #  or PadV2(T input, int32 paddings, T constant_value, @type Tpaddings), CONST mode - default value specified
     #  or MirrorPad(T input, int32 paddings, @type Tpaddings, @STRING mode), other mode.
@@ -351,6 +314,12 @@ def on_Pad(ctx, node, name, args):
         node.set_attr("mode", mode)
     if mode not in [None, "constant", "reflect"]:
         raise ValueError(mode + " pad mode is not supported")
+
+    # TODO: delete below
+    paddings = [1, 1, 1, 1, 1, 1, 1, 1] # np.array(node.inputs[1].get_tensor_value()).transpose().flatten()
+    ctx.remove_input(node, node.input[1])
+    node.set_attr("pads", paddings)
+    # TODO: delete this after pad op 10 implemented in onnxruntime
 
     origin_dtype = ctx.get_dtype(node.output[0])
     if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,

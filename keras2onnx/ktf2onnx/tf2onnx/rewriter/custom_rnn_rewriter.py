@@ -15,6 +15,7 @@ import traceback
 from onnx import onnx_pb
 import numpy as np
 
+from tf2onnx.graph_builder import GraphBuilder
 from tf2onnx.rewriter.loop_rewriter_base import LoopRewriterBase, Context
 from tf2onnx.rewriter.rnn_utils import REWRITER_RESULT, get_rnn_scope_name, parse_rnn_loop
 from tf2onnx import utils
@@ -111,7 +112,11 @@ class CustomRnnRewriter(LoopRewriterBase):
         loop_outputs_dtypes = []
         for tensor_value_info in scan_props.state_outputs_exits + scan_props.scan_outputs_exits:
             if tensor_value_info.id:
-                loop_outputs_shapes.append([1] + tensor_value_info.shape)
+                # in opset 8, the first dim of scan output must be batch
+                if self.g.opset == 8:
+                    loop_outputs_shapes.append([1] + tensor_value_info.shape)
+                else:
+                    loop_outputs_shapes.append(tensor_value_info.shape)
                 loop_outputs_dtypes.append(tensor_value_info.dtype)
                 n = self.g.get_node_by_output(tensor_value_info.id)
                 self.g.remove_node(n.name)
@@ -181,11 +186,12 @@ class CustomRnnRewriter(LoopRewriterBase):
                                                      {"to": onnx_pb.TensorProto.FLOAT})
                 nodes_to_add.append(origin_shape_node)
 
-                sliced_shape_node = self.g.make_node("Slice", [origin_shape_node.output[0]],
-                                                     {"axes": [0], "starts": [1], "ends": [sys.maxsize]})
-                nodes_to_add.append(sliced_shape_node)
+                attr = {"axes": [0], "starts": [1], "ends": [sys.maxsize]}
+                inputs_map = {"data": origin_shape_node.output[0], **attr}
+                sliced_shape_node = GraphBuilder(self.g).make_slice(inputs_map)
+                nodes_to_add.append(self.g.get_node_by_output(sliced_shape_node))
 
-                new_shape_node = self.g.make_node("Cast", [sliced_shape_node.output[0]],
+                new_shape_node = self.g.make_node("Cast", [sliced_shape_node],
                                                   {"to": onnx_pb.TensorProto.INT64})
                 nodes_to_add.append(new_shape_node)
 

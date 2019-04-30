@@ -302,7 +302,47 @@ def create_onnx_node(scope, operator, container, type):
 
 
 def convert_PyramidROIAlign(scope, operator, container):
-    create_onnx_node(scope, operator, container, 'PyramidROIAlign')
+    # create_onnx_node(scope, operator, container, 'PyramidROIAlign')
+    #create_onnx_node(scope, operator, container, 'RoiAlign')
+    preprocessor_type = 'RoiAlign'
+    temp_name_list = []
+    from keras2onnx.proto import onnx_proto
+    for i_ in range(2, 6):
+        shape_name = scope.get_unique_variable_name('roi_shape')
+        container.add_node('Shape', operator.input_full_names[1], shape_name, op_version=operator.target_opset)
+
+        starts_name = scope.get_unique_variable_name('roi_slice_starts')
+        starts = np.asarray([0], dtype=np.int32)
+        container.add_initializer(starts_name, onnx_proto.TensorProto.INT32, starts.shape, starts.flatten())
+
+        ends_name = scope.get_unique_variable_name('roi_slice_ends')
+        ends = np.asarray([np.iinfo(np.int32).max], dtype=np.int32)
+        container.add_initializer(ends_name, onnx_proto.TensorProto.INT32, ends.shape, ends.flatten())
+
+        axes_name = scope.get_unique_variable_name('roi_slice_axes')
+        axes = np.asarray([0], dtype=np.int32)
+        container.add_initializer(axes_name, onnx_proto.TensorProto.INT32, axes.shape, axes.flatten())
+
+        slice_name = scope.get_unique_variable_name('roi_slice')
+        container.add_node('Slice', [shape_name, starts_name, ends_name, axes_name], slice_name, op_version=operator.target_opset)
+
+        constant_of_shape_name = scope.get_unique_variable_name('roi_constant_of_shape')
+        container.add_node('ConstantOfShape', slice_name, constant_of_shape_name, op_version=operator.target_opset)
+
+        cast_name = scope.get_unique_variable_name('roi_cast')
+        attrs = {'to': 7}
+        container.add_node('Cast', constant_of_shape_name, cast_name, op_version=operator.target_opset, **attrs)
+
+        temp_name = scope.get_unique_variable_name('pyramid_roi')
+        attrs = {'name': scope.get_unique_operator_name(preprocessor_type),
+                 'output_height': operator.raw_operator.pool_shape[0],
+                 'output_width': operator.raw_operator.pool_shape[1]}
+        container.add_node('RoiAlign', [operator.input_full_names[i_], operator.input_full_names[0], cast_name], temp_name, op_version=operator.target_opset,
+                           **attrs)
+        temp_name_list.append(temp_name)
+
+    attrs = {'axis': 0}
+    container.add_node('Concat', temp_name_list, operator.output_full_names, op_version=operator.target_opset, **attrs)
 
 
 def convert_BatchNorm(scope, operator, container):
@@ -317,9 +357,10 @@ _custom_op_handlers = {
     'StridedSlice': (on_StridedSlice, []),
     'TopKV2': (on_TopKV2, []),
     'Pad': (on_Pad, []),
-    'PadV2': (on_Pad, []),
+    'PadV2': (on_Pad, [])
 }
 
+model.keras_model.save('mrcnn.h5')
 oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
 onnx.save_model(oml, './mrcnn.onnx')
 
@@ -345,3 +386,5 @@ onnx.save_model(oml, './mrcnn.onnx')
 #
 # # Run detection
 # results = model.detect([image], verbose=1)
+import onnxruntime
+sess = onnxruntime.InferenceSession('./mrcnn.onnx')

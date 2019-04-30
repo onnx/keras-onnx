@@ -452,8 +452,15 @@ class TransposeOptimizer(GraphOptimizerBase):
         return False
 
     def _slice_handler(self, trans, node):
-        axes = node.get_attr("axes").ints
-        keepdims = node.get_attr("keepdims")
+        axes = None
+        if self._g.opset < 10:
+            axes = node.get_attr("axes").ints
+        else:  # in opset 10, axes is input instead of an attribute.
+            if len(node.inputs) >= 4:
+                axes_node = node.inputs[3]
+                if axes_node.is_const():
+                    axes = axes_node.get_tensor_value(as_list=True)
+
         if axes == [0, 1, 2, 3]:
             node.set_attr("axes", [0, 2, 3, 1])
             return self._switch_transpose_and_node(node, trans)
@@ -472,7 +479,7 @@ class TransposeOptimizer(GraphOptimizerBase):
         self._g.remove_node(trans.name)
         self._g.remove_node(node.name)
         shape_node = self._g.make_node("Shape", [trans.input[0]])
-        const_node = self._g.make_const("Const", np.array(trans.get_attr("perm").ints))
+        const_node = self._g.make_const(utils.make_name("Const"), np.array(trans.get_attr("perm").ints))
         gather_node = self._g.make_node("Gather", [shape_node.output[0], const_node.output[0]], outputs=node.output)
         self._g.set_shape(gather_node.output[0], output_shape)
         self._g.set_dtype(gather_node.output[0], output_dtype)
