@@ -156,9 +156,8 @@ def on_StridedSlice(ctx, node, name, args):
     return nodes
 
 
-# TODO, need clean up (remove reverse op) after opset 10 release
 def on_StridedSlice_9(ctx, node, name, args):
-    # for now we implement common cases. Things like strides!=1, -1 are not mappable to onnx.
+    # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
     not_supported_attr = ["ellipsis_mask"]
     for attr_name in not_supported_attr:
         attr = node.get_attr(attr_name)
@@ -181,13 +180,10 @@ def on_StridedSlice_9(ctx, node, name, args):
     axes = []
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
-    reverse_axes = []
     for idx, begin_item in enumerate(begin):
         end_item = end[idx]
-        if strides[idx] == -1:
-            reverse_axes.append(idx)
-        if strides[idx] != 1 and strides[idx] != -1:
-            raise ValueError("StridedSlice: only strides=1, -1 are supported, current stride =" + str(strides[idx]))
+        if strides[idx] != 1:
+            raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
         axes.append(idx)
 
         if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
@@ -248,29 +244,9 @@ def on_StridedSlice_9(ctx, node, name, args):
         input_dtype = ctx.get_dtype(node.output[0])
         ctx.set_dtype(unsqueeze_node.output[0], input_dtype)
 
-    use_reverse_op = True
-    reverse_flag = False
-    if use_reverse_op and len(reverse_axes) > 0:
-        name = tf2onnx.utils.make_name(node.name)
-        name = name + '_reverse'
-        reverse_node = ctx.insert_new_node_on_output("Reverse", node.output[0], name)
-        reverse_node.set_attr("axes", reverse_axes)
-        reverse_node.domain = 'com.microsoft'
-        nodes.append(reverse_node)
-        input_dtype = ctx.get_dtype(node.output[0])
-        ctx.set_dtype(reverse_node.output[0], input_dtype)
-        ctx.copy_shape(node.output[0], reverse_node.output[0])
-        reverse_flag = True
-
     if needs_squeeze:
         name = tf2onnx.utils.make_name(node.name)
-        if use_reverse_op:
-            if reverse_flag:
-                squeeze_node = ctx.insert_new_node_on_output("Squeeze", reverse_node.output[0], name)
-            else:
-                squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
-        else:
-            squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
+        squeeze_node = ctx.insert_new_node_on_output("Squeeze", node.output[0], name)
         squeeze_node.set_attr("axes", needs_squeeze)
         nodes.append(squeeze_node)
         input_dtype = ctx.get_dtype(node.output[0])

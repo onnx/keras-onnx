@@ -11,13 +11,30 @@ from collections import defaultdict
 
 from distutils.version import LooseVersion
 from parameterized import parameterized
+import numpy as np
 from tf2onnx import constants, logging, utils
 
-__all__ = ["TestConfig", "get_test_config", "unittest_main", "check_onnxruntime_backend",
-           "check_tf_min_version", "check_tf_max_version", "skip_tf_versions", "check_onnxruntime_min_version",
-           "check_opset_min_version", "check_target", "skip_caffe2_backend", "skip_onnxruntime_backend",
-           "skip_opset", "check_onnxruntime_incompatibility", "validate_const_node",
-           "group_nodes_by_type", "test_ms_domain", "check_node_domain"]
+__all__ = [
+    "TestConfig",
+    "get_test_config",
+    "unittest_main",
+    "check_onnxruntime_backend",
+    "check_tf_min_version",
+    "check_tf_max_version",
+    "skip_tf_versions",
+    "check_onnxruntime_min_version",
+    "check_opset_min_version",
+    "check_opset_max_version",
+    "check_target",
+    "skip_caffe2_backend",
+    "skip_onnxruntime_backend",
+    "skip_opset",
+    "check_onnxruntime_incompatibility",
+    "validate_const_node",
+    "group_nodes_by_type",
+    "test_ms_domain",
+    "check_node_domain"
+]
 
 
 # pylint: disable=missing-docstring
@@ -174,6 +191,13 @@ def check_opset_min_version(min_required_version, message=""):
     return unittest.skipIf(config.opset < min_required_version, reason)
 
 
+def check_opset_max_version(max_accepted_version, message=""):
+    """ Skip if opset > max_accepted_version """
+    config = get_test_config()
+    reason = _append_message("conversion requires opset <= {}".format(max_accepted_version), message)
+    return unittest.skipIf(config.opset > max_accepted_version, reason)
+
+
 def skip_opset(opset_v, message=""):
     """ Skip if opset = opset_v """
     config = get_test_config()
@@ -257,7 +281,8 @@ def check_onnxruntime_incompatibility(op):
 def validate_const_node(node, expected_val):
     if node.is_const():
         node_val = node.get_tensor_value()
-        return node_val == expected_val
+        np.testing.assert_allclose(expected_val, node_val)
+        return True
     return False
 
 
