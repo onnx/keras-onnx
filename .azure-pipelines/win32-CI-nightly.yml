@@ -10,42 +10,43 @@ jobs:
 
 - job: 'Test'
   pool:
-    vmImage: 'Ubuntu-16.04'
+    vmImage: 'vs2017-win2016'
   strategy:
     matrix:
-      # No python 2.x since tf2onnx does not support it
-      Python35:
-        python.version: '3.5'
-        ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
-
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.4.1
         KERAS: keras
-
     maxParallel: 3
 
   steps:
-  - task: CondaEnvironment@1
+  - task: UsePythonVersion@0
     inputs:
-      createCustomEnvironment: true
-      environmentName: 'py$(python.version)'
-      packageSpecs: 'python=$(python.version)'
+      versionSpec: '$(python.version)'
+      architecture: 'x64'
+
+  - powershell: Write-Host "##vso[task.prependpath]$env:CONDA\Scripts"
+    displayName: Add conda to PATH
+
+  - script: conda create --yes --quiet --name py$(python.version) -c conda-forge python=$(python.version) numpy protobuf
+    displayName: Create Anaconda environment
 
   - script: |
-      python -m pip install --upgrade pip
-      conda config --set always_yes yes --set changeps1 no
-      pip install $(ONNX_PATH)
+      call activate py$(python.version)
+      python -m pip install --upgrade pip numpy
+      echo Test numpy installation... && python -c "import numpy"
+      pip install %ONNX_PATH%
       pip install tensorflow
-      pip install $(KERAS)
+      pip install %KERAS%
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly
     displayName: 'Install dependencies'
 
   - script: |
+      call activate py$(python.version)
       pip install -e .
-      python -c "import onnxruntime"
+      echo Test onnxruntime installation... && python -c "import onnxruntime"
       python -c "import onnxconverter_common"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'

@@ -13,12 +13,6 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   strategy:
     matrix:
-      # No python 2.x since tf2onnx does not support it
-      Python35:
-        python.version: '3.5'
-        ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
-
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.4.1
@@ -41,6 +35,7 @@ jobs:
       pip install $(KERAS)
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly
     displayName: 'Install dependencies'
 
   - script: |
