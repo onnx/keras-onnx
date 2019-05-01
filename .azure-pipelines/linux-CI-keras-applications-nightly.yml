@@ -42,6 +42,7 @@ jobs:
       pip install -e .
       python -c "import onnxruntime"
       python -c "import onnxconverter_common"
+      pytest applications/test_keras_applications.py --doctest-modules --junitxml=junit/test-results.xml
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
