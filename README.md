@@ -6,17 +6,14 @@
 
 
 # Introduction 
-keras2onnx enables you convert the keras models into [ONNX](https://onnx.ai).
-Initially Keras converter was developer in the project onnxmltools. To support more kinds of keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the keras model only.
+The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
+Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). To support more kinds of Keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the Keras model only.
 
-keras2onnx supports the keras lambda/custom layer by parsing the TF graph built from Keras model.
+keras2onnx converter supports not only all keras built-in layers, but also the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded into the source tree directly now to avoid version conflicts and installation complexity.
 
 keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
 
-More intro will be coming soon...
-# Note
-<span style="background-color: #FFFF00">Due to the recent tensorflow-onnx breaking change, please install tensorflow-onnx from github source instead of pypi
-package.</span>
+# Notes
 
 # tf.keras v.s. keras.io
 Both Keras model types are supported now. If keras package was installed as the one from https://keras.io/, the converter converts the model as it was created by this keras.io package, otherwise it will convert as it was by tf.keras.<br>
@@ -81,8 +78,8 @@ onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
 
-We converted successfully for the keras application models such as:
-Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201.
+We converted successfully for all the keras application models such as:
+Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201, NASNetMobile, and NASNetLarge.
 Try the following models and convert them to onnx using the code above. 
 
 ```
@@ -118,4 +115,16 @@ model = DenseNet169(include_top=True, weights='imagenet')
 
 from keras.applications.densenet import DenseNet201
 model = DenseNet201(include_top=True, weights='imagenet')
+
+from keras.applications.nasnet import NASNetMobile
+model = NASNetMobile(include_top=True, weights='imagenet')
+
+from keras.applications.nasnet import NASNetLarge
+model = NASNetLarge(include_top=True, weights='imagenet')
 ```
+
+## Contribute
+We welcome contributions in the form of feedback, ideas, or code. 
+
+## License
+[MIT License](LICENSE)

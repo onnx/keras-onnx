@@ -37,7 +37,7 @@ def convert_keras_dense(scope, operator, container):
 
     # Create an activation function node and apply activation function to the intermediate tensor
     apply_activation_function = activation_map[operator.raw_operator.activation]
-    if apply_activation_function in [activation_get('softmax'), keras.activations.softmax]:
+    if operator.raw_operator.activation in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)
