@@ -17,6 +17,7 @@ from .upsample import *
 from .conv import *
 from .pooling import *
 from .crop import *
+from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
 from .embedding import convert_keras_embed
 from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
@@ -110,6 +111,10 @@ keras_layer_to_operator = {
     _layer.Cropping1D: convert_keras_crop_1d,
     _layer.Cropping2D: convert_keras_crop_2d,
     _layer.Cropping3D: convert_keras_crop_3d,
+
+    _layer.ZeroPadding1D: convert_keras_zero_pad_1d,
+    _layer.ZeroPadding2D: convert_keras_zero_pad_2d,
+    _layer.ZeroPadding3D: convert_keras_zero_pad_3d,
 
     _layer.Reshape: convert_keras_reshape,
 

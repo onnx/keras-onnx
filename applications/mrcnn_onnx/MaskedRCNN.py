@@ -14,6 +14,7 @@ from mrcnn.config import Config
 from mrcnn import model as modellib, utils
 
 from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad
+import tensorflow as tf
 
 
 ROOT_DIR = os.path.abspath("./")
@@ -349,8 +350,17 @@ def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
+def convert_DenseToDenseSetOperation(scope, operator, container):
+    container.add_node('DenseIntersection', operator.input_full_names, operator.output_full_names, op_domain='com.microsoft', op_version=operator.target_opset)
+
+
+def convert_SparseToDense(scope, operator, container):
+    container.add_node('Identity', operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
+
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
 set_converter(BatchNorm, convert_BatchNorm)
+#set_converter(tf.sets.set_intersection, convert_DenseToDenseSetOperation)
+#set_converter(tf.sparse_tensor_to_dense, convert_SparseToDense)
 
 _custom_op_handlers = {
     'Round': (on_Round, []),

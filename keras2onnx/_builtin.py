@@ -302,8 +302,9 @@ def on_TopKV2(ctx, node, name, args):
 
 def on_Pad(ctx, node, name, args):
     # TODO: need onnx schema update for Pad
-    # node.type = "PadNew"
-    node.type = "Pad"
+    # node.type = "Pad"
+    node.type = "PadNew"
+    node.domain = 'com.microsoft'
     # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
     #  or PadV2(T input, int32 paddings, T constant_value, @type Tpaddings), CONST mode - default value specified
     #  or MirrorPad(T input, int32 paddings, @type Tpaddings, @STRING mode), other mode.
@@ -316,12 +317,18 @@ def on_Pad(ctx, node, name, args):
         raise ValueError(mode + " pad mode is not supported")
 
     # TODO: delete below
-    paddings = [1, 1, 1, 1, 1, 1, 1, 1] # np.array(node.inputs[1].get_tensor_value()).transpose().flatten()
-    ctx.remove_input(node, node.input[1])
-    node.set_attr("pads", paddings)
+    # paddings = [1, 1, 1, 1, 1, 1, 1, 1] # np.array(node.inputs[1].get_tensor_value()).transpose().flatten()
+    # ctx.remove_input(node, node.input[1])
+    # node.set_attr("pads", paddings)
     # TODO: delete this after pad op 10 implemented in onnxruntime
 
     origin_dtype = ctx.get_dtype(node.output[0])
+    if node.inputs[1].is_const():
+        # add initializer
+        const_one_array = ctx.make_const(tf2onnx.utils.make_name("one"),np.array(node.inputs[1].get_tensor_value()))
+        input_name = node.input[1]
+        ctx.replace_input(node, input_name, const_one_array.output[0])
+
     if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,
                             onnx_pb.TensorProto.DOUBLE]:
         cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
