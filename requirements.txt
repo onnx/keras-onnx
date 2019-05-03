@@ -2,5 +2,5 @@ numpy
 protobuf
 keras
 requests
-onnx<=1.4.1
+onnx
 onnxconverter-common>=1.4.0
