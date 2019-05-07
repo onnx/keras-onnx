@@ -282,7 +282,6 @@ def _infer_graph_shape(topology, top_level, varset):
     while not var_queue.empty():
         var = var_queue.get_nowait()
         k2o_logger().debug("var: " + var.full_name)
-        print("var: " + var.full_name)
         for oop in var.op_to:
             if oop in visited:
                 continue

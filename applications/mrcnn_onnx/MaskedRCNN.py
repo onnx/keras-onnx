@@ -357,6 +357,64 @@ def convert_DenseToDenseSetOperation(scope, operator, container):
 def convert_SparseToDense(scope, operator, container):
     container.add_node('Identity', operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
 
+
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
+from keras2onnx.proto import onnx_proto
+
+def convert_DetectionLayer(scope, operator, container):
+    # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer) -> None
+    DETECTION_MAX_INSTANCES = 100
+    DETECTION_NMS_THRESHOLD = 0.3
+    DETECTION_MIN_CONFIDENCE = 0.7
+
+    box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
+    score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
+
+    # apply_transpose(scope, operator.inputs[0].full_name, box_transpose, container, perm=[2, 0, 1])
+    apply_identity(scope, operator.inputs[0].full_name, box_transpose, container)
+    apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
+
+    box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
+    score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
+
+    container.add_node("Unsqueeze", box_transpose,
+                       box_batch, op_version=operator.target_opset, axes=[0])
+    container.add_node("Unsqueeze", score_transpose,
+                       score_batch, op_version=operator.target_opset, axes=[0])
+
+    max_output_size = scope.get_unique_variable_name('max_output_size')
+    iou_threshold = scope.get_unique_variable_name('iou_threshold')
+    score_threshold = scope.get_unique_variable_name('layer.score_threshold')
+
+    container.add_initializer(max_output_size, onnx_proto.TensorProto.INT64,
+                              [], [DETECTION_MAX_INSTANCES])
+    container.add_initializer(iou_threshold, onnx_proto.TensorProto.FLOAT,
+                              [], [DETECTION_NMS_THRESHOLD])
+    container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
+                              [], [DETECTION_MIN_CONFIDENCE])
+
+    nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
+    nms_output = scope.get_unique_variable_name(operator.output_full_names[0] + '_nms')
+    container.add_node("NonMaxSuppression",
+                       [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
+                       nms_output,
+                       op_version=operator.target_opset,
+                       name=nms_node.name)
+
+    cast_name = scope.get_unique_variable_name(operator.output_full_names[0] + '_nms_cast')
+    attrs = {'to': 1}
+    container.add_node('Cast', nms_output, cast_name, op_version=operator.target_opset, **attrs)
+
+    concat_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'Concat'), operator.node_list[0])
+    attrs = {'axis': 1}
+    container.add_node("Concat",
+                       [box_batch, cast_name, score_batch],
+                       operator.output_full_names[0],
+                       op_version=operator.target_opset,
+                       name=concat_node.name, **attrs)
+
+
+set_converter(modellib.DetectionLayer, convert_DetectionLayer)
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
 set_converter(BatchNorm, convert_BatchNorm)
 #set_converter(tf.sets.set_intersection, convert_DenseToDenseSetOperation)

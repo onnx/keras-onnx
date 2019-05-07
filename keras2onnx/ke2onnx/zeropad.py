@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from ..common.onnx_ops import apply_pad, apply_transpose, apply_pad_new
+from ..common.onnx_ops import apply_pad, apply_transpose
 from .common import get_permutation_config
 
 
@@ -61,10 +61,10 @@ def convert_keras_zero_pad(scope, operator, container, n_dims):
     # If channels_first is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
     # conversion, a Transpose would be added.
     if channels_first:
-        apply_pad_new(scope, input_tensor_name, operator.outputs[0].full_name, container, mode=mode, pads=pads, value=0.)
+        apply_pad(scope, input_tensor_name, operator.outputs[0].full_name, container, mode=mode, pads=pads, value=0.)
     else:
         intermediate_tensor_name = scope.get_unique_variable_name(input_tensor_name + '_padded')
-        apply_pad_new(scope, input_tensor_name, intermediate_tensor_name, container, mode=mode, pads=pads, value=0.)
+        apply_pad(scope, input_tensor_name, intermediate_tensor_name, container, mode=mode, pads=pads, value=0.)
         apply_transpose(scope, intermediate_tensor_name, operator.outputs[0].full_name, container,
                         perm=output_perm_axes)
 
