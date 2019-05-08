@@ -625,6 +625,22 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
 
+    def test_Bidirectional(self):
+        input_dim = 10
+        sequence_len = 5
+        from keras.layers import Bidirectional, Dense, LSTM, Activation
+        model = keras.Sequential()
+        model.add(Bidirectional(LSTM(10, return_sequences=False),
+                                input_shape=(5, 10)))
+        model.add(Dense(5))
+        model.add(Activation('softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+
+        onnx_model = keras2onnx.convert_keras(model, 'test')
+        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
+
     def test_separable_convolution(self):
         N, C, H, W = 2, 3, 5, 5
         x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
