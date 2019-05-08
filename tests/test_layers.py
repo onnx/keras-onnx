@@ -557,11 +557,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
 
         # with initial state and output state
-        input = Input(shape=(1, 2))
-        state_in = Input(shape=(10,))
-        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+        input = keras.Input(shape=(1, 2))
+        state_in = keras.Input(shape=(10,))
+        hidden_1, state_out = keras.layers.SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
                                   initial_state=[state_in])
-        output = Dense(2, activation='linear')(hidden_1)
+        output = keras.layers.Dense(2, activation='linear')(hidden_1)
         keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
