@@ -245,12 +245,12 @@ def convert_bidirectional(scope, operator, container):
             container.add_node('Squeeze', backward_y_name, operator.outputs[1].full_name,
                                name=scope.get_unique_variable_name('Squeeze'), axes=[2])
     else:
+        perm = [1, 0, 2]
         if merge_concat:
             # In this case, only one Keras output with shape (N, 2 * C') should be produced
 
             # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
             transposed_h_name = scope.get_unique_variable_name(operator.full_name + '_Y_h_transposed')
-            perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
             apply_transpose(scope, lstm_h_name, transposed_h_name, container, perm=perm)
 
             # Maintain backwards opset compatibility for 'Flatten'
@@ -265,7 +265,6 @@ def convert_bidirectional(scope, operator, container):
 
             # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
             transposed_h_name = scope.get_unique_variable_name(operator.full_name + '_Y_h_transposed')
-            perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
             apply_transpose(scope, lstm_h_name, transposed_h_name, container, perm=perm)
 
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
