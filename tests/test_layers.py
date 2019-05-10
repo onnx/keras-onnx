@@ -79,7 +79,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                       file=sys.stderr)
 
         return res
-
+    '''
     def test_keras_lambda(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x ** 2, input_shape=[3, 5]))
@@ -796,9 +796,123 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._test_keras_model(model)
 
     def test_Model(self):
+        from mrcnn.model import DetectionLayer
+        from mrcnn import config
+        keras_model = keras.Sequential()
+        N = 50
+        inp0 = keras.layers.Input(batch_shape=(1, 1000, 4), name='input0')
+        inp1 = keras.layers.Input(batch_shape=(N, 1000, 81), name='input1')
+        inp2 = keras.layers.Input(batch_shape=(N, 1000, 81, 4), name='input2')
+        inp3 = keras.layers.Input(batch_shape=(1, 93), name='input3')
+
+        keras_model.add(DetectionLayer(config=config.Config)(inputs=[inp0, inp1, inp2, inp3]))
+        keras_model.compile(optimizer='sgd', loss='mse')
+        keras_model.save('model.h5')
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        import onnx
+        onnx.save_model(onnx_model, 'model.onnx')
         import onnxruntime
         session = onnxruntime.InferenceSession('../applications/mrcnn_onnx/mrcnn.onnx')
+    '''
 
+    def _norm_boxes_graph(self, boxes, shape):
+        """Converts boxes from pixel coordinates to normalized coordinates.
+        boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
+        shape: [..., (height, width)] in pixels
+
+        Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
+        coordinates it's inside the box.
+
+        Returns:
+            [..., (y1, x1, y2, x2)] in normalized coordinates
+        """
+        import tensorflow as tf
+        h, w = tf.split(tf.cast(shape, tf.float32), 2, axis=1)
+        scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
+        shift = tf.constant([0., 0., 1., 1.])
+        return tf.divide(boxes - shift, scale)
+
+    def test_image(self):
+        _custom_op_handlers = {
+            'CropAndResize': (keras2onnx._builtin.on_CropAndResize, [])}
+        import tensorflow as tf
+        #boxes = tf.Variable([[0.5, 0.1, 0.9, 0.5]])
+        #boxes = tf.Variable([[0.1, 0.1, 0.5, 0.5]])
+        #boxes = tf.Variable([[0.0, 0.0, 1.0, 1.0]])
+        #boxes = tf.Variable([[0.0 * 505 - 1, 0.0 * 639 - 1, 1.0 * 505 + 1, 1.0 * 639 + 1]])
+
+        box_ind = tf.Variable([0])
+        #crop_size = tf.Variable([3, 3])
+        #crop_size_list = [2, 2]
+        x1 = 0.0
+        y1 = 0.0
+        x2 = 1.0
+        y2 = 1.0
+        H = 4
+        W = 4
+        c = 3
+
+        #H = 500
+        #W = 500
+
+        crop_size_list = [c, c]
+        crop_size = tf.Variable(crop_size_list)
+        import skimage
+        '''
+        image_data = skimage.io.imread('data/elephant_1.jpg').astype(np.float32)
+        image_data /= 255.
+        print(image_data.shape)
+        image_data = np.expand_dims(image_data, 0)
+        '''
+
+        image_data = [[[1, 1, 1, 1], [2, 2, 2, 2], [3, 3, 3, 3], [4, 4, 4, 4]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+                      [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]]
+        image_data = np.expand_dims(image_data, 0)
+        image_data = image_data.transpose((0, 2, 3, 1))
+        image_data_1 = image_data.astype(np.float32)
+
+
+        a1 = (W-1)*((2*c-1)/(2*(c-1))*x1 -1/(2*(c-1))*x2)
+        a2 = (W - 1)*((2 * c - 1) / (2 * (c - 1)) * x2 - 1 / (2 * (c - 1)) * x1)
+        b1 = (H - 1)*((2 * c - 1) / (2 * (c - 1)) * y1 - 1 / (2 * (c - 1)) * y2)
+        b2 = (H - 1)*((2 * c - 1) / (2 * (c - 1)) * y2 - 1 / (2 * (c - 1)) * y1)
+
+        boxes_1 = tf.Variable([[a1, b1, a2, b2]])
+        #boxes_1 = tf.Variable([[b1, a1, b2, a2]])
+        #boxes = tf.Variable([[x1, y1, x2, y2]])
+        boxes = tf.Variable([[y1, x1, y2, x2]])
+
+        input_data = keras.layers.Input(shape=(H, W, 3))
+        input1 = keras.layers.Input(shape=(4, ))
+        input2 = keras.layers.Input(shape=(2, ))
+        #normalized_boxes = keras.layers.Lambda(lambda x: self._norm_boxes_graph(x[0], x[1]))([input1, input2])
+        #output_x = keras.layers.Lambda(lambda x: tf.image.crop_and_resize(x, normalized_boxes, box_ind, crop_size))(input_data)
+        #model_0 = keras.models.Model(inputs=[input_data, input1, input2], outputs=output_x)
+
+        output_x = keras.layers.Lambda(lambda x: tf.image.crop_and_resize(x, boxes, box_ind, crop_size, method='bilinear'))(input_data)
+        model_0 = keras.models.Model(inputs=[input_data], outputs=output_x)
+
+        # used for keras convertor
+        #boxes_1 = tf.Variable([[0.1*506, 0.1*640, 0.5*506, 0.5*640]])
+        #boxes_1 = tf.Variable([[0.1 * 640, 0.1 * 506, 0.5 * 640, 0.5 * 506]])
+        #boxes_1 = tf.Variable([[0.0*3, 0.0*3, 1.0*3, 1.0*3]])
+        #boxes_1 = tf.Variable([[0.0*505-1, 0.0*639-1, 1.0*505+1, 1.0*639+1]])
+        #boxes_1 = tf.Variable([[0.1, 0.1, 0.5, 0.5]])
+        box_ind_1 = tf.Variable([0])
+        model_1 = keras.models.Sequential()
+        model_1.add(keras.layers.Lambda(lambda x: tf.image.crop_and_resize(x, boxes_1, box_ind_1, crop_size, method='bilinear'),
+                                        input_shape=[H, W, 3]))
+
+        #model_1.compile(optimizer='sgd', loss='mse')
+
+        onnx_model = keras2onnx.convert_keras(model_1, 'test', target_opset=10, custom_op_conversions=_custom_op_handlers)
+        import onnx
+
+        onnx.save_model(onnx_model, 'test.onnx')
+        #expected = model_0.predict([image_data.astype(np.float32), np.array([[a, b, c, d]]), np.array([crop_size_list])])
+        #self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, image_data.astype(np.float32), expected, rtol=1.e-2, atol=1.e-4))
+        expected = model_0.predict([image_data.astype(np.float32)])
+        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, image_data.astype(np.float32), expected, rtol=1.e-2, atol=1.e-4))
 
 if __name__ == "__main__":
     unittest.main()

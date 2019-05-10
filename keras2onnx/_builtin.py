@@ -298,6 +298,10 @@ def on_TopKV2(ctx, node, name, args):
     cast = ctx.make_node("Cast", [k_0d], attr={"to": onnx_pb.TensorProto.INT64})
     k_1d = ctx.make_node("Unsqueeze", cast.output, attr={"axes": [0]})
     ctx.replace_input(node, k_0d, k_1d.output[0])
+
+    k_0 = node.input[0]
+    cast_0 = ctx.make_node("Cast", [k_0], attr={"to": onnx_pb.TensorProto.FLOAT})
+    ctx.replace_input(node, k_0, cast_0.output[0])
     node.type = "TopK"
 
 
@@ -348,3 +352,28 @@ def on_Pad(ctx, node, name, args):
         cast_back_node.set_attr("to", origin_dtype)
         ctx.set_dtype(cast_back_node.output[0], origin_dtype)
         ctx.copy_shape(node.name, cast_back_node.output[0])
+
+
+def on_CropAndResize(ctx, node, name, args):
+    node.type = "RoiAlign"
+    b_arr = bytearray(node.inputs[3].get_attr('value').t.raw_data)
+    output_band = int.from_bytes(b_arr[::-1], "big") & 15
+    #output_band = 3
+    node.set_attr("output_height", output_band)
+    node.set_attr("output_width", output_band)
+
+    cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[2])
+    cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
+    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
+    ctx.copy_shape(node.name, cast_node.output[0])
+
+    transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
+    transpose_node.set_attr("perm", [0, 3, 1, 2])
+    ctx.set_dtype(transpose_node.output[0], onnx_pb.TensorProto.INT64)
+
+    transpose_node_2 = ctx.insert_new_node_on_output("Transpose", node.output[0],
+                            name=tf2onnx.utils.make_name(node.name) + "_transpose_final")
+    transpose_node_2.set_attr("perm", [0, 2, 3, 1])
+    ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
+
+    del node.input[3]
