@@ -2,19 +2,16 @@ import os
 import sys
 import time
 import numpy as np
+import skimage
+import onnx
+import keras2onnx
 
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from pycocotools import mask as maskUtils
 
-import onnx
-import keras2onnx
-
 from mrcnn.config import Config
 from mrcnn import model as modellib, utils
-
-from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad
-import tensorflow as tf
 
 
 ROOT_DIR = os.path.abspath("./")
@@ -31,6 +28,7 @@ DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
 DEFAULT_DATASET_YEAR = "2014"
 # Directory of images to run detection on
 IMAGE_DIR = os.path.join(ROOT_DIR, "images")
+
 
 class CocoConfig(Config):
     """Configuration for training on MS COCO.
@@ -292,9 +290,12 @@ model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
 model.load_weights(COCO_MODEL_PATH, by_name=True)
 
 
+from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad
 from keras2onnx import set_converter
 from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
-from mrcnn.model import PyramidROIAlign, BatchNorm
+from keras2onnx.proto import onnx_proto
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
+from mrcnn.model import PyramidROIAlign, BatchNorm, DetectionLayer
 
 
 def create_onnx_node(scope, operator, container, type):
@@ -307,7 +308,6 @@ def convert_PyramidROIAlign(scope, operator, container):
     #create_onnx_node(scope, operator, container, 'RoiAlign')
     preprocessor_type = 'RoiAlign'
     temp_name_list = []
-    from keras2onnx.proto import onnx_proto
     for i_ in range(2, 6):
         shape_name = scope.get_unique_variable_name('roi_shape')
         container.add_node('Shape', operator.input_full_names[1], shape_name, op_version=operator.target_opset)
@@ -350,16 +350,7 @@ def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
 
-def convert_DenseToDenseSetOperation(scope, operator, container):
-    container.add_node('DenseIntersection', operator.input_full_names, operator.output_full_names, op_domain='com.microsoft', op_version=operator.target_opset)
 
-
-def convert_SparseToDense(scope, operator, container):
-    container.add_node('Identity', operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
-
-
-from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
-from keras2onnx.proto import onnx_proto
 
 def convert_DetectionLayer(scope, operator, container):
     # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer) -> None
@@ -414,11 +405,9 @@ def convert_DetectionLayer(scope, operator, container):
                        name=concat_node.name, **attrs)
 
 
-set_converter(modellib.DetectionLayer, convert_DetectionLayer)
 set_converter(PyramidROIAlign, convert_PyramidROIAlign)
+set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
-#set_converter(tf.sets.set_intersection, convert_DenseToDenseSetOperation)
-#set_converter(tf.sparse_tensor_to_dense, convert_SparseToDense)
 
 _custom_op_handlers = {
     'Round': (on_Round, []),
@@ -428,31 +417,49 @@ _custom_op_handlers = {
     'PadV2': (on_Pad, [])
 }
 
-model.keras_model.save('mrcnn.h5')
-oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
-onnx.save_model(oml, './mrcnn.onnx')
+# Load a random image from the images folder
+image = skimage.io.imread('../data/elephant.jpg')
 
-# class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
-#                'bus', 'train', 'truck', 'boat', 'traffic light',
-#                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
-#                'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
-#                'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
-#                'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-#                'kite', 'baseball bat', 'baseball glove', 'skateboard',
-#                'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
-#                'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-#                'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
-#                'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
-#                'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
-#                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
-#                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
-#                'teddy bear', 'hair drier', 'toothbrush']
-#
-# # Load a random image from the images folder
-# file_names = next(os.walk(IMAGE_DIR))[2]
-# image = skimage.io.imread(os.path.join(IMAGE_DIR, random.choice(file_names)))
-#
-# # Run detection
-# results = model.detect([image], verbose=1)
-import onnxruntime
-sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+# Run detection
+results = model.detect([image], verbose=1)
+class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
+               'bus', 'train', 'truck', 'boat', 'traffic light',
+               'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
+               'cat', 'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear',
+               'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie',
+               'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+               'kite', 'baseball bat', 'baseball glove', 'skateboard',
+               'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup',
+               'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+               'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza',
+               'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
+               'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote',
+               'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
+               'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
+               'teddy bear', 'hair drier', 'toothbrush']
+
+for res in results:
+    print("rois: " + str(res['rois']))
+    print(", ".join('class :' + class_names[id_] for id_ in res['class_ids']))
+    print("scores: " + str(res['scores']))
+    # print("masks: " + str(res['masks']))
+
+
+if len(sys.argv) > 1 and sys.argv[1] == '-c':
+    model.keras_model.save('mrcnn.h5')
+    oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
+    onnx.save_model(oml, './mrcnn.onnx')
+else:
+    # run with ONNXRuntime
+    import onnxruntime
+    input("the python process id is %d, press ENTER key to cont..." % os.getpid())
+
+    molded_images, image_metas, windows = model.mold_inputs([image])
+    anchors = model.get_anchors(image.shape)
+    anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+
+    sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+    detections, _, _, mrcnn_mask, _, _, _ =\
+        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                        "input_anchors:01": anchors,
+                        "input_image_meta:01": image_metas.astype(np.float32)})
