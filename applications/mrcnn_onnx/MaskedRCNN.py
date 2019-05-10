@@ -455,7 +455,7 @@ else:
     input("the python process id is %d, press ENTER key to cont..." % os.getpid())
 
     molded_images, image_metas, windows = model.mold_inputs([image])
-    anchors = model.get_anchors(image.shape)
+    anchors = model.get_anchors(molded_images[0].shape)
     anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
 
     sess = onnxruntime.InferenceSession('./mrcnn.onnx')
