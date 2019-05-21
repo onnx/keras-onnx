@@ -13,6 +13,7 @@ from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
 from .dense import convert_keras_dense
+from .dot import convert_keras_dot
 from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
 from .conv import convert_keras_conv1d, convert_keras_conv2d, convert_keras_conv3d
 from .conv import convert_keras_conv_transpose_2d, convert_keras_conv_transpose_3d, convert_keras_depthwise_conv_2d
@@ -95,6 +96,7 @@ keras_layer_to_operator = {
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
     _layer.Dense: convert_keras_dense,
+    _layer.Dot: convert_keras_dot,
     _layer.Embedding: convert_keras_embed,
 
     _layer.MaxPooling1D: convert_keras_max_pooling_1d,

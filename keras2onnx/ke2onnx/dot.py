@@ -8,9 +8,9 @@ from ..common.onnx_ops import apply_mul, apply_normalization
 
 def convert_keras_dot(scope, operator, container):
     op = operator.raw_operator
-    if (op.axes not in [-1, 1]):
+    if op.axes not in [-1, 1]:
         raise RuntimeError('Unsupported axes value for dot conversion: %s' % op.axes)
-    if (len(op.input_shape[0]) > 2 or len(op.input_shape[1]) > 2):
+    if len(op.input_shape[0]) > 2 or len(op.input_shape[1]) > 2:
         raise RuntimeError('Unsupported input shape for dot conversion')
 
     normalized_input_names = []
