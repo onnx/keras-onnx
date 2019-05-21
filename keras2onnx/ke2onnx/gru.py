@@ -52,7 +52,7 @@ def convert_keras_gru(scope, operator, container):
 
     # sequence lens
     gru_input_names.append('')
-    # TODO: figure out keras way of inital_h
+    # inital_h
     if len(operator.inputs) == 1:
         gru_input_names.append('')
     else:

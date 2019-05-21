@@ -39,6 +39,8 @@ _TFOUTPUT = "output"
 _OUTPUT = "output:0"
 _TFOUTPUT1 = "output1"
 _OUTPUT1 = "output1:0"
+_TFOUTPUT2 = "output2"
+_OUTPUT2 = "output2:0"
 
 
 def make_xval(shape):
@@ -85,6 +87,17 @@ def get_conv_getdata(kind=1):
     else:
         raise ValueError("kind not known")
 
+def get_maxpoolwithargmax_getdata():
+    data = [
+        ('SAME', [1, 3, 3, 1], [1, 3, 3, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 5, 5, 1], [1, 4, 4, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 10, 5, 1], [1, 2, 2, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 10, 5, 1], [1, 4, 4, 1], [1, 1, 1, 1]),
+        ('VALID', [1, 3, 3, 1], [1, 3, 3, 1], [1, 2, 2, 1]),
+        ('VALID', [1, 5, 5, 1], [1, 4, 4, 1], [1, 2, 2, 1]),
+    ]
+    for idx, v in enumerate(data):
+        yield (idx,) + v
 
 class BackendTests(Tf2OnnxBackendTestBase):
     def _run_test_case(self, output_names_with_port, feed_dict, **kwargs):
@@ -126,6 +139,63 @@ class BackendTests(Tf2OnnxBackendTestBase):
         op = tf.expand_dims(x, 0)
         _ = tf.identity(op, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @check_opset_min_version(9, "ConstantOfShape")
+    def test_eye_non_const1(self):
+        # tf.eye(num_rows), num_rows is not const here
+        tf.reset_default_graph()
+        x_val = np.array(5, dtype=np.int32)
+        x = tf.placeholder(tf.int32, shape=[], name=_TFINPUT)
+        y = tf.eye(x, dtype=tf.int32)
+        _ = tf.identity(y, name=_TFOUTPUT)
+        y1 = tf.eye(x, dtype=tf.int64)
+        _ = tf.identity(y1, name=_TFOUTPUT1)
+        y2 = tf.eye(x, dtype=tf.float32)
+        _ = tf.identity(y2, name=_TFOUTPUT2)
+        self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+        # tf.eye(num_rows, num_columns), both num_rows and num_columns are not const here
+        tf.reset_default_graph()
+        x_val = np.array([5, 10], dtype=np.int32)
+        x = tf.placeholder(tf.int32, shape=[2], name=_TFINPUT)
+        y = tf.eye(x[0], x[1], dtype=tf.int32)
+        _ = tf.identity(y, name=_TFOUTPUT)
+        y1 = tf.eye(x[0], x[1], dtype=tf.int64)
+        _ = tf.identity(y1, name=_TFOUTPUT1)
+        y2 = tf.eye(x[0], x[1], dtype=tf.float32)
+        _ = tf.identity(y2, name=_TFOUTPUT2)
+        self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+    @check_tf_min_version("1.11", "eye has bug when version is below 1.11")
+    @check_opset_min_version(9, "ConstantOfShape")
+    def test_eye_non_const2(self):
+        # tf.eye(num_rows), num_rows is not const here
+        for np_dtype, tf_dtype in zip([np.int32, np.int64, np.float32, np.float64],
+                                      [tf.int32, tf.int64, tf.float32, tf.float64]):
+            tf.reset_default_graph()
+            x_val = np.array(5, dtype=np_dtype)
+            x = tf.placeholder(tf_dtype, shape=[], name=_TFINPUT)
+            y = tf.eye(x, dtype=tf.int32)
+            _ = tf.identity(y, name=_TFOUTPUT)
+            y1 = tf.eye(x, dtype=tf.int64)
+            _ = tf.identity(y1, name=_TFOUTPUT1)
+            y2 = tf.eye(x, dtype=tf.float32)
+            _ = tf.identity(y2, name=_TFOUTPUT2)
+            self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+        # tf.eye(num_rows, num_columns), both num_rows and num_columns are not const here
+        for np_dtype, tf_dtype in zip([np.int32, np.int64, np.float32, np.float64],
+                                      [tf.int32, tf.int64, tf.float32, tf.float64]):
+            tf.reset_default_graph()
+            x_val = np.array([5, 10], dtype=np_dtype)
+            x = tf.placeholder(tf_dtype, shape=[2], name=_TFINPUT)
+            y = tf.eye(x[0], x[1], dtype=tf.int32)
+            _ = tf.identity(y, name=_TFOUTPUT)
+            y1 = tf.eye(x[0], x[1], dtype=tf.int64)
+            _ = tf.identity(y1, name=_TFOUTPUT1)
+            y2 = tf.eye(x[0], x[1], dtype=tf.float32)
+            _ = tf.identity(y2, name=_TFOUTPUT2)
+            self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
 
     @check_opset_min_version(7, "trig")
     def test_trig_ops(self):
@@ -453,7 +523,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
     def test_add_bcast(self):
         x1_val = np.array([1.0, 2.0, -3.0, -4.0], dtype=np.float32).reshape((2, 2))
         x2_val = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], dtype=np.float32).reshape((2, 2, 2))
-        # if we'd broadcast 2,2 to 2,1 onnxmsrt will fail
         x1 = tf.placeholder(tf.float32, x1_val.shape, name="input")
         x2 = tf.placeholder(tf.float32, x2_val.shape, name=_TFINPUT1)
         x_ = tf.add(x1, x2)
@@ -771,8 +840,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_shape=True)
 
-    @unittest.skipIf(get_test_config().opset < 5 or get_test_config().backend in ["onnxmsrtnext"],
-                     "since opset 5, broken in msrtnext")
     @check_opset_min_version(6, "cast")
     def test_reshape_dynamic(self):
         x_val = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape((2, 2))
@@ -833,10 +900,9 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=1e-05)
 
-    @check_onnxruntime_incompatibility("Max")
     def test_relu6(self):
-        x_val = np.array([0.5, 1.0, -0.5, -1.0], dtype=np.float32).reshape((2, 2))
-        x = tf.placeholder(tf.float32, [2, 2], name=_TFINPUT)
+        x_val = np.array([0.5, 1.0, -0.5, -1.0, 6, 7], dtype=np.float32).reshape((2, 3))
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = tf.nn.relu6(x)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
@@ -966,7 +1032,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     @skip_caffe2_backend()
     def test_slice1(self):
-        # FIXME: only 1 dimension supported by caffe2 and msrt
+        # FIXME: only 1 dimension supported by caffe2
         x_val = np.array([[[1, 1, 1], [2, 2, 2]], [[3, 3, 3], [4, 4, 4]], [[5, 5, 5], [6, 6, 6]]], dtype=np.float32)
         t1 = tf.constant([1, 0, 0], dtype=tf.int32)
         t2 = tf.constant([1, 1, 3], dtype=tf.int32)
@@ -1204,7 +1270,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
     def test_randomuniform_dyn_shape(self):
         # test for dynamic shape coming from a shape op
         x_val = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
-        x = tf.placeholder(x_val.dtype, name=_TFINPUT)
+        x = tf.placeholder(x_val.dtype, [None, 3], name=_TFINPUT)
         x_ = tf.stack([x, x])
         x_ = tf.identity(x_)
         x_ = tf.shape(x_, name="shape")
@@ -1879,16 +1945,15 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     def test_sparse_softmax_cross_entropy_with_logits(self):
         num_class = 5
-        label_val = np.array([3, 2, 0, 4]).astype(np.int32)
-        logits_val = np.random.random((len(label_val), num_class)).astype(np.float32)
-
-        label = tf.placeholder(tf.int32, shape=[None], name=_TFINPUT)
-        logits = tf.placeholder(tf.float32, shape=[None, num_class], name=_TFINPUT1)
-
-        res1 = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label, logits=logits)
-        _ = tf.identity(res1, name=_TFOUTPUT)
-
-        self._run_test_case([_OUTPUT], {_INPUT: label_val, _INPUT1: logits_val})
+        for logic_shape in [[None, None], [None, num_class]]:
+            tf.reset_default_graph()
+            label_val = np.array([3, 2, 0, 4]).astype(np.int32)
+            logits_val = np.random.random((len(label_val), num_class)).astype(np.float32)
+            label = tf.placeholder(tf.int32, shape=[None], name=_TFINPUT)
+            logits = tf.placeholder(tf.float32, shape=logic_shape, name=_TFINPUT1)
+            res1 = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label, logits=logits)
+            _ = tf.identity(res1, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: label_val, _INPUT1: logits_val})
 
     @check_target('rs6', 'SparseSoftmaxCrossEntropyWithLogits')
     def test_sparse_softmax_cross_entropy_with_logits_large_class(self):
@@ -2132,6 +2197,81 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(res2, name=_TFOUTPUT1)
         self._run_test_case([_OUTPUT, _OUTPUT1], {_INPUT: boxes_val, _INPUT1: scores_val})
 
+    def _conv1d_test(self, x_val, w, stride=None, padding="VALID", rtol=1e-07):
+        if stride is None:
+            stride = 1
+        tf.reset_default_graph()
+        kernel = tf.constant(w, dtype=tf.float32, name='k')
+        x = tf.placeholder(tf.float32, shape=x_val.shape, name=_TFINPUT)
+        conv = tf.nn.conv1d(x, kernel, stride=stride, padding=padding)
+        _ = tf.identity(conv, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=rtol)
+
+    def test_conv1d_1(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w)
+
+    def test_conv1d_2(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, stride=2)
+
+    def test_conv1d_3(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, padding="SAME")
+
+    def test_conv1d_4(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, rtol=1e-05)
+
+    def test_conv1d_5(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([3., 3., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w)
+
+    @check_opset_min_version(10, "ThresholdedRelu")
+    def test_thresholded_relu(self):
+        # tf.keras.layers.ThresholdedReLU only supports `float32` for x
+        x_val = np.array([0.0, 1.0, -1.0, 2.0, -2.0, 0.5, -0.5, 1.5, -1.5], dtype=np.float32).reshape((3, 3))
+        theta_vals = [-1.0, -0.5, 0.0, 0.5, 1.0]
+        for theta_val in theta_vals:
+            x = tf.placeholder(x_val.dtype, x_val.shape, name=_TFINPUT)
+            t = tf.keras.layers.ThresholdedReLU(theta=theta_val)
+            x_ = t.call(x)
+            _ = tf.identity(x_, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: x_val},
+                                graph_validator=lambda g: check_op_count(g, "ThresholdedRelu", 1))
+            tf.reset_default_graph()
+
+    @check_tf_min_version("1.13")
+    @check_opset_min_version(8, "MaxPoolWithArgmax")
+    def test_maxpoolwithargmax(self):
+        for tf_shape in ["known", "unknown"]:
+            tf.reset_default_graph()
+            for p in get_maxpoolwithargmax_getdata():
+                _, padding, x_shape, ksize, strides = p
+                tf.reset_default_graph()
+                x_val = make_xval(x_shape)
+                if tf_shape == "known":
+                    x = tf.placeholder(tf.float32, shape=x_val.shape, name=_TFINPUT)
+                else:
+                    x = tf.placeholder(tf.float32, shape=[None] * x_val.ndim, name=_TFINPUT)
+                mp = tf.nn.max_pool_with_argmax(x, ksize, strides, padding=padding)
+                _ = tf.identity(mp[0], name=_TFOUTPUT)
+                _ = tf.identity(mp[1], name=_TFOUTPUT1)
+                self.logger.debug(str(p))
+                self._run_test_case([_OUTPUT, _OUTPUT1], {_INPUT: x_val})
+
+    @check_opset_min_version(10, "Selu")
+    def test_selu(self):
+        x_val = np.random.random_sample([3]).astype(np.float32)
+        x = tf.placeholder(x_val.dtype, x_val.shape, name=_TFINPUT)
+        y = tf.nn.selu(x)
+        _ = tf.identity(y, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
 if __name__ == '__main__':
     unittest_main()

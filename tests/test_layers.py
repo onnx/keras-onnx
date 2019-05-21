@@ -533,9 +533,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
     def test_simpleRNN(self):
-        from keras.layers import Input, Dense, SimpleRNN
-        inputs1 = Input(shape=(3, 1))
-        cls = SimpleRNN(2, return_state=False, return_sequences=True)
+        inputs1 = keras.Input(shape=(3, 1))
+        cls = keras.layers.SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
         model = keras.Model(inputs=inputs1, outputs=[oname])
         onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -545,10 +544,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
         # with initial state
-        inputs2 = Input(shape=(1, 2))
-        state = Input(shape=(5,))
-        hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
-        output = Dense(2, activation='sigmoid')(hidden_1)
+        inputs2 = keras.Input(shape=(1, 2))
+        state = keras.Input(shape=(5,))
+        hidden_1 = keras.layers.SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
+        output = keras.layers.Dense(2, activation='sigmoid')(hidden_1)
         keras_model = keras.Model(inputs=[inputs2, state], outputs=output)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
 
@@ -559,11 +558,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected))
 
         # with initial state and output state
-        input = Input(shape=(1, 2))
-        state_in = Input(shape=(10,))
-        hidden_1, state_out = SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
+        input = keras.Input(shape=(1, 2))
+        state_in = keras.Input(shape=(10,))
+        hidden_1, state_out = keras.layers.SimpleRNN(10, activation='relu', return_sequences=True, return_state=True)(input,
                                   initial_state=[state_in])
-        output = Dense(2, activation='linear')(hidden_1)
+        output = keras.layers.Dense(2, activation='linear')(hidden_1)
         keras_model = keras.Model(inputs=[input, state_in], outputs=[output, state_out])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
@@ -625,6 +624,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
+
+    def test_Bidirectional(self):
+        input_dim = 10
+        sequence_len = 5
+        model = keras.Sequential()
+        model.add(keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=False),
+                  input_shape=(5, 10)))
+        model.add(keras.layers.Dense(5))
+        model.add(keras.layers.Activation('softmax'))
+        model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+
+        onnx_model = keras2onnx.convert_keras(model, 'test')
+        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
     def test_separable_convolution(self):
         N, C, H, W = 2, 3, 5, 5
@@ -710,21 +724,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
 
     def test_timedistributed(self):
-        from keras import Sequential
-        from keras.layers import TimeDistributed, Dense, Conv2D
-
-        keras_model = Sequential()
-        keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
+        keras_model = keras.Sequential()
+        keras_model.add(keras.layers.TimeDistributed(keras.layers.Dense(8), input_shape=(10, 16)))
         # keras_model.output_shape == (None, 10, 8)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
         x = np.random.rand(32, 10, 16).astype(np.float32)
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
-        keras_model = Sequential()
+        keras_model = keras.Sequential()
         N, D, W, H, C = 5, 10, 15, 15, 3
-        keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
-                                  input_shape=(D, W, H, C)))
+        keras_model.add(keras.layers.TimeDistributed(keras.layers.Conv2D(64, (3, 3)),
+                        input_shape=(D, W, H, C)))
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
         x = np.random.rand(N, D, W, H, C).astype(np.float32)
         expected = keras_model.predict(x)

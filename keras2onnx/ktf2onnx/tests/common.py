@@ -33,7 +33,8 @@ __all__ = [
     "validate_const_node",
     "group_nodes_by_type",
     "test_ms_domain",
-    "check_node_domain"
+    "check_node_domain",
+    "check_op_count"
 ]
 
 
@@ -42,7 +43,7 @@ __all__ = [
 class TestConfig(object):
     def __init__(self):
         self.platform = sys.platform
-        self.tf_version = self._get_tf_version()
+        self.tf_version = utils.get_tf_version()
         self.opset = int(os.environ.get("TF2ONNX_TEST_OPSET", constants.PREFERRED_OPSET))
         self.target = os.environ.get("TF2ONNX_TEST_TARGET", ",".join(constants.DEFAULT_TARGET)).split(',')
         self.backend = os.environ.get("TF2ONNX_TEST_BACKEND", "onnxruntime")
@@ -65,10 +66,6 @@ class TestConfig(object):
     @property
     def is_debug_mode(self):
         return utils.is_debug_mode()
-
-    def _get_tf_version(self):
-        import tensorflow as tf
-        return LooseVersion(tf.__version__)
 
     def _get_backend_version(self):
         version = None
@@ -101,7 +98,7 @@ class TestConfig(object):
         if "pytest" not in sys.argv[0]:
             parser = argparse.ArgumentParser()
             parser.add_argument("--backend", default=config.backend,
-                                choices=["caffe2", "onnxmsrtnext", "onnxruntime"],
+                                choices=["caffe2", "onnxruntime"],
                                 help="backend to test against")
             parser.add_argument("--opset", type=int, default=config.opset, help="opset to test against")
             parser.add_argument("--target", default=",".join(config.target), choices=constants.POSSIBLE_TARGETS,

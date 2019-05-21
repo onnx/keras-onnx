@@ -11,7 +11,7 @@ Initially, the Keras converter was developed in the project [onnxmltools](https:
 
 keras2onnx converter supports not only all keras built-in layers, but also the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded into the source tree directly now to avoid version conflicts and installation complexity.
 
-keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
+keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does not support **Python 2.x**.
 
 # Notes
 

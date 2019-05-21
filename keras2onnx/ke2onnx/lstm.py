@@ -88,10 +88,24 @@ def convert_keras_lstm(scope, operator, container):
 
     # sequence_lens
     lstm_input_names.append('')
-    # TODO initial_h (optional) : T
-    lstm_input_names.append('')
-    # TODO initial_c (optional) : T
-    lstm_input_names.append('')
+    # inital_h
+    if len(operator.inputs) <= 1:
+        lstm_input_names.append('')
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        inital_h_reshape = scope.get_unique_variable_name('inital_h_reshape')
+        apply_reshape(scope, operator.inputs[1].full_name, inital_h_reshape, container,
+                      desired_shape=[1, -1, hidden_size])
+        lstm_input_names.append(inital_h_reshape)
+    # initial_c
+    if len(operator.inputs) <= 2:
+        lstm_input_names.append('')
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        inital_c_reshape = scope.get_unique_variable_name('inital_c_reshape')
+        apply_reshape(scope, operator.inputs[2].full_name, inital_c_reshape, container,
+                      desired_shape=[1, -1, hidden_size])
+        lstm_input_names.append(inital_c_reshape)
     # P (optional) : No peep hole in keras.
     lstm_input_names.append('')
 
