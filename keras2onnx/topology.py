@@ -12,7 +12,7 @@ from .proto import helper, onnx_proto
 
 class Topology:
 
-    def __init__(self, model, default_batch_size=1, target_opset=None, custom_op_dict=None,
+    def __init__(self, model, default_batch_size, target_opset=None, custom_op_dict=None,
                  reserved_variable_names=None, reserved_operator_names=None):
         """
         Initialize a Topology object, which is an intermediate representation of a computational graph.

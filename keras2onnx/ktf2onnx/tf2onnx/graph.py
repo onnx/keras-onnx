@@ -153,6 +153,28 @@ class Node(object):
     def __repr__(self):
         return "<onnx op type='%s' name=%s>" % (self.type, self._op.name)
 
+    @property
+    def summary(self):
+        """Return node summary information."""
+        lines = []
+        lines.append("OP={}".format(self.type))
+        lines.append("Name={}".format(self.name))
+
+        g = self.graph
+        if self.input:
+            lines.append("Inputs:")
+            for name in self.input:
+                node = g.get_node_by_output(name)
+                op = node.type if node else "N/A"
+                lines.append("\t{}={}, {}, {}".format(name, op, g.get_shape(name), g.get_dtype(name)))
+
+        if self.output:
+            for name in self.output:
+                lines.append("Outpus:")
+                lines.append("\t{}={}, {}".format(name, g.get_shape(name), g.get_dtype(name)))
+
+        return '\n'.join(lines)
+
     def get_attr(self, name, default=None):
         """Get raw attribute value."""
         attr = self.attr.get(name, default)
@@ -440,6 +462,8 @@ class Graph(object):
         if op_name_scope:
             name = "_".join([op_name_scope, name])
 
+        logger.debug("Making node: Name=%s, OP=%s", name, op_type)
+
         if outputs is None:
             outputs = [name + ":" + str(i) for i in range(output_count)]
 
@@ -483,6 +507,7 @@ class Graph(object):
         if (not shapes or not dtypes) and infer_shape_dtype:
             self.update_node_shape_dtype(node, override=False)
 
+        logger.debug("Made node: %s\n%s", node.name, node.summary)
         self._nodes.append(node)
         return node
 
@@ -727,6 +752,8 @@ class Graph(object):
 
     def topological_sort(self, ops):
         """Topological sort of graph."""
+        # sort by name, the result will be reversed alphabeta
+        ops.sort(key=lambda op: op.name)
 
         def _push_stack(stack, node, in_stack):
             stack.append(node)
@@ -752,7 +779,7 @@ class Graph(object):
             all_input |= set(implicit_inputs)
             # remove those empty inputs
             all_input = list(filter(lambda a: a != '', all_input))
-            for inp in all_input:
+            for inp in sorted(all_input):
                 j = self.get_node_by_output(inp)
                 utils.make_sure(j is not None, "Cannot find node with output {}".format(inp))
                 if self.parent_graph and j.name not in op_name_to_index:
@@ -906,7 +933,11 @@ class Graph(object):
         """Dump graph with shapes (helpful for debugging)."""
         for node in self.get_nodes():
             input_names = ["{}{}".format(n, self.get_shape(n)) for n in node.input]
-            print("{} {} {} {}".format(node.type, self.get_shape(node.output[0]), node.name, ", ".join(input_names)))
+            logger.debug("%s %s %s %s",
+                         node.type,
+                         self.get_shape(node.output[0]),
+                         node.name,
+                         ", ".join(input_names))
 
     def follow_inputs(self, node, num, space=""):
         """Follow inputs for (helpful for debugging)."""

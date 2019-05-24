@@ -44,6 +44,8 @@ def tfnode_convert(varset, operator, container):
     merge the output node from tf2onnx into the final graph.
     """
     g = operator.tf2onnx_graph
+    g.delete_unused_nodes(g.outputs)
+    g.topological_sort(g.get_nodes())
     g.update_proto()
 
     # update attributes

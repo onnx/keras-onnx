@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import tempfile
+from distutils.version import LooseVersion
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -21,6 +22,7 @@ import six
 import numpy as np
 import tensorflow as tf
 from tensorflow.core.framework import types_pb2, tensor_pb2
+from tensorflow.python.framework import tensor_util
 from google.protobuf import text_format
 import onnx
 from onnx import helper, onnx_pb, defs, numpy_helper
@@ -126,83 +128,61 @@ def split_nodename_and_shape(name):
 
 
 def tf_to_onnx_tensor(tensor, name=""):
-    """
-    Convert tensorflow tensor to onnx tensor.
-    Here deal with three types of tensor:
-    1. normal tensor, e.g., np.array([1,2,3], dtype=DTYPE):
-        tensor_content: raw data of [1,2,3]
-        tensor_shape.dim: [3]
-        DTYPE_val: empty
-    2. scalar tensor, e.g., np.array(1, dtype=DTYPE):
-        tensor_content: empty
-        tensor_shape.dim: [0]
-        DTYPE_val: 1
-    3. empty tensor, e.g., np.array([], dtype=DTYPE) and np.array([[]], dtype=DTYPE):
-        tensor_content: empty
-        tensor_shape.dim: [0] and [1, 0]
-        DTYPE_val: empty
-    """
-    new_type = TF_TO_ONNX_DTYPE[tensor.dtype]
-    tdim = tensor.tensor_shape.dim
-    dims = [d.size for d in tdim]
-    is_raw, data = get_tf_tensor_data(tensor)
-    # empty tensor
-    if not is_raw and data is None:
-        np_data = np.array([], dtype=map_onnx_to_numpy_type(new_type)).reshape(dims)
-        return numpy_helper.from_array(np_data, name=name)
-    make_sure(data, "tensor data isn't expected to be None or empty")
-    # scalar tensor
-    if dims == [0] and not is_raw and len(data) == 1:
-        return helper.make_tensor(name, new_type, [], data, False)
-    if not is_raw and len(data) == 1 and np.prod(dims) > 1:
-        batch_data = np.zeros(dims, dtype=map_onnx_to_numpy_type(new_type))
-        batch_data.fill(data[0])
-        return numpy_helper.from_array(batch_data, name=name)
-    return helper.make_tensor(name, new_type, dims, data, is_raw)
+    """Convert tensorflow tensor to onnx tensor."""
+    np_data = get_tf_tensor_data(tensor)
+    if np_data.dtype == np.object:
+        # assume np_data is string, numpy_helper.from_array accepts ndarray,
+        # in which each item is of str while the whole dtype is of object.
+        try:
+            np_data = np_data.astype(np.str).astype(np.object)
+        except: # pylint: disable=bare-except
+            raise RuntimeError("Not support type: {}".format(type(np_data.flat[0])))
+    return numpy_helper.from_array(np_data, name=name)
 
 
 def get_tf_tensor_data(tensor):
     """Get data from tensor."""
-    assert isinstance(tensor, tensor_pb2.TensorProto)
-    is_raw = False
-    if tensor.tensor_content:
-        data = tensor.tensor_content
-        is_raw = True
-    elif tensor.float_val:
-        data = tensor.float_val
-    elif tensor.half_val:
-        data = tensor.half_val
-    elif tensor.dcomplex_val:
-        data = tensor.dcomplex_val
-    elif tensor.int_val:
-        data = tensor.int_val
-    elif tensor.int64_val:
-        data = tensor.int64_val
-    elif tensor.bool_val:
-        data = tensor.bool_val
-    elif tensor.string_val:
-        data = tensor.string_val
-    elif tensor.dtype in [tf.int32, tf.int64, tf.float32, tf.float16]:
-        data = None
-    else:
-        raise ValueError('tensor data not supported')
-    return [is_raw, data]
+    make_sure(isinstance(tensor, tensor_pb2.TensorProto), "Require TensorProto")
+    np_data = tensor_util.MakeNdarray(tensor)
+    make_sure(isinstance(np_data, np.ndarray), "{} isn't ndarray".format(np_data))
+    return np_data
 
 
-def get_shape(node):
-    """Get shape from tensorflow node."""
-    # FIXME: do we use this?
+def get_tf_const_value(op, as_list=True):
+    """
+    If as_list=True, return the array as a (possibly nested) list.
+    Otherwise, return data of type np.ndarray.
+
+    If a tensor is a scalar having value 1,
+        when as_list=False, return np.array(1), type is <class 'numpy.ndarray'>
+        when as_list=True, return 1, type is <class 'int'>.
+    """
+    make_sure(is_tf_const_op(op), "{} isn't a const op".format(op.name))
+    value = get_tf_tensor_data(op.get_attr("value"))
+    if as_list:
+        value = value.tolist()
+    return value
+
+
+def get_tf_shape_attr(node):
+    """Get shape from tensorflow attr "shape"."""
     dims = None
     try:
-        if node.type == "Const":
-            shape = get_tf_node_attr(node, "value").tensor_shape
+        shape = get_tf_node_attr(node, "shape")
+        if not shape.unknown_rank:
             dims = [int(d.size) for d in shape.dim]
-        else:
-            shape = get_tf_node_attr(node, "shape")
-            dims = [d.size for d in shape.dim]
     except:  # pylint: disable=bare-except
         pass
     return dims
+
+
+def get_tf_tensor_shape(tensor):
+    shape = []
+    try:
+        shape = tensor.get_shape().as_list()
+    except Exception:  # pylint: disable=broad-except
+        shape = None
+    return shape
 
 
 def map_tf_dtype(dtype):
@@ -442,6 +422,10 @@ def get_onnx_version():
     return onnx.__version__
 
 
+def get_tf_version():
+    return LooseVersion(tf.__version__)
+
+
 def make_opsetid(domain, version):
     make_sure(isinstance(version, int), "version must be an integer")
     return helper.make_opsetid(domain, version)
@@ -495,33 +479,37 @@ def get_url(url, path, max_retries=5):
         f.write(response.content)
 
 
-def is_reverse_op(op):
+def is_tf_reverse_op(op):
     return op.type in ("ReverseV2", "ReverseSequence")
 
 
-def is_concat_op(op):
+def is_tf_concat_op(op):
     return op.type in ("Concat", "ConcatV2", "ConcatV3")
 
 
-def is_tensor_array_gather_op(op):
+def is_tf_tensor_array_gather_op(op):
     return op.type in ("TensorArrayGatherV2", "TensorArrayGatherV3")
 
 
-def is_tensor_array_write_op(op):
+def is_tf_tensor_array_write_op(op):
     return op.type in ("TensorArrayWriteV2", "TensorArrayWriteV3")
 
 
-def is_tensor_array_op(op):
+def is_tf_tensor_array_op(op):
     return op.type in ("TensorArrayV2", "TensorArrayV3")
 
 
-def is_loopcond_op(op):
+def is_tf_loopcond_op(op):
     return op.type == "LoopCond"
 
 
-def is_select_op(op):
+def is_tf_select_op(op):
     return op.type == "Select"
 
 
-def is_slice_op(op):
+def is_tf_slice_op(op):
     return op.type == "Slice"
+
+
+def is_tf_const_op(op):
+    return op.type in ["Const", "ConstV2"]
