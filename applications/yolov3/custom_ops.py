@@ -2,6 +2,7 @@ import sys
 import numpy as np
 from tf2onnx import utils
 
+
 def on_StridedSlice(ctx, node, name, args):
     # node.type = "Reverse"
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.

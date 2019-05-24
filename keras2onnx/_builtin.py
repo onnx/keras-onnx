@@ -377,3 +377,7 @@ def on_CropAndResize(ctx, node, name, args):
     ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
 
     del node.input[3]
+
+def on_GatherNd(ctx, node, name, args):
+    node.type = "GatherND"
+    node.domain = "com.microsoft"
