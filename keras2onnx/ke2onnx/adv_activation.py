@@ -31,6 +31,7 @@ def convert_keras_advanced_activation(scope, operator, container):
         input_tensor_names = [operator.input_full_names[0]]
         if isinstance(op, activations.ThresholdedReLU):
             op_type = 'ThresholdedRelu'
+            attrs['op_version'] = 10
             attrs['alpha'] = op.get_config()['theta']
         elif StrictVersion(keras.__version__) >= StrictVersion('2.1.3') and \
                 isinstance(op, activations.Softmax):
