@@ -35,7 +35,7 @@ def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
 
         # In ONNX opset 10, the ceil_mode attribute was added to local MaxPool and AveragePool
         if container.target_opset >= 10:
-            attrs['ceil_mode'] = 1
+            attrs['ceil_mode'] = 0
 
     if channels_first:
         # In this case, the output of our Pool operator just match what Keras produces.
