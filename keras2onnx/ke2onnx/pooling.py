@@ -26,16 +26,17 @@ def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
     if not is_global:
         attrs['strides'] = list(op.strides)
         attrs['kernel_shape'] = op.pool_size
+        # In ONNX opset 10, the ceil_mode attribute was added to local MaxPool and AveragePool
+        if container.target_opset >= 10:
+            attrs['ceil_mode'] = 0
+            attrs['op_version'] = 10
+            
         if op.padding == 'valid':
             attrs['auto_pad'] = 'VALID'
         elif op.padding == 'same':
             attrs['auto_pad'] = 'SAME_UPPER'
         else:
             raise RuntimeError("Unsupported padding type '{0}'".format(op.padding))
-
-        # In ONNX opset 10, the ceil_mode attribute was added to local MaxPool and AveragePool
-        if container.target_opset >= 10:
-            attrs['ceil_mode'] = 0
 
     if channels_first:
         # In this case, the output of our Pool operator just match what Keras produces.
