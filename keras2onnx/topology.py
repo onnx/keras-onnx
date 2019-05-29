@@ -8,6 +8,7 @@ from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
 from .proto import helper, onnx_proto
+from keras2onnx.ktf2onnx import tf2onnx
 
 
 class Topology:
@@ -274,6 +275,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
     # Create model
     onnx_model = helper.make_model(graph)
+
+    # onnx_model = tf2onnx.graph.GraphUtil.optimize_model_proto(onnx_model)
 
     # Merge operator sets for the same domain, the largest version number would be kept
     purified_operator_set = dict()

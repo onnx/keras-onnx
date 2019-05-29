@@ -308,6 +308,7 @@ def on_TopKV2(ctx, node, name, args):
 def on_Pad(ctx, node, name, args):
     # TODO: need onnx schema update for Pad
     node.type = "DynamicPad"
+    # node.type = "Pad"
     node.domain = 'com.microsoft'
     # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
     #  or PadV2(T input, int32 paddings, T constant_value, @type Tpaddings), CONST mode - default value specified

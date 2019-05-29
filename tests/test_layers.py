@@ -79,7 +79,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                       file=sys.stderr)
 
         return res
-    '''
+
     def test_keras_lambda(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x ** 2, input_shape=[3, 5]))
@@ -824,7 +824,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx.save_model(onnx_model, 'model.onnx')
         import onnxruntime
         session = onnxruntime.InferenceSession('../applications/mrcnn_onnx/mrcnn.onnx')
-    '''
+
 
     def _norm_boxes_graph(self, boxes, shape):
         """Converts boxes from pixel coordinates to normalized coordinates.

@@ -233,7 +233,8 @@ class YOLO(object):
         image_data /= 255.
 
         print(image_data.shape)
-        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
+        image_data = np.expand_dims(image_data, 0) # Add batch dimension.
+        image_data = np.transpose(image_data, (0, 3, 1, 2))
         all_boxes, all_scores, indices = self.session.run(None, input_feed={'input_1:01': image_data,
                                                                             'image_shape:01': np.array(
                                                                                 [image.size[1], image.size[0]],

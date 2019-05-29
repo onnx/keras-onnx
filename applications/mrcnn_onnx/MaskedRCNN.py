@@ -4,6 +4,7 @@ import numpy as np
 import skimage
 import onnx
 import keras2onnx
+import time
 
 from timeit import default_timer as timer
 from mrcnn.config import Config
@@ -136,6 +137,386 @@ def convert_BatchNorm(scope, operator, container):
 
 from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
 
+def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpose, score_identity, deltas_transpose, windows_transpose):
+    box_squeeze = scope.get_unique_variable_name('box_squeeze')
+    attrs = {'axes': [0]}
+    container.add_node('Squeeze', box_transpose, box_squeeze, op_version=operator.target_opset,
+                       **attrs)
+    # output shape: [spatial_dimension, 4]
+
+    deltas_squeeze = scope.get_unique_variable_name('deltas_squeeze')
+    attrs = {'axes': [0]}
+    container.add_node('Squeeze', deltas_transpose, deltas_squeeze, op_version=operator.target_opset,
+                       **attrs)
+    # output shape: [spatial_dimension, num_classes, 4]
+
+    score_squeeze = scope.get_unique_variable_name('score_squeeze')
+    attrs = {'axes': [0]}
+    container.add_node('Squeeze', score_identity, score_squeeze, op_version=operator.target_opset,
+                       **attrs)
+    # output shape: [spatial_dimension, num_classes]
+
+    class_ids = scope.get_unique_variable_name('class_ids')
+    attrs = {'axis': 1}
+    container.add_node('ArgMax', score_squeeze, class_ids, op_version=operator.target_opset,
+                       **attrs)
+    # output shape: [spatial_dimension, 1]
+
+    prob_shape = oopb.add_node('Shape',
+                                 [score_squeeze],
+                                 operator.inputs[1].full_name + '_prob_shape')
+    prob_shape_0 = oopb.add_node('Slice',
+                         [prob_shape,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                          ],
+                         operator.inputs[1].full_name + '_prob_shape_0')
+    prob_range = oopb.add_node('Range',
+                         [('_start', oopb.int64, np.array([0], dtype='int64')),
+                          prob_shape_0,
+                          # ('_limit', oopb.int64, np.array([1000], dtype='int64')),
+                          ('_delta', oopb.int64, np.array([1], dtype='int64'))
+                          ],
+                         operator.inputs[1].full_name + '_prob_range',
+                         op_domain='com.microsoft')
+
+    attrs = {'axes': [1]}
+    prob_range_unsqueeze = oopb.add_node('Unsqueeze',
+                         [prob_range],
+                         operator.inputs[1].full_name + '_prob_range_unsqueeze',
+                         **attrs)
+    # output shape: [spatial_dimension, 1]
+
+    attrs = {'axis': 1}
+    indices = oopb.add_node('Concat',
+                         [prob_range_unsqueeze,
+                          class_ids
+                          ],
+                         operator.inputs[1].full_name + '_indices', **attrs)
+    # output shape: [spatial_dimension, 2]
+
+    deltas_specific = oopb.add_node('GatherND',
+                         [deltas_squeeze, indices],
+                         operator.inputs[2].full_name + '_deltas_specific',
+                         op_domain='com.microsoft')
+    # output shape: [spatial_dimension, 4]
+
+    BBOX_STD_DEV = np.array([0.1, 0.1, 0.2, 0.2], dtype='float32')
+    delta_mul_output = oopb.add_node('Mul',
+                                     [deltas_specific,
+                                      ('_mul_constant', oopb.float, BBOX_STD_DEV)
+                                     ],
+                                     operator.inputs[2].full_name + '_mul')
+    # output shape: [spatial_dimension, 4]
+
+    box_0 = oopb.add_node('Slice',
+                         [box_squeeze,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                          ],
+                         operator.inputs[0].full_name + '_sliced_0')
+    box_1 = oopb.add_node('Slice',
+                          [box_squeeze,
+                           ('_start', oopb.int64, np.array([1], dtype='int64')),
+                           ('_end', oopb.int64, np.array([2], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_sliced_1')
+    box_2 = oopb.add_node('Slice',
+                          [box_squeeze,
+                           ('_start', oopb.int64, np.array([2], dtype='int64')),
+                           ('_end', oopb.int64, np.array([3], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_sliced_2')
+    box_3 = oopb.add_node('Slice',
+                          [box_squeeze,
+                           ('_start', oopb.int64, np.array([3], dtype='int64')),
+                           ('_end', oopb.int64, np.array([4], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_sliced_3')
+
+    delta_0 = oopb.add_node('Slice',
+                         [delta_mul_output,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                          ],
+                         operator.inputs[3].full_name + '_sliced_0')
+    delta_1 = oopb.add_node('Slice',
+                          [delta_mul_output,
+                           ('_start', oopb.int64, np.array([1], dtype='int64')),
+                           ('_end', oopb.int64, np.array([2], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[3].full_name + '_sliced_1')
+    delta_2 = oopb.add_node('Slice',
+                          [delta_mul_output,
+                           ('_start', oopb.int64, np.array([2], dtype='int64')),
+                           ('_end', oopb.int64, np.array([3], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[3].full_name + '_sliced_2')
+    delta_3 = oopb.add_node('Slice',
+                          [delta_mul_output,
+                           ('_start', oopb.int64, np.array([3], dtype='int64')),
+                           ('_end', oopb.int64, np.array([4], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                           ],
+                          operator.inputs[3].full_name + '_sliced_3')
+
+    height = oopb.add_node('Sub',
+                          [box_2, box_0],
+                          operator.inputs[0].full_name + '_height')
+    width = oopb.add_node('Sub',
+                          [box_3, box_1],
+                          operator.inputs[0].full_name + '_width')
+
+    half_height_0 = oopb.add_node('Mul',
+                                  [height,
+                                   ('_mul_constant', oopb.float, np.array([0.5], dtype='float32'))
+                                  ],
+                                  operator.inputs[0].full_name + '_half_height_0')
+    half_width_0 = oopb.add_node('Mul',
+                                  [width,
+                                   ('_mul_constant', oopb.float, np.array([0.5], dtype='float32'))
+                                  ],
+                                  operator.inputs[0].full_name + '_half_width_0')
+    center_y_0 = oopb.add_node('Add',
+                               [box_0, half_height_0],
+                               operator.inputs[0].full_name + '_center_y_0')
+    center_x_0 = oopb.add_node('Add',
+                               [box_1, half_width_0],
+                               operator.inputs[0].full_name + '_center_x_0')
+
+    delta_height = oopb.add_node('Mul',
+                               [delta_0, height],
+                               operator.inputs[0].full_name + '_delta_height')
+    delta_width = oopb.add_node('Mul',
+                               [delta_1, width],
+                               operator.inputs[0].full_name + '_delta_width')
+    center_y_1 = oopb.add_node('Add',
+                               [center_y_0, delta_height],
+                               operator.inputs[0].full_name + '_center_y_1')
+    center_x_1 = oopb.add_node('Add',
+                               [center_x_0, delta_width],
+                               operator.inputs[0].full_name + '_center_x_1')
+
+    delta_2_exp = oopb.add_node('Exp',
+                                [delta_2],
+                                operator.inputs[0].full_name + '_delta_2_exp')
+    delta_3_exp = oopb.add_node('Exp',
+                                [delta_3],
+                                operator.inputs[0].full_name + '_delta_3_exp')
+    height_exp = oopb.add_node('Mul',
+                                 [height, delta_2_exp],
+                                 operator.inputs[0].full_name + '_height_exp')
+    width_exp = oopb.add_node('Mul',
+                                [width, delta_3_exp],
+                                operator.inputs[0].full_name + '_width_exp')
+
+    half_height_1 = oopb.add_node('Mul',
+                                  [height_exp,
+                                   ('_mul_constant', oopb.float, np.array([0.5], dtype='float32'))
+                                  ],
+                                  operator.inputs[0].full_name + '_half_height_1')
+    half_width_1 = oopb.add_node('Mul',
+                                  [width_exp,
+                                   ('_mul_constant', oopb.float, np.array([0.5], dtype='float32'))
+                                  ],
+                                  operator.inputs[0].full_name + '_half_width_1')
+    y1 = oopb.add_node('Sub',
+                          [center_y_1, half_height_1],
+                          operator.inputs[0].full_name + '_y1')
+    x1 = oopb.add_node('Sub',
+                          [center_x_1, half_width_1],
+                          operator.inputs[0].full_name + '_x1')
+    y2 = oopb.add_node('Add',
+                               [y1, height_exp],
+                               operator.inputs[0].full_name + '_y2')
+    x2 = oopb.add_node('Add',
+                               [x1, width_exp],
+                               operator.inputs[0].full_name + '_x2')
+    '''
+    concat_result = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_result')
+    attrs = {'axis': 1}
+    container.add_node("Concat",
+                       [y1, x1, y2, x2],
+                       concat_result,
+                       op_version=operator.target_opset,
+                       name=operator.outputs[0].full_name + '_concat_result', **attrs)
+    '''
+    # output shape: [spatial_dimension, 4]
+    windows_squeeze = scope.get_unique_variable_name('windows_squeeze')
+    attrs = {'axes': [0]}
+    container.add_node('Squeeze', windows_transpose, windows_squeeze, op_version=operator.target_opset,
+                       **attrs)
+    wy1 = oopb.add_node('Slice',
+                         [windows_squeeze,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                          ],
+                         operator.inputs[0].full_name + '_windows_0')
+    wx1 = oopb.add_node('Slice',
+                          [windows_squeeze,
+                           ('_start', oopb.int64, np.array([1], dtype='int64')),
+                           ('_end', oopb.int64, np.array([2], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_windows_1')
+    wy2 = oopb.add_node('Slice',
+                          [windows_squeeze,
+                           ('_start', oopb.int64, np.array([2], dtype='int64')),
+                           ('_end', oopb.int64, np.array([3], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_windows_2')
+    wx2 = oopb.add_node('Slice',
+                          [windows_squeeze,
+                           ('_start', oopb.int64, np.array([3], dtype='int64')),
+                           ('_end', oopb.int64, np.array([4], dtype='int64')),
+                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                           ],
+                          operator.inputs[0].full_name + '_windows_3')
+    y1_min = oopb.add_node('Min',
+                       [y1, wy2],
+                       operator.inputs[0].full_name + '_y1_min')
+    x1_min = oopb.add_node('Min',
+                       [x1, wx2],
+                       operator.inputs[0].full_name + '_x1_min')
+    y2_min = oopb.add_node('Min',
+                       [y2, wy2],
+                       operator.inputs[0].full_name + '_y2_min')
+    x2_min = oopb.add_node('Min',
+                       [x2, wx2],
+                       operator.inputs[0].full_name + '_x2_min')
+    y1_max = oopb.add_node('Max',
+                           [y1_min, wy1],
+                           operator.inputs[0].full_name + '_y1_max')
+    x1_max = oopb.add_node('Max',
+                           [x1_min, wx1],
+                           operator.inputs[0].full_name + '_x1_max')
+    y2_max = oopb.add_node('Max',
+                           [y2_min, wy1],
+                           operator.inputs[0].full_name + '_y2_max')
+    x2_max = oopb.add_node('Max',
+                           [x2_min, wx1],
+                           operator.inputs[0].full_name + '_x2_max')
+    concat_result = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_result')
+    attrs = {'axis': 1}
+    container.add_node("Concat",
+                       [y1_max, x1_max, y2_max, x2_max],
+                       concat_result,
+                       op_version=operator.target_opset,
+                       name=operator.outputs[0].full_name + '_concat_result', **attrs)
+    '''
+    indices_float = scope.get_unique_variable_name('class_ids_float')
+    attrs = {'to': 1}
+    container.add_node('Cast', indices, indices_float, op_version=operator.target_opset,
+                       **attrs)
+    attrs = {'axis': 1}
+    indices_acc = oopb.add_node('Concat',
+                         [concat_result,
+                          indices_float
+                          ],
+                         operator.inputs[1].full_name + '_indices_acc', **attrs)
+    # output shape: [spatial_dimension, 6]
+    indices_cut = oopb.add_node('Slice',
+                         [indices_acc,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1000], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                          ],
+                         operator.inputs[1].full_name + '_slcie_slice')
+    concat_unsqueeze = scope.get_unique_variable_name('concat_unsqueeze')
+    attrs = {'axes': [0]}
+    container.add_node('Unsqueeze', indices_cut, concat_unsqueeze, op_version=operator.target_opset,
+                       **attrs)
+    return concat_unsqueeze
+    '''
+    concat_unsqueeze = scope.get_unique_variable_name('concat_unsqueeze')
+    attrs = {'axes': [0]}
+    container.add_node('Unsqueeze', concat_result, concat_unsqueeze, op_version=operator.target_opset,
+                       **attrs)
+    return concat_unsqueeze
+
+
+def norm_boxes_graph(scope, operator, container, oopb, image_meta):
+    image_shapes = oopb.add_node('Slice',
+                         [image_meta,
+                          ('_start', oopb.int64, np.array([4], dtype='int64')),
+                          ('_end', oopb.int64, np.array([7], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                          ],
+                         operator.inputs[0].full_name + '_image_shapes')
+    image_shape = oopb.add_node('Slice',
+                                 [image_shapes,
+                                  ('_start', oopb.int64, np.array([0], dtype='int64')),
+                                  ('_end', oopb.int64, np.array([1], dtype='int64')),
+                                  ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                  ],
+                                 operator.inputs[0].full_name + '_image_shape')
+    image_shape_squeeze = scope.get_unique_variable_name('image_shape_squeeze')
+    attrs = {'axes': [0]}
+    container.add_node('Squeeze', image_shape, image_shape_squeeze, op_version=operator.target_opset,
+                       **attrs)
+    window = oopb.add_node('Slice',
+                            [image_meta,
+                             ('_start', oopb.int64, np.array([7], dtype='int64')),
+                             ('_end', oopb.int64, np.array([11], dtype='int64')),
+                             ('_axes', oopb.int64, np.array([1], dtype='int64'))
+                             ],
+                            operator.inputs[0].full_name + '_window')
+    h_norm = oopb.add_node('Slice',
+                         [image_shape_squeeze,
+                          ('_start', oopb.int64, np.array([0], dtype='int64')),
+                          ('_end', oopb.int64, np.array([1], dtype='int64')),
+                          ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                          ],
+                         operator.inputs[0].full_name + '_h_norm')
+    w_norm = oopb.add_node('Slice',
+                           [image_shape_squeeze,
+                            ('_start', oopb.int64, np.array([1], dtype='int64')),
+                            ('_end', oopb.int64, np.array([2], dtype='int64')),
+                            ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                            ],
+                           operator.inputs[0].full_name + '_w_norm')
+    h_norm_float = scope.get_unique_variable_name('h_norm_float')
+    attrs = {'to': 1}
+    container.add_node('Cast', h_norm, h_norm_float, op_version=operator.target_opset,
+                       **attrs)
+    w_norm_float = scope.get_unique_variable_name('w_norm_float')
+    attrs = {'to': 1}
+    container.add_node('Cast', w_norm, w_norm_float, op_version=operator.target_opset,
+                       **attrs)
+    hw_concat = scope.get_unique_variable_name(operator.inputs[0].full_name + '_hw_concat')
+    attrs = {'axis': -1}
+    container.add_node("Concat",
+                       [h_norm_float, w_norm_float, h_norm_float, w_norm_float],
+                       hw_concat,
+                       op_version=operator.target_opset,
+                       name=operator.inputs[0].full_name + '_hw_concat', **attrs)
+    scale = oopb.add_node('Sub',
+                          [hw_concat,
+                           ('_sub', oopb.float, np.array([1.0], dtype='float32'))
+                           ],
+                          operator.inputs[0].full_name + '_scale')
+    boxes_shift = oopb.add_node('Sub',
+                          [window,
+                           ('_sub', oopb.float, np.array([0.0, 0.0, 1.0, 1.0], dtype='float32'))
+                           ],
+                          operator.inputs[0].full_name + '_boxes_shift')
+    divide = oopb.add_node('Div',
+                            [boxes_shift, scale],
+                            operator.inputs[0].full_name + '_divide')
+    # output shape: [batch, 4]
+    return divide
+
+
 def convert_DetectionLayer(scope, operator, container):
 
     oopb = OnnxOperatorBuilder(container, scope)
@@ -153,6 +534,14 @@ def convert_DetectionLayer(scope, operator, container):
     score_identity = scope.get_unique_variable_name(operator.inputs[1].full_name + '_id')
     apply_identity(scope, operator.inputs[1].full_name, score_identity, container)
     # output shape: [num_batches, spatial_dimension, num_classes]
+
+    deltas_transpose = scope.get_unique_variable_name(operator.inputs[2].full_name + '_tx')
+    apply_identity(scope, operator.inputs[2].full_name, deltas_transpose, container)
+    image_meta = scope.get_unique_variable_name(operator.inputs[3].full_name + '_tx')
+    apply_identity(scope, operator.inputs[3].full_name, image_meta, container)
+    windows_transpose = norm_boxes_graph(scope, operator, container, oopb, image_meta)
+    delta_mul_output = convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpose, score_identity, deltas_transpose, windows_transpose)
+
     sliced_score = oopb.add_node('Slice',
                                  [score_identity,
                                   ('_start', oopb.int64, np.array([1], dtype='int64')),
@@ -187,7 +576,7 @@ def convert_DetectionLayer(scope, operator, container):
     nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
     nms_output = scope.get_unique_variable_name(operator.output_full_names[0] + '_nms')
     container.add_node("NonMaxSuppression",
-                       [box_transpose, score_transpose, max_output_size, iou_threshold, score_threshold],
+                       [delta_mul_output, score_transpose, max_output_size, iou_threshold, score_threshold],
                        nms_output,
                        op_version=operator.target_opset,
                        name=nms_node.name)
@@ -276,7 +665,7 @@ def convert_DetectionLayer(scope, operator, container):
     box_squeeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_squeeze')
     attrs = {'axes': [0]}
     container.add_node("Squeeze",
-                       box_transpose,
+                       delta_mul_output,
                        box_squeeze,
                        op_version=operator.target_opset,
                        name=nms_node.name + '_box_squeeze', **attrs)
@@ -319,30 +708,40 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_score_gather_unsqueeze', **attrs)
     # output shape: [num_selected_indices, 1]
 
+
     top_k_var = scope.get_unique_variable_name('topK')
+    '''
     container.add_initializer(top_k_var, onnx_proto.TensorProto.INT64,
                               [1], [100])
+    '''
+    container.add_initializer(top_k_var, onnx_proto.TensorProto.FLOAT,
+                              [1], [100.0])
+
+    score_gather_shape = oopb.add_node('Shape',
+                                       [score_gather],
+                                       operator.inputs[1].full_name + '_score_gather_shape')
+    attrs = {'to': 1}
+    scope_gather_float = oopb.add_node('Cast',
+                                       [score_gather_shape],
+                                       operator.inputs[1].full_name + '_scope_gather_float', **attrs)
+    top_k_min = oopb.add_node('Min',
+                              [scope_gather_float, top_k_var],
+                              operator.inputs[1].full_name + '_top_k_min')
+    attrs = {'to': 7}
+    top_k_min_int = oopb.add_node('Cast',
+                                   [top_k_min],
+                                   operator.inputs[1].full_name + '_top_k_min_int', **attrs)
+
+
     score_top_k_output_val = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_top_k_output_val')
     # output shape: [num_top_K]
     score_top_k_output_idx = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_top_k_output_idx')
     # output shape: [num_top_K]
     attrs = {'axis': 0}
-    container.add_node('TopK', [score_gather, top_k_var], [score_top_k_output_val, score_top_k_output_idx], op_version=operator.target_opset,
+    # container.add_node('TopK', [score_gather, top_k_var], [score_top_k_output_val, score_top_k_output_idx], op_version=operator.target_opset,
+    container.add_node('TopK', [score_gather, top_k_min_int], [score_top_k_output_val, score_top_k_output_idx],
+                       op_version=operator.target_opset,
                        name=nms_node.name + '_topK', **attrs)
-
-    # nonzero_classid = oopb.add_node('NonZero',
-    #                                 [class_idx_output],
-    #                                 nms_node.name + '_nonzero_classid',
-    #                                 )
-    # nonzero_reshaped = oopb.add_node('Reshape',
-    #                                  [nonzero_classid,
-    #                                   ('shape', oopb.int64, np.array([-1]))],
-    #                                  nms_node.name + '_nonzero_reshaped')
-    #
-    # intersection_idx = oopb.add_node('DenseToDenseSetOperation',
-    #                                            [nonzero_reshaped, score_top_k_output_idx],
-    #                                            nms_node.name + '_intersection',
-    #                                            op_domain='com.microsoft')
 
     '''
     box_unsqueeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_unsqueeze')
@@ -392,6 +791,7 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_all_gather', **attrs)
     # output shape: [num_top_K, 6]
     padded_result = oopb.add_node('DynamicPad',
+    # padded_result = oopb.add_node('Pad',
                                   [all_gather,
                                    np.array([0, 0, DETECTION_MAX_INSTANCES, 0],
                                             dtype=np.int64)],
@@ -475,7 +875,8 @@ def convert_DetectionLayer(scope, operator, container):
     pad_param = scope.get_unique_variable_name('pad')
     container.add_initializer(pad_param, onnx_proto.TensorProto.INT64,
                               [1, 4], [0, 0, 99, 0])
-    container.add_node("DynamicPad",
+    # container.add_node("DynamicPad",
+    container.add_node("Pad",
                        [cocat_gather, pad_param],
                        pad_concat,
                        op_version=operator.target_opset, op_domain='com.microsoft',
@@ -505,11 +906,8 @@ _custom_op_handlers = {
     'GatherNd': (on_GatherNd, [])
 }
 
-# Load a random image from the images folder
-image = skimage.io.imread('../data/elephant.jpg')
-
 # Run detection
-results = model.detect([image], verbose=1)
+#results = model.detect([image], verbose=1)
 class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
@@ -561,56 +959,227 @@ else:
     import onnxruntime
     print("The python process id is %d, attach the VS as the debugger." % os.getpid())
 
-    images = [image]
-    molded_images, image_metas, windows = model.mold_inputs(images)
-    anchors = model.get_anchors(molded_images[0].shape)
-    anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+    from os import walk
 
-    start = timer()
-    results_k = model.keras_model.predict([molded_images.astype(np.float32), image_metas.astype(np.float32), anchors])
-    print("Total Keras inf time is %fs " % (timer() - start))
+    f_list = []
+    mypath = 'E:/test2017/test2017/'
+    for (dirpath, dirnames, filenames) in walk(mypath):
+        f_list.extend(filenames)
+        break
+
+    actual_count = 0
+    total_count = 0
+    correct_count = 0
+    correct_count_box = 0
+    correct_count_mask = 0
+    total_keras_time = 0
+    total_onnx_time = 0
+    skip_count = 0
+    process_generate_image = False
+    enable_skip = True
+
+    # process_generate_image = True
 
     sess = onnxruntime.InferenceSession('./mrcnn.onnx')
-    '''
-    detections, _, _, mrcnn_mask, _, _, _ =\
-        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                        "input_anchors:01": anchors,
-                        "input_image_meta:01": image_metas.astype(np.float32)})
-    '''
-    start_ort = timer()
-    results =\
-        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                        "input_anchors:01": anchors,
-                        "input_image_meta:01": image_metas.astype(np.float32)})
 
-    print("Total ORT inf time is %fs " % (timer() - start_ort))
+    for filename in f_list:
+        # Load a random image from the images folder
+        # image = skimage.io.imread('../data/elephant.jpg')
+        if enable_skip:
+            skip_count = skip_count + 1
+            if skip_count < 13:
+                continue
+        actual_count = actual_count + 1
+        print(filename)
 
-    results_final_k = generate_image(images, molded_images, windows, results_k)
-    results_final = generate_image(images, molded_images, windows, results)
+        loading_pass = True
+        try:
+            image = skimage.io.imread(mypath + filename)
+            images = [image]
+        except Exception as ex:
+            print("loading image fails: " + filename)
+            loading_pass = False
 
-    rtol = 1.e-2 #1.e-3
-    atol = 1.e-4 #1.e-6
-    for n_ in range(len(results)):
-        res = np.allclose(results[n_], results_k[n_], rtol=rtol, atol=atol)
-        print(str(n_) + " " + str(res))
-    aa = 1
-    for n_ in range(len(results)):
-        print(str(n_))
-        expected_list = results_k[n_].flatten()
-        actual_list = results[n_].flatten()
-        diff_list = abs(expected_list - actual_list)
-        count_total = len(expected_list)
-        count_error = 0
-        cur_count = 0
+        if not loading_pass:
+            continue
 
-        for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-            if d_ > atol + rtol * abs(a_):
-                if count_error < 80:  # print the first 10 mismatches
-                    print(
-                        "case = " + ", result mismatch for expected = " + str(e_) +
-                        ", actual = " + str(a_) + ", cur_count = " + str(cur_count), file=sys.stderr)
-                count_error = count_error + 1
-            cur_count = cur_count + 1
-        print("case = "  + ", " +
-              str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
-              file=sys.stderr)
+        keras_pass = True
+        try:
+            molded_images, image_metas, windows = model.mold_inputs(images)
+            anchors = model.get_anchors(molded_images[0].shape)
+            anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+            start = timer()
+            results_k = model.keras_model.predict(
+                [molded_images.astype(np.float32), image_metas.astype(np.float32), anchors])
+            keras_end_time = timer()
+            total_keras_time = total_keras_time + keras_end_time - start
+            print("Total Keras inf time is %fs " % (keras_end_time - start))
+        except Exception as ex:
+            print("the image fails on keras: " + filename)
+            keras_pass = False
+
+        if not keras_pass:
+            continue
+
+
+        print("keras runs good: " + filename)
+        # sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+        onnx_pass = True
+        try:
+            start_ort = timer()
+            '''
+            from onnx import numpy_helper
+            tensor1 = numpy_helper.from_array(molded_images.astype(np.float32))
+            tensor1.name = 'input_image:01'
+            with open(os.path.join('test_data_set_0', 'input_0.pb'), 'wb') as f:
+                f.write(tensor1.SerializeToString())
+            tensor2 = numpy_helper.from_array(anchors)
+            tensor2.name = 'input_anchors:01'
+            with open(os.path.join('test_data_set_0', 'input_1.pb'), 'wb') as f:
+                f.write(tensor2.SerializeToString())
+            tensor3 = numpy_helper.from_array(image_metas.astype(np.float32))
+            tensor3.name = 'input_image_meta:01'
+            with open(os.path.join('test_data_set_0', 'input_2.pb'), 'wb') as f:
+                f.write(tensor3.SerializeToString())
+            '''
+            results =\
+                sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                                "input_anchors:01": anchors,
+                                "input_image_meta:01": image_metas.astype(np.float32)})
+            '''
+            tensor_output_1 = numpy_helper.from_array(results[0], 'mrcnn_detection/Reshape_1:0')
+            with open(os.path.join('test_data_set_0', 'output_0.pb'), 'wb') as f:
+                f.write(tensor_output_1.SerializeToString())
+            tensor_output_2 = numpy_helper.from_array(results[1], 'mrcnn_class/Reshape_1:0')
+            with open(os.path.join('test_data_set_0', 'output_1.pb'), 'wb') as f:
+                f.write(tensor_output_2.SerializeToString())
+            tensor_output_3 = numpy_helper.from_array(results[2], 'mrcnn_bbox/Reshape:0')
+            with open(os.path.join('test_data_set_0', 'output_2.pb'), 'wb') as f:
+                f.write(tensor_output_3.SerializeToString())
+            tensor_output_4 = numpy_helper.from_array(results[3], 'mrcnn_mask/Reshape_1:0')
+            with open(os.path.join('test_data_set_0', 'output_3.pb'), 'wb') as f:
+                f.write(tensor_output_4.SerializeToString())
+            tensor_output_5 = numpy_helper.from_array(results[4], 'ROI/packed_2:0')
+            with open(os.path.join('test_data_set_0', 'output_4.pb'), 'wb') as f:
+                f.write(tensor_output_5.SerializeToString())
+            tensor_output_6 = numpy_helper.from_array(results[5], 'rpn_class/concat:0')
+            with open(os.path.join('test_data_set_0', 'output_5.pb'), 'wb') as f:
+                f.write(tensor_output_6.SerializeToString())
+            tensor_output_7 = numpy_helper.from_array(results[6], 'rpn_bbox/concat:0')
+            with open(os.path.join('test_data_set_0', 'output_6.pb'), 'wb') as f:
+                f.write(tensor_output_7.SerializeToString())
+            '''
+            onnx_end_time = timer()
+            total_onnx_time = total_onnx_time + onnx_end_time - start
+            print("Total ORT inf time is %fs " % (onnx_end_time - start))
+        except Exception as ex:
+            print("the image fails on onnx: " + filename)
+            onnx_pass = False
+
+        if not onnx_pass:
+            continue
+
+        print("onnxruntime runs good: " + filename)
+
+        rtol = 1.e-2 #1.e-3
+        atol = 1.e-3 #1.e-6
+        # compare_idx = range(len(results))
+        compare_idx = [0, 3]
+        result_match = True
+        box_match = False
+        mask_match = False
+
+        for n_ in compare_idx:
+            expected_list = results_k[n_].flatten()
+            actual_list = results[n_].flatten()
+            if n_ == 0:
+                expected_class_id = expected_list[4::6]
+                actual_class_id = actual_list[4::6]
+                expected_idx_sorted = sorted(range(len(expected_class_id)), key=lambda k: expected_class_id[k], reverse=True)
+                actual_idx_sorted = sorted(range(len(actual_class_id)), key=lambda k: actual_class_id[k], reverse=True)
+                expected_list_copy = np.copy(expected_list)
+                actual_list_copy = np.copy(actual_list)
+                for i_ in range(len(expected_idx_sorted)):
+                    expected_list_copy[6*i_:6*(i_+1)] = expected_list[6*expected_idx_sorted[i_]:6*(expected_idx_sorted[i_]+1)]
+                for i_ in range(len(actual_idx_sorted)):
+                    actual_list_copy[6*i_:6*(i_+1)] = actual_list[6*actual_idx_sorted[i_]:6*(actual_idx_sorted[i_]+1)]
+                expected_list = expected_list_copy
+                actual_list = actual_list_copy
+
+            if n_ == 3:
+                expected_list = np.array([1 if expected > 0.999 else 0 for expected in expected_list])
+                actual_list = np.array([1 if actual > 0.999 else 0 for actual in actual_list])
+
+            diff_list = abs(expected_list - actual_list)
+            count_total = len(expected_list)
+            count_error = 0
+            cur_count = 0
+
+            res = np.allclose(actual_list, expected_list, rtol=rtol, atol=atol)
+            if not res:
+                result_match = False
+
+            if n_ == 0 and res:
+                box_match = True
+                correct_count_box = correct_count_box + 1
+            if n_ == 3:
+                union_list = expected_list + actual_list
+                intersection_list = np.array([1 if union > 1.999 else 0 for union in union_list])
+                count_intersection = np.count_nonzero(intersection_list)
+                count_union = np.count_nonzero(union_list)
+                ratio_str = str(count_intersection / count_union) if count_union > 0 else '1'
+                print("case = "  + ", intersection count = " +
+                      str(count_intersection) + ", union count = " + str(count_union) + ", with ratio = " +  ratio_str,
+                      file=sys.stderr)
+                if count_intersection > 0.99 * count_union or count_union == 0:
+                    mask_match = True
+                    correct_count_mask = correct_count_mask + 1
+
+            count_error_threshold = 20
+            if n_ != 3:
+                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+                    if d_ > atol + rtol * abs(a_):
+                        if count_error < count_error_threshold:  # print the first count_error_threshold mismatches
+                            print(
+                                "case = " + ", result mismatch for results_keras = " + str(e_) +
+                                ", results_onnx = " + str(a_) + ", cur_count = " + str(cur_count), file=sys.stderr)
+                        count_error = count_error + 1
+                    cur_count = cur_count + 1
+                print("case = "  + ", " +
+                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
+                      file=sys.stderr)
+
+            if n_ == 3:
+                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+                    if d_ > 0:
+                        if count_error < count_error_threshold:  # print the first count_error_threshold mismatches
+                            print(
+                                "case = " + ", result mismatch for results_keras = " + str(e_) +
+                                ", results_onnx = " + str(a_) + ", cur_count = " + str(cur_count), file=sys.stderr)
+                        count_error = count_error + 1
+                    cur_count = cur_count + 1
+                print("case = "  + ", " +
+                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
+                      file=sys.stderr)
+
+        if result_match:
+            correct_count = correct_count + 1
+        elif process_generate_image:
+            try:
+                results_final_k = generate_image(images, molded_images, windows, results_k)
+                results_final = generate_image(images, molded_images, windows, results)
+            except Exception as ex:
+                print("the image cannot be generated for file:" + filename)
+
+        total_count = total_count + 1
+        print("actual_count = " + str(actual_count) + ", total_count = " + str(total_count) + ", correct_count = " + str(correct_count)
+              + ", correct_count_box = " + str(correct_count_box) + ", correct_count_mask = " + str(correct_count_mask) )
+
+        if total_count > 0:
+            print("avg_keras_time = " + str(total_keras_time / total_count) + ", avg_onnx_time = " + str(total_onnx_time / total_count)
+                  + ", ratio = " + str(total_onnx_time / total_keras_time))
+
+        time.sleep(5)
+
+        if actual_count == 100:
+            break
