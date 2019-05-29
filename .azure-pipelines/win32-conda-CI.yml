@@ -63,7 +63,7 @@ jobs:
     displayName: 'pytest'
 
   - script: |
-      coverage run --include=keras2onnx/** tests/** --omit=keras2onnx/ktf2onnx/**
+      coverage run --include=keras2onnx/* tests/*.py --omit=keras2onnx/ktf2onnx/*
       coverage report -m
       coverage html
     displayName: 'coverage'
