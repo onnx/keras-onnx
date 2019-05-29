@@ -1,5 +1,4 @@
 pillow
 pytest
 onnxruntime
-codecov
-pytest-cov
+coverage
