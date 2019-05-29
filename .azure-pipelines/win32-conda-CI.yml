@@ -63,7 +63,7 @@ jobs:
     displayName: 'pytest'
 
   - script: |
-      coverage run --include=keras2onnx/** tests/benchmark.py
+      coverage run --include=keras2onnx/ke2onnx/**,keras2onnx/common/**,keras2onnx/main.py,keras2onnx/funcbook.py,keras2onnx/parser.py,keras2onnx/subgraph.py,keras2onnx/topology.py,keras2onnx/wrapper.py,keras2onnx/_builtin.py,tests/test_layers.py
       coverage report -m
       coverage html
     displayName: 'coverage'
