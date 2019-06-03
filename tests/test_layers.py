@@ -328,8 +328,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def _pooling_test_helper(self, layer, ishape, data_format='channels_last'):
         model = keras.Sequential()
-        nlayer = layer(input_shape=ishape, data_format=data_format) if \
-            (layer.__name__.startswith("Global")) else layer(2, input_shape=ishape, data_format=data_format)
+        nlayer = layer(data_format=data_format, input_shape=ishape) if \
+            (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
 
         model.add(nlayer)
         onnx_model = keras2onnx.convert_keras(model, model.name)
