@@ -25,15 +25,15 @@ def convert_keras_advanced_activation(scope, operator, container):
         weights = op.get_weights()[0]
         apply_prelu(scope, operator.input_full_names[0], operator.output_full_names[0], container,
                     operator_name=operator.full_name, slope=weights)
+    elif isinstance(op, activations.ThresholdedReLU):
+        alpha = op.get_config()['theta']
+        apply_thresholded_relu(scope, operator.input_full_names[0], operator.output_full_names[0], container,
+                    operator_name=operator.full_name, alpha=alpha)
     else:
         attrs = {'name': operator.full_name}
         ver_opset = 6
         input_tensor_names = [operator.input_full_names[0]]
-        if isinstance(op, activations.ThresholdedReLU):
-            op_type = 'ThresholdedRelu'
-            ver_opset = 10
-            attrs['alpha'] = op.get_config()['theta']
-        elif StrictVersion(keras.__version__) >= StrictVersion('2.1.3') and \
+        if StrictVersion(keras.__version__) >= StrictVersion('2.1.3') and \
                 isinstance(op, activations.Softmax):
             op_type = 'Softmax'
             attrs['axis'] = op.get_config()['axis']
