@@ -328,8 +328,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def _pooling_test_helper(self, layer, ishape, data_format='channels_last'):
         model = keras.Sequential()
-        nlayer = layer(data_format=data_format, input_shape=ishape) if \
-            (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
+        if StrictVersion(keras.__version__) >= StrictVersion('2.2.3'):
+            nlayer = layer(data_format=data_format, input_shape=ishape) if \
+                (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
+        else:
+            nlayer = layer(input_shape=ishape) if \
+                (layer.__name__.startswith("Global")) else layer(2, input_shape=ishape)
 
         model.add(nlayer)
         onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -341,9 +345,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_pooling_1d(self):
         self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6))
-        self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6), 'channels_first')
         self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6))
-        self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6), 'channels_first')
+        # data_format is not supported until keras 2.2.3
+        if StrictVersion(keras.__version__) >= StrictVersion('2.2.3'):
+            self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6), 'channels_first')
+            self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6), 'channels_first')
 
     def test_pooling_2d(self):
         self._pooling_test_helper(keras.layers.AveragePooling2D, (4, 4, 3))
