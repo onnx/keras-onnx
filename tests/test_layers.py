@@ -478,9 +478,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._misc_conv_helper(layer, ishape)
 
     def test_upsample(self):
-        ishape = (20,)
-        layer = keras.layers.UpSampling1D(size=2)
-        self._misc_conv_helper(layer, ishape)
+        if sys.version_info >= (3, 6):
+            ishape = (20,)
+            layer = keras.layers.UpSampling1D(size=2)
+            self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 1)
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')

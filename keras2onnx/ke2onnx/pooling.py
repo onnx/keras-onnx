@@ -9,7 +9,7 @@ from .common import get_permutation_config
 def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
                                op_type, input_perm_axes, output_perm_axes):
     op = operator.raw_operator
-    no_permutation_required = op.data_format == 'channels_first'
+    no_permutation_required = op.data_format == 'channels_first' if hasattr(op, 'data_format') else False
 
     if no_permutation_required:
         adjusted_pooling_input = operator.inputs[0].full_name
