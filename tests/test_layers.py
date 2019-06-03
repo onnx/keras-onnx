@@ -340,7 +340,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_pooling_avg1d(self):
-        self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6))
+        self._pooling_test_helper(keras.layers.AveragePooling1D, (64, 9))
 
     def test_pooling_avg2d(self):
         N, C, H, W = 2, 3, 5, 5
