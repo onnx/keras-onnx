@@ -9,9 +9,9 @@ from .common import get_permutation_config
 def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
                                op_type, input_perm_axes, output_perm_axes):
     op = operator.raw_operator
-    channels_first = n_dims > 1 and op.data_format == 'channels_first'
+    no_permutation_required = op.data_format == 'channels_first'
 
-    if channels_first:
+    if no_permutation_required:
         adjusted_pooling_input = operator.inputs[0].full_name
     else:
         adjusted_pooling_input = scope.get_unique_variable_name('input_transposed')
@@ -33,15 +33,17 @@ def convert_keras_pooling_core(scope, operator, container, is_global, n_dims,
         else:
             raise RuntimeError("Unsupported padding type '{0}'".format(op.padding))
 
-    if channels_first:
+    op_version = 7 if container.target_opset <= 7 else 10
+
+    if no_permutation_required:
         # In this case, the output of our Pool operator just match what Keras produces.
         container.add_node(op_type_prefix + onnx_op_type, adjusted_pooling_input,
-                           operator.outputs[0].full_name, **attrs)
+                           operator.outputs[0].full_name, op_version=op_version, **attrs)
     else:
         # Put the output of Pool operator to an intermediate tensor. Laster we will apply a Transpose to match the
         # original Keras output format
         pooling_output_name = scope.get_unique_variable_name('pooling_output')
-        container.add_node(op_type_prefix + onnx_op_type, adjusted_pooling_input, pooling_output_name, **attrs)
+        container.add_node(op_type_prefix + onnx_op_type, adjusted_pooling_input, pooling_output_name, op_version=op_version, **attrs)
 
         # Generate a final Transpose
         postprocessor_type = 'Transpose'
@@ -63,14 +65,14 @@ def convert_keras_max_pooling_2d(scope, operator, container):
 
 
 def convert_keras_max_pooling_3d(scope, operator, container):
-    input_perm_axes, output_perm_axes = get_permutation_config(2)
+    input_perm_axes, output_perm_axes = get_permutation_config(3)
     convert_keras_pooling_core(scope, operator, container, is_global=False, n_dims=3, op_type='Max',
                                input_perm_axes=input_perm_axes, output_perm_axes=output_perm_axes)
 
 
 def convert_keras_average_pooling_1d(scope, operator, container):
     input_perm_axes, output_perm_axes = get_permutation_config(1)
-    convert_keras_pooling_core(scope, operator, container, is_global=True, n_dims=1, op_type='Avg',
+    convert_keras_pooling_core(scope, operator, container, is_global=False, n_dims=1, op_type='Avg',
                                input_perm_axes=input_perm_axes, output_perm_axes=output_perm_axes)
 
 
