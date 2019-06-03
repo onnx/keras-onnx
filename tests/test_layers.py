@@ -328,7 +328,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def _pooling_test_helper(self, layer, ishape, data_format='channels_last'):
         model = keras.Sequential()
-        if sys.version_info > (3, 5):
+        if sys.version_info >= (3, 6):
             nlayer = layer(data_format=data_format, input_shape=ishape) if \
                 (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
         else:
@@ -346,7 +346,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_pooling_1d(self):
         self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6))
         self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6))
-        if sys.version_info > (3, 5):
+        if sys.version_info >= (3, 6):
             self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6), 'channels_first')
             self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6), 'channels_first')
 
