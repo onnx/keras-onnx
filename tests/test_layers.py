@@ -339,20 +339,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
-    def test_pooling_avg1d(self):
-        self._pooling_test_helper(keras.layers.AveragePooling1D, (64, 9))
-
-    def test_pooling_avg2d(self):
-        N, C, H, W = 2, 3, 5, 5
-        x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
-
-        model = keras.models.Sequential()
-        model.add(keras.layers.AveragePooling2D((2, 2), strides=(2, 2), input_shape=(H, W, C), data_format='channels_last'))
-        model.compile(optimizer='sgd', loss='mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=10)
-        expected = model.predict(x)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
-
     @unittest.skip("ONNXRuntime doesn't support 3D average pooling yet.")
     def test_pooling_avg3d(self):
         self._pooling_test_helper(keras.layers.AveragePooling3D, (4, 4, 4, 3))
