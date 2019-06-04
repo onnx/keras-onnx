@@ -32,6 +32,9 @@ jobs:
     maxParallel: 3
 
   steps:
+  - script: sudo install -d -m 0777 /usr/envs
+    displayName: Fix Conda permissions
+
   - task: CondaEnvironment@1
     inputs:
       createCustomEnvironment: true
