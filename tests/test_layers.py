@@ -326,10 +326,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('repeat_vector', onnx_model, data, expected))
 
-    def _pooling_test_helper(self, layer, ishape):
+    def _pooling_test_helper(self, layer, ishape, data_format='channels_last'):
         model = keras.Sequential()
-        nlayer = layer(input_shape=ishape) if \
-            (layer.__name__.startswith("Global")) else layer(2, input_shape=ishape)
+        if sys.version_info >= (3, 6):
+            nlayer = layer(data_format=data_format, input_shape=ishape) if \
+                (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
+        else:
+            nlayer = layer(input_shape=ishape) if \
+                (layer.__name__.startswith("Global")) else layer(2, input_shape=ishape)
 
         model.add(nlayer)
         onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -339,14 +343,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
-    @unittest.skip("ONNXRuntime doesn't support 3D average pooling yet.")
-    def test_pooling_avg3d(self):
-        self._pooling_test_helper(keras.layers.AveragePooling3D, (4, 4, 4, 3))
-
-    def test_pooling_max1d(self):
+    def test_pooling_1d(self):
+        self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6))
         self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6))
+        if sys.version_info >= (3, 6):
+            self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6), 'channels_first')
+            self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6), 'channels_first')
 
-    def test_pooling_max2d(self):
+    def test_pooling_2d(self):
+        self._pooling_test_helper(keras.layers.AveragePooling2D, (4, 4, 3))
+
         N, C, H, W = 2, 3, 5, 5
         x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
 
@@ -364,6 +370,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
+
+    def test_pooling_3d(self):
+        self._pooling_test_helper(keras.layers.AveragePooling3D, (4, 4, 4, 3))
+        self._pooling_test_helper(keras.layers.MaxPool3D, (4, 4, 4, 3))
 
     def test_pooling_global(self):
         self._pooling_test_helper(keras.layers.GlobalAveragePooling2D, (4, 6, 2))
@@ -452,7 +462,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.activationlayer_helper(layer, data)
 
     def _misc_conv_helper(self, layer, ishape):
-        ishape = (20, 20, 1)
         input = keras.Input(ishape)
         out = layer(input)
         model = keras.models.Model(input, out)
@@ -469,8 +478,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._misc_conv_helper(layer, ishape)
 
     def test_upsample(self):
+        if sys.version_info >= (3, 6):
+            ishape = (20,)
+            layer = keras.layers.UpSampling1D(size=2)
+            self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 1)
-        layer = keras.layers.UpSampling2D(size=(2, 3), data_format='channels_last')
+        for size in [2, (2, 3)]:
+            layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
+            self._misc_conv_helper(layer, ishape)
+        ishape = (20, 20, 20, 1)
+        layer = keras.layers.UpSampling3D(size=(2, 3, 4), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
 
     def test_padding(self):
