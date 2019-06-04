@@ -5,7 +5,7 @@
 ###############################################################################
 from ..proto import keras
 from distutils.version import StrictVersion
-from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu
+from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu
 
 
 activations = keras.layers.advanced_activations
