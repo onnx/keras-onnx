@@ -5,6 +5,7 @@
 ###############################################################################
 
 from onnxconverter_common.onnx_ops import *
+from onnxconverter_common.onnx_ops import _create_name_or_use_existing_one
 
 def apply_thresholded_relu(scope, input_name, output_name, container, operator_name=None, alpha=None):
     if alpha == None:
