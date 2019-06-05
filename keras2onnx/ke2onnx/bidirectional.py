@@ -72,13 +72,13 @@ def convert_bidirectional(scope, operator, container):
         b = np.zeros(shape=(8, hidden_size))
         keras_b = forward_layer.get_weights()[2]  # This matrix is a concatenation of B[ifco] in Keras
         # Set up B_i
-        b[0:] = keras_b[0 * hidden_size:][:hidden_size]
+        b[0] = keras_b[0 * hidden_size:][:hidden_size]
         # Set up B_o
-        b[1:] = keras_b[3 * hidden_size:][:hidden_size]
+        b[1] = keras_b[3 * hidden_size:][:hidden_size]
         # Set up B_f
-        b[2:] = keras_b[1 * hidden_size:][:hidden_size]
+        b[2] = keras_b[1 * hidden_size:][:hidden_size]
         # Set up B_c
-        b[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     # Extract the backward transformation matrix used to adjust input features. Note that the weight format for the
     # backward layer is identical to that of the forward layer.
@@ -102,10 +102,10 @@ def convert_bidirectional(scope, operator, container):
     if backward_layer.use_bias:
         b_back = np.zeros(shape=(8, hidden_size))
         keras_b = backward_layer.get_weights()[2]
-        b_back[0:] = keras_b[0 * hidden_size:][:hidden_size]
-        b_back[1:] = keras_b[3 * hidden_size:][:hidden_size]
-        b_back[2:] = keras_b[1 * hidden_size:][:hidden_size]
-        b_back[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b_back[0] = keras_b[0 * hidden_size:][:hidden_size]
+        b_back[1] = keras_b[3 * hidden_size:][:hidden_size]
+        b_back[2] = keras_b[1 * hidden_size:][:hidden_size]
+        b_back[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     if (b is None and b_back is not None) or (b is not None and b_back is None):
         raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')
