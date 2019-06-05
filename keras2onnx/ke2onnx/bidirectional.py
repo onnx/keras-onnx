@@ -240,10 +240,17 @@ def convert_bidirectional(scope, operator, container):
             apply_split(scope, transposed_y_name, [forward_y_name, backward_y_name], container, axis=2)
 
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
-            container.add_node('Squeeze', forward_y_name, operator.outputs[0].full_name,
+            forward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_forward_1')
+            backward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_backward_1')
+            container.add_node('Squeeze', forward_y_name, forward_y_name_1,
                                name=scope.get_unique_variable_name('Squeeze'), axes=[2])
-            container.add_node('Squeeze', backward_y_name, operator.outputs[1].full_name,
+            container.add_node('Squeeze', backward_y_name, backward_y_name_1,
                                name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+
+            apply_reshape(scope, forward_y_name_1, operator.outputs[0].full_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
+            apply_reshape(scope, backward_y_name_1, operator.outputs[1].full_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
     else:
         perm = [1, 0, 2]
         if merge_concat:
