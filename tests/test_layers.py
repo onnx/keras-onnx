@@ -23,7 +23,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.model_files = []
 
     def tearDown(self):
-        pass
         for fl in self.model_files:
             os.remove(fl)
 
@@ -549,6 +548,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
+    def test_batch_normalization_2(self):
+        # test batch normalization on 2D input
+        input_dim = 10
+        batch_size = 4
+        model = keras.models.Sequential()
+        model.add(keras.layers.InputLayer(input_shape=(input_dim,)))
+        model.add(keras.layers.BatchNormalization(axis=-1))
+        model.add(keras.layers.Dense(5))
+        data = np.random.randn(batch_size, input_dim).astype(np.float32)
+        onnx_model = keras2onnx.convert_keras(model)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('test_batch_normalization_2', onnx_model, [data], expected))
+
     def test_simpleRNN(self):
         inputs1 = keras.Input(shape=(3, 1))
         cls = keras.layers.SimpleRNN(2, return_state=False, return_sequences=True)
@@ -863,171 +875,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
 
-    def test_erik(self):
-        '''
-        from keras.models import load_model
-        keras_model = load_model('erikov_05_31_2019_02_38.h5')
-        seq = np.array([0, 0, 0, 278]).reshape(1, -1).astype(np.float32)
-        print(f'seq: {seq}')
-        expected = keras_model.predict(seq)[0].astype(np.float64)
-        import onnx
-        onnx_model = onnx.load_model('erikov_05_31_2019_02_38.onnx')
-        self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [seq], expected))
-        '''
-        from keras.models import load_model
-        keras_model = load_model('erikov_05_31_2019_02_38.h5')
-        import pandas as pd
-        from keras.models import load_model
-        import pandas as pd
-        import onnxmltools
-        import onnxruntime as rt
-
-        topn = 10
-        seq = np.array([0, 0, 0, 278]).reshape(1, -1).astype(np.float32)
-
-        print(f'seq: {seq}')
-
-        preds = keras_model.predict(seq)[0].astype(np.float64)
-
-        df_res = pd.DataFrame({'Probs': preds})
-
-        df_res = df_res.sort_values(by='Probs', ascending=False)
-
-        suggestions = df_res.head(topn)
-
-        print(suggestions)
-
-        onnx_model = onnxmltools.convert_keras(keras_model)
-
-        print(f'Opset version: {onnx_model.opset_import[0].version}')
-        onnx_path = 'erikov_05_31_2019_02_ss.onnx'
-
-        print(f'Saving Onnx file to:{onnx_path}')
-
-        onnxmltools.utils.save_model(onnx_model, onnx_path)
-        onnx_path = 'erikov_05_31_2019_02_38.onnx'
-        sess = rt.InferenceSession(onnx_path)
-
-        input_name = sess.get_inputs()[0].name
-
-        output_name = sess.get_outputs()[0].name
-
-        preds = np.array(sess.run([output_name], {input_name: seq})[0][0]).astype(np.float64)
-
-        df_res = pd.DataFrame({'Probs': preds})
-
-        df_res = df_res.sort_values(by='Probs', ascending=False)
-
-        suggestions = df_res.head(topn)
-
-        print(suggestions)
-
-    def test_fjfjfan(self):
-        # -*- coding: utf-8 -*-
-        import time
-        import math
-        import numpy as np
-        from keras.models import Sequential
-        from keras.layers import SimpleRNN, GRU, LSTM, Bidirectional, Dense
-        from keras import backend as K
-        import tensorflow as tf
-        import keras2onnx
-
-        # Fix random seed for reproducibility
-        np.random.seed(3)
-
-        data_dim = 4  # input_size
-        timesteps = 3  # seq_length
-
-        # expected input data shape: (batch_size, timesteps, data_dim)
-        train_input = np.random.uniform(low=-0.5, high=0.5, size=(100, timesteps, data_dim)).astype(np.float32)
-        train_output = np.random.uniform(low=-0.5, high=0.5, size=(100, 256)).astype(np.float32)
-
-        # Number of layer and number of neurons in each layer
-        num_neur = [128, 128, 128]
-        # num_neur = [128]
-        # Training times
-        epochs = 20
-        # Batch size
-        batch_size = 10
-
-        # Record time
-        start_cr_a_fit_net = time.time()
-        # Create and fit the RNN network
-        model = Sequential()
-
-        for i in range(len(num_neur)):  # multi-layer
-            if len(num_neur) == 1:
-                model.add(Bidirectional(
-                    LSTM(num_neur[i], input_shape=(timesteps, data_dim), unroll=True, recurrent_activation='sigmoid')))
-            else:
-                if i < len(num_neur) - 1:
-                    model.add(Bidirectional(
-                        LSTM(num_neur[i], input_shape=(timesteps, data_dim), return_sequences=True, unroll=True,
-                             recurrent_activation='sigmoid')))
-                else:
-                    model.add(Bidirectional(LSTM(num_neur[i], input_shape=(timesteps, data_dim), unroll=True,
-                                                 recurrent_activation='sigmoid')))
-
-        # Compile the neural network
-        model.compile(loss='mean_squared_error', optimizer='adam')
-        # Fit the LSTM network
-        model.fit(train_input, train_output, epochs=epochs, batch_size=batch_size, verbose=0)
-
-        # Summary the structure of neural network
-        model.summary()
-
-        end_cr_a_fit_net = time.time() - start_cr_a_fit_net
-        print('Running time of creating and fitting the LSTM network: %.2f Seconds' % (end_cr_a_fit_net))
-
-        print('model.inputs', model.inputs)
-        print('model.outputs', model.outputs)
-
-        test_input = np.random.uniform(low=-0.5, high=0.5, size=(1, timesteps, data_dim)).astype(np.float32)
-        test_output = model.predict(test_input)
-
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-
-        import onnx
-        onnx_filename = "keras_lstm1.onnx"
-        onnx.save_model(onnx_model, onnx_filename)
-
-        K.clear_session()
-
-        #####################
-        # verify
-        #####################
-        import onnxruntime as rt
-
-        sess = rt.InferenceSession(onnx_filename)
-        input_name_X = sess.get_inputs()[0].name
-        label_name_Y = sess.get_outputs()[0].name
-
-        # pred_rst = sess.run([label_name_Y], {input_name_X: test_input})
-        self.assertTrue(self.run_onnx_runtime('channel_first_input', onnx_model, [test_input], test_output))
-
-        print('hello')
-
-    def test_bn(self):
-        import onnxmltools
-        import onnxruntime
-        input_dim = 10
-        batch_size = 4
-        model = keras.models.Sequential()
-        model.add(keras.layers.InputLayer(input_shape=(input_dim,)))
-        model.add(keras.layers.BatchNormalization(axis=-1))
-        model.add(keras.layers.Dense(5))
-        model.save('bn.h5')
-        ximg = np.random.randn(batch_size, input_dim).astype(np.float32)
-        onnx_model = onnxmltools.convert_keras(model, target_opset=9)
-        import onnx
-        onnx_filename = "bn.onnx"
-        onnx.save_model(onnx_model, onnx_filename)
-        expected = model.predict(ximg)
-        #sess = onnxruntime.InferenceSession(onnx_model.SerializeToString())
-        #feed = dict([(input.name, ximg) for n, input in enumerate(sess.get_inputs())])
-        #preds_onnx = sess.run(None, feed)[0]
-        self.assertTrue(self.run_onnx_runtime('bn', onnx_model, [ximg], expected))
 
 if __name__ == "__main__":
     unittest.main()
