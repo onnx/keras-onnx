@@ -63,7 +63,7 @@ jobs:
     displayName: 'pytest'
 
   - script: |
-      pip install coverage
+      pip install coverage onnx
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
