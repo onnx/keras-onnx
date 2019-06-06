@@ -72,13 +72,13 @@ def convert_bidirectional(scope, operator, container):
         b = np.zeros(shape=(8, hidden_size))
         keras_b = forward_layer.get_weights()[2]  # This matrix is a concatenation of B[ifco] in Keras
         # Set up B_i
-        b[0:] = keras_b[0 * hidden_size:][:hidden_size]
+        b[0] = keras_b[0 * hidden_size:][:hidden_size]
         # Set up B_o
-        b[1:] = keras_b[3 * hidden_size:][:hidden_size]
+        b[1] = keras_b[3 * hidden_size:][:hidden_size]
         # Set up B_f
-        b[2:] = keras_b[1 * hidden_size:][:hidden_size]
+        b[2] = keras_b[1 * hidden_size:][:hidden_size]
         # Set up B_c
-        b[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     # Extract the backward transformation matrix used to adjust input features. Note that the weight format for the
     # backward layer is identical to that of the forward layer.
@@ -102,10 +102,10 @@ def convert_bidirectional(scope, operator, container):
     if backward_layer.use_bias:
         b_back = np.zeros(shape=(8, hidden_size))
         keras_b = backward_layer.get_weights()[2]
-        b_back[0:] = keras_b[0 * hidden_size:][:hidden_size]
-        b_back[1:] = keras_b[3 * hidden_size:][:hidden_size]
-        b_back[2:] = keras_b[1 * hidden_size:][:hidden_size]
-        b_back[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b_back[0] = keras_b[0 * hidden_size:][:hidden_size]
+        b_back[1] = keras_b[3 * hidden_size:][:hidden_size]
+        b_back[2] = keras_b[1 * hidden_size:][:hidden_size]
+        b_back[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     if (b is None and b_back is not None) or (b is not None and b_back is None):
         raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')
@@ -240,10 +240,17 @@ def convert_bidirectional(scope, operator, container):
             apply_split(scope, transposed_y_name, [forward_y_name, backward_y_name], container, axis=2)
 
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
-            container.add_node('Squeeze', forward_y_name, operator.outputs[0].full_name,
+            forward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_forward_1')
+            backward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_backward_1')
+            container.add_node('Squeeze', forward_y_name, forward_y_name_1,
                                name=scope.get_unique_variable_name('Squeeze'), axes=[2])
-            container.add_node('Squeeze', backward_y_name, operator.outputs[1].full_name,
+            container.add_node('Squeeze', backward_y_name, backward_y_name_1,
                                name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+
+            apply_reshape(scope, forward_y_name_1, operator.outputs[0].full_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
+            apply_reshape(scope, backward_y_name_1, operator.outputs[1].full_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
     else:
         perm = [1, 0, 2]
         if merge_concat:
