@@ -359,7 +359,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.models.Sequential()
         model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), input_shape=(H, W, C), data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name) 
+        onnx_model = keras2onnx.convert_keras(model, model.name)
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
 
@@ -486,6 +486,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
+            if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
+                layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
+                self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
         layer = keras.layers.UpSampling3D(size=(2, 3, 4), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
