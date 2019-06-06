@@ -743,6 +743,20 @@ def convert_DetectionLayer(scope, operator, container):
                        op_version=operator.target_opset,
                        name=nms_node.name + '_topK', **attrs)
 
+    # nonzero_classid = oopb.add_node('NonZero',
+    #                                 [class_idx_output],
+    #                                 nms_node.name + '_nonzero_classid',
+    #                                 )
+    # nonzero_reshaped = oopb.add_node('Reshape',
+    #                                  [nonzero_classid,
+    #                                   ('shape', oopb.int64, np.array([-1]))],
+    #                                  nms_node.name + '_nonzero_reshaped')
+    #
+    # intersection_idx = oopb.add_node('DenseToDenseSetOperation',
+    #                                            [nonzero_reshaped, score_top_k_output_idx],
+    #                                            nms_node.name + '_intersection',
+    #                                            op_domain='com.microsoft')
+
     '''
     box_unsqueeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_unsqueeze')
     attrs = {'axes': [1]}
@@ -1183,3 +1197,4 @@ else:
 
         if actual_count == 100:
             break
+
