@@ -551,6 +551,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
+    def test_batch_normalization_2(self):
+        # test batch normalization on 2D input
+        input_dim = 10
+        batch_size = 4
+        model = keras.models.Sequential()
+        model.add(keras.layers.InputLayer(input_shape=(input_dim,)))
+        model.add(keras.layers.BatchNormalization(axis=-1))
+        model.add(keras.layers.Dense(5))
+        data = np.random.randn(batch_size, input_dim).astype(np.float32)
+        onnx_model = keras2onnx.convert_keras(model)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('test_batch_normalization_2', onnx_model, [data], expected))
+
     def test_simpleRNN(self):
         inputs1 = keras.Input(shape=(3, 1))
         cls = keras.layers.SimpleRNN(2, return_state=False, return_sequences=True)
