@@ -551,6 +551,40 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
         self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
+    def test_batch_normalization_2(self):
+        for axis in [1, -1]:
+            batch_size = 4
+            input_dim_1 = 10
+            input_dim_2 = 20
+            input_dim_3 = 30
+
+            model = keras.models.Sequential()
+            model.add(keras.layers.InputLayer(input_shape=(input_dim_1,)))
+            model.add(keras.layers.BatchNormalization(axis=axis))
+            model.add(keras.layers.Dense(5))
+            data = np.random.randn(batch_size, input_dim_1).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('test_batch_normalization_2_2d', onnx_model, [data], expected))
+
+            model = keras.models.Sequential()
+            model.add(keras.layers.InputLayer(input_shape=(input_dim_1, input_dim_2)))
+            model.add(keras.layers.BatchNormalization(axis=axis))
+            model.add(keras.layers.Dense(5))
+            data = np.random.randn(batch_size, input_dim_1, input_dim_2).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('test_batch_normalization_2_3d', onnx_model, [data], expected))
+
+            model = keras.models.Sequential()
+            model.add(keras.layers.InputLayer(input_shape=(input_dim_1, input_dim_2, input_dim_3)))
+            model.add(keras.layers.BatchNormalization(axis=axis))
+            model.add(keras.layers.Dense(5))
+            data = np.random.randn(batch_size, input_dim_1, input_dim_2, input_dim_3).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected))
+
     def test_simpleRNN(self):
         inputs1 = keras.Input(shape=(3, 1))
         cls = keras.layers.SimpleRNN(2, return_state=False, return_sequences=True)
