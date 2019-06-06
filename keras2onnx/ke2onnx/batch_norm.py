@@ -10,7 +10,7 @@ from ..proto import onnx_proto
 
 def convert_keras_batch_normalization(scope, operator, container):
     op = operator.raw_operator
-    if op.axis != 3 and op.axis != -1:
+    if (op.axis != 3 and op.axis != -1) or len(op.input_shape) == 2:
         adjusted_input_name = operator.inputs[0].full_name
     else:
         adjusted_input_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_transposed')
@@ -49,7 +49,7 @@ def convert_keras_batch_normalization(scope, operator, container):
     momentum = op.momentum
     spatial = 1
 
-    if op.axis != 3 and op.axis != -1:
+    if (op.axis != 3 and op.axis != -1) or len(op.input_shape) == 2:
         # If no transpose is required, we can simply use the output of ONNX BatchNorm as the final outcome
         apply_batch_norm(scope, input_tensor_names, operator.output_full_names, container,
                          operator_name=operator.full_name, epsilon=epsilon, is_test=is_test,
