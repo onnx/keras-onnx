@@ -11,7 +11,7 @@ from ..proto import onnx_proto
 def convert_keras_batch_normalization(scope, operator, container):
     op = operator.raw_operator
     skip_transpose = (op.axis != len(op.input_shape) - 1 and op.axis != -1) or len(op.input_shape) <= 2
-    if len(op.input_shape) > 2:
+    if not skip_transpose:
         perm_1 = list(range(1, len(op.input_shape) - 1))
         perm_1 = [0, len(op.input_shape) - 1] + perm_1
         perm_2 = list(range(2, len(op.input_shape)))
