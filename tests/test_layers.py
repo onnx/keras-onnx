@@ -359,7 +359,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.models.Sequential()
         model.add(keras.layers.MaxPooling2D((2, 2), strides=(2, 2), input_shape=(H, W, C), data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
-        onnx_model = keras2onnx.convert_keras(model, model.name) 
+        onnx_model = keras2onnx.convert_keras(model, model.name)
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('max_pooling_2d', onnx_model, x, expected))
 
@@ -486,6 +486,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
+            if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
+                layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
+                self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
         layer = keras.layers.UpSampling3D(size=(2, 3, 4), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
@@ -626,6 +629,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+    def test_LSTM_with_bias(self):
+        LSTM = keras.layers.LSTM
+        inputs1 = keras.Input(shape=(1, 1))
+        cls = LSTM(units=1, return_state=True, return_sequences=True)
+        lstm1, state_h, state_c = cls(inputs1)
+        model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+        # Set weights: kernel, recurrent_kernel and bias
+        model.set_weights([[[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4]])
+        data = np.random.rand(1, 1).astype(np.float32).reshape((1, 1, 1))
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
     def test_LSTM_reshape(self):
         input_dim = 7
         sequence_len = 3
@@ -642,17 +659,43 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
 
     def test_Bidirectional(self):
-        input_dim = 10
-        sequence_len = 5
-        model = keras.Sequential()
-        model.add(keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=False),
-                  input_shape=(5, 10)))
-        model.add(keras.layers.Dense(5))
-        model.add(keras.layers.Activation('softmax'))
-        model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+        for return_sequences in [True, False]:
+            input_dim = 10
+            sequence_len = 5
+            model = keras.Sequential()
+            model.add(keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=return_sequences),
+                      input_shape=(5, 10)))
+            model.add(keras.layers.Dense(5))
+            model.add(keras.layers.Activation('softmax'))
+            model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
+            onnx_model = keras2onnx.convert_keras(model, 'test')
+            data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
+
+        for merge_mode in ['concat', None]:
+            # TODO: case return_sequences=False
+            for return_sequences in [True]:
+                input_dim = 10
+                sequence_len = 5
+                sub_input1 = keras.layers.Input(shape=(sequence_len, input_dim))
+                sub_mapped1 = keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=return_sequences),
+                                                     input_shape=(5, 10), merge_mode=merge_mode)(sub_input1)
+                keras_model = keras.Model(inputs=sub_input1, outputs=sub_mapped1)
+                onnx_model = keras2onnx.convert_keras(keras_model, 'test_2')
+                data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+                expected = keras_model.predict(data)
+                self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
+
+    def test_Bidirectional_with_bias(self):
+        model = keras.Sequential()
+        model.add(keras.layers.Bidirectional(keras.layers.LSTM(1, return_sequences=False),
+                  input_shape=(1, 1)))
+        # Set weights(kernel, recurrent_kernel, bias) for forward layer followed by the backward layer
+        model.set_weights([[[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4], [[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4]])
         onnx_model = keras2onnx.convert_keras(model, 'test')
-        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+        data = np.random.rand(1, 1).astype(np.float32).reshape((1, 1, 1))
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
