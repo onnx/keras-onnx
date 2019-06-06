@@ -64,7 +64,7 @@ jobs:
 
   - script: |
       pip install coverage
-      coverage run --include=keras2onnx/* tests/* --omit=keras2onnx/ktf2onnx/*
+      coverage run --include=keras2onnx/* tests/test_layers.py tests/test_misc.py tests/test_opset_change.py --omit=keras2onnx/ktf2onnx/*
       coverage report -m
       coverage html
     displayName: 'coverage'
