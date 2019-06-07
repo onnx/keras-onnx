@@ -10,11 +10,18 @@ from ..proto import onnx_proto
 
 def convert_keras_batch_normalization(scope, operator, container):
     op = operator.raw_operator
-    skip_transpose = (op.axis != len(op.input_shape) - 1 and op.axis != -1) or len(op.input_shape) <= 2
+    if hasattr(op, 'input_shape'):
+        shape_len = len(op.input_shape)
+    elif hasattr(op, '_input_shape'):
+        shape_len = len(op._input_shape)
+    else:
+        raise AttributeError('This operator does not have input_shape or _input_shape' + operator.full_name)
+
+    skip_transpose = (op.axis != shape_len - 1 and op.axis != -1) or shape_len <= 2
     if not skip_transpose:
-        perm_1 = list(range(1, len(op.input_shape) - 1))
-        perm_1 = [0, len(op.input_shape) - 1] + perm_1
-        perm_2 = list(range(2, len(op.input_shape)))
+        perm_1 = list(range(1, shape_len - 1))
+        perm_1 = [0, shape_len - 1] + perm_1
+        perm_2 = list(range(2, shape_len))
         perm_2 = [0] + perm_2 + [1]
 
     if skip_transpose:
