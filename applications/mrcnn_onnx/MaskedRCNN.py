@@ -989,7 +989,7 @@ else:
     total_keras_time = 0
     total_onnx_time = 0
     skip_count = 0
-    process_generate_image = False
+    process_generate_image = True
     enable_skip = True
 
     # process_generate_image = True
@@ -1001,14 +1001,15 @@ else:
         # image = skimage.io.imread('../data/elephant.jpg')
         if enable_skip:
             skip_count = skip_count + 1
-            if skip_count < 13:
+            if skip_count < 26:
                 continue
         actual_count = actual_count + 1
         print(filename)
 
         loading_pass = True
         try:
-            image = skimage.io.imread(mypath + filename)
+            image = skimage.io.imread('../data/elephant.jpg')
+            # image = skimage.io.imread(mypath + filename)
             images = [image]
         except Exception as ex:
             print("loading image fails: " + filename)
@@ -1041,7 +1042,7 @@ else:
         onnx_pass = True
         try:
             start_ort = timer()
-            '''
+
             from onnx import numpy_helper
             tensor1 = numpy_helper.from_array(molded_images.astype(np.float32))
             tensor1.name = 'input_image:01'
@@ -1055,12 +1056,12 @@ else:
             tensor3.name = 'input_image_meta:01'
             with open(os.path.join('test_data_set_0', 'input_2.pb'), 'wb') as f:
                 f.write(tensor3.SerializeToString())
-            '''
+
             results =\
                 sess.run(None, {"input_image:01": molded_images.astype(np.float32),
                                 "input_anchors:01": anchors,
                                 "input_image_meta:01": image_metas.astype(np.float32)})
-            '''
+
             tensor_output_1 = numpy_helper.from_array(results[0], 'mrcnn_detection/Reshape_1:0')
             with open(os.path.join('test_data_set_0', 'output_0.pb'), 'wb') as f:
                 f.write(tensor_output_1.SerializeToString())
@@ -1082,7 +1083,7 @@ else:
             tensor_output_7 = numpy_helper.from_array(results[6], 'rpn_bbox/concat:0')
             with open(os.path.join('test_data_set_0', 'output_6.pb'), 'wb') as f:
                 f.write(tensor_output_7.SerializeToString())
-            '''
+
             onnx_end_time = timer()
             total_onnx_time = total_onnx_time + onnx_end_time - start
             print("Total ORT inf time is %fs " % (onnx_end_time - start))
@@ -1121,6 +1122,29 @@ else:
                 actual_list = actual_list_copy
 
             if n_ == 3:
+                '''
+                final_rois_onnx, final_class_ids_onnx, final_scores_onnx, final_masks_onnx = \
+                    model.unmold_detections(results[0][0], results[3][0],  # detections[i], mrcnn_mask[i]
+                                            image.shape, molded_images[0].shape,
+                                            windows[0])
+                final_masks_onnx = final_masks_onnx.astype(int)
+                total_mask_onnx = np.zeros((final_masks_onnx.shape[0], final_masks_onnx.shape[1]), dtype=int)
+                for mask_idx_ in range(final_masks_onnx.shape[2]):
+                    total_mask_onnx = total_mask_onnx + final_masks_onnx[:, :, mask_idx_]
+                final_rois_keras, final_class_ids_keras, final_scores_keras, final_masks_keras = \
+                    model.unmold_detections(results_k[0][0], results_k[3][0],  # detections[i], mrcnn_mask[i]
+                                            image.shape, molded_images[0].shape,
+                                            windows[0])
+                final_masks_keras = final_masks_keras.astype(int)
+                total_mask_keras = np.zeros((final_masks_keras.shape[0], final_masks_keras.shape[1]), dtype=int)
+                for mask_idx_ in range(final_masks_keras.shape[2]):
+                    total_mask_keras = total_mask_keras + final_masks_keras[:, :, mask_idx_]
+
+                area_intersection = np.logical_and(total_mask_keras, total_mask_onnx)
+                area_union = np.logical_or(total_mask_keras, total_mask_onnx)
+                count_intersection = np.count_nonzero(area_intersection)
+                count_union = np.count_nonzero(area_union)
+                '''
                 expected_list = np.array([1 if expected > 0.999 else 0 for expected in expected_list])
                 actual_list = np.array([1 if actual > 0.999 else 0 for actual in actual_list])
 
@@ -1139,10 +1163,14 @@ else:
             if n_ == 3:
                 union_list = expected_list + actual_list
                 intersection_list = np.array([1 if union > 1.999 else 0 for union in union_list])
+                count_keras = np.count_nonzero(expected_list)
+                count_onnx = np.count_nonzero(actual_list)                
                 count_intersection = np.count_nonzero(intersection_list)
                 count_union = np.count_nonzero(union_list)
                 ratio_str = str(count_intersection / count_union) if count_union > 0 else '1'
-                print("case = "  + ", intersection count = " +
+                print("case = "  + ", keras count = " +
+                      str(count_keras) + ", onnx count = " +
+                      str(count_onnx) + ", intersection count = " +
                       str(count_intersection) + ", union count = " + str(count_union) + ", with ratio = " +  ratio_str,
                       file=sys.stderr)
                 if count_intersection > 0.99 * count_union or count_union == 0:
@@ -1176,6 +1204,13 @@ else:
                       str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
                       file=sys.stderr)
 
+        try:
+            results_final_k = generate_image(images, molded_images, windows, results_k)
+            results_final = generate_image(images, molded_images, windows, results)
+        except Exception as ex:
+            print("the image cannot be generated for file:" + filename)
+
+        '''
         if result_match:
             correct_count = correct_count + 1
         elif process_generate_image:
@@ -1184,7 +1219,7 @@ else:
                 results_final = generate_image(images, molded_images, windows, results)
             except Exception as ex:
                 print("the image cannot be generated for file:" + filename)
-
+        '''
         total_count = total_count + 1
         print("actual_count = " + str(actual_count) + ", total_count = " + str(total_count) + ", correct_count = " + str(correct_count)
               + ", correct_count_box = " + str(correct_count_box) + ", correct_count_mask = " + str(correct_count_mask) )
@@ -1193,8 +1228,8 @@ else:
             print("avg_keras_time = " + str(total_keras_time / total_count) + ", avg_onnx_time = " + str(total_onnx_time / total_count)
                   + ", ratio = " + str(total_onnx_time / total_keras_time))
 
-        time.sleep(5)
-
+        #time.sleep(5)
+        break
         if actual_count == 100:
             break
 

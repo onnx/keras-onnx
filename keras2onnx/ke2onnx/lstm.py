@@ -79,7 +79,7 @@ def convert_keras_lstm(scope, operator, container):
                               [1, 4 * hidden_size, hidden_size], W_h.flatten())
     lstm_input_names.append(tensor_r_name)
 
-    if len(b) > 0:
+    if b is not None and len(b) > 0:
         tensor_b_name = scope.get_unique_variable_name('B')
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 8 * hidden_size], b.flatten())
         lstm_input_names.append(tensor_b_name)
