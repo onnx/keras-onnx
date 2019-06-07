@@ -83,10 +83,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_keras_lambda(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x ** 2, input_shape=[3, 5]))
+        import tensorflow as tf
+        model.add(keras.layers.Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
         model.add(keras.layers.Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
-        onnx_model = keras2onnx.convert_keras(model, 'test')
+        _custom_op_handlers = {
+            'Round': (keras2onnx._builtin.on_Round, [])}
+        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
         data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
@@ -96,16 +100,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
             'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
         model = keras.models.Sequential()
         import tensorflow as tf
-        model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis], input_shape=[2, 3, 5]))
+        model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis, 3], input_shape=[2, 3, 4, 5]))
         onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
 
-        data = np.random.rand(6 * 2 * 3 * 5).astype(np.float32).reshape(6, 2, 3, 5)
+        data = np.random.rand(6 * 2 * 3 * 4 * 5).astype(np.float32).reshape(6, 2, 3, 4, 5)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
 
     def test_stridedslice(self):
         self._test_stridedslice_with_version(9)
-        # TODO, test with opset 10, self._test_stridedslice_with_version(10)
+        self._test_stridedslice_with_version(10)
 
     def test_dense(self):
         for bias_value in [True, False]:
@@ -639,26 +643,28 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
         # GRU with initial state
-        cls = GRU(2, return_state=False, return_sequences=False)
-        initial_state_input = keras.Input(shape=(2, ))
-        oname = cls(inputs1, initial_state=initial_state_input)
-        model = keras.Model(inputs=[inputs1, initial_state_input], outputs=[oname])
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        for return_sequences in [True, False]:
+            cls = GRU(2, return_state=False, return_sequences=return_sequences)
+            initial_state_input = keras.Input(shape=(2, ))
+            oname = cls(inputs1, initial_state=initial_state_input)
+            model = keras.Model(inputs=[inputs1, initial_state_input], outputs=[oname])
+            onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
-        init_state = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
-        init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 1, 2))
-        expected = model.predict([data, init_state])
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
+            data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
+            init_state = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
+            init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 1, 2))
+            expected = model.predict([data, init_state])
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
     def test_LSTM(self):
         LSTM = keras.layers.LSTM
         inputs1 = keras.Input(shape=(3, 5))
-        cls = LSTM(units=2, return_state=True, return_sequences=True)
-        lstm1, state_h, state_c = cls(inputs1)
-        model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
-        data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        for use_bias in [True, False]:
+            cls = LSTM(units=2, return_state=True, return_sequences=True, use_bias=use_bias)
+            lstm1, state_h, state_c = cls(inputs1)
+            model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+            data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
+            onnx_model = keras2onnx.convert_keras(model, model.name)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
