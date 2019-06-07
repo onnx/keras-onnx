@@ -16,22 +16,6 @@ def tsname_to_node(name):
     return name.split(':')[0]
 
 
-def _bfs_expansion(graph, nodelist):
-    all_nodes = set()
-    travel_nodes = nodelist[:]
-
-    while travel_nodes:
-        n_ = travel_nodes[0]
-        del travel_nodes[0]
-        if n_ in all_nodes:
-            continue
-
-        all_nodes.add(n_)
-        travel_nodes += [op_ for op_ in n_.input]
-
-    return all_nodes
-
-
 def _node_name(n):
     if n.startswith("^"):
         return n[1:]
