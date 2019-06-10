@@ -51,10 +51,10 @@ def convert_keras_lstm(scope, operator, container):
     if op.use_bias:
         b = np.zeros(shape=(8, hidden_size))
         keras_b = op.get_weights()[2]
-        b[0:] = keras_b[0 * hidden_size:][:hidden_size]
-        b[1:] = keras_b[3 * hidden_size:][:hidden_size]
-        b[2:] = keras_b[1 * hidden_size:][:hidden_size]
-        b[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b[0] = keras_b[0 * hidden_size:][:hidden_size]
+        b[1] = keras_b[3 * hidden_size:][:hidden_size]
+        b[2] = keras_b[1 * hidden_size:][:hidden_size]
+        b[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     # Declare essential attributes of ONNX LSTM
     lstm__type = 'LSTM'
@@ -79,7 +79,7 @@ def convert_keras_lstm(scope, operator, container):
                               [1, 4 * hidden_size, hidden_size], W_h.flatten())
     lstm_input_names.append(tensor_r_name)
 
-    if len(b) > 0:
+    if b is not None and len(b) > 0:
         tensor_b_name = scope.get_unique_variable_name('B')
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 8 * hidden_size], b.flatten())
         lstm_input_names.append(tensor_b_name)
