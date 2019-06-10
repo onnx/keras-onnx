@@ -447,6 +447,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data, op_version=8)
+        layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
     def test_ELU(self):
