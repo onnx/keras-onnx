@@ -28,7 +28,7 @@ def convert_keras_advanced_activation(scope, operator, container):
     elif isinstance(op, activations.ThresholdedReLU):
         alpha = op.get_config()['theta']
         apply_thresholded_relu(scope, operator.input_full_names[0], operator.output_full_names[0], container,
-                    operator_name=operator.full_name, alpha=alpha)
+                    operator_name=operator.full_name, alpha=[alpha])
     else:
         attrs = {'name': operator.full_name}
         ver_opset = 6
