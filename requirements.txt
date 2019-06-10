@@ -3,4 +3,4 @@ protobuf
 keras
 requests
 onnx
-onnxconverter-common>=1.4.0
+onnxconverter-common>=1.5.0
