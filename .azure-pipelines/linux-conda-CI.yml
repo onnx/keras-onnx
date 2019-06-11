@@ -23,7 +23,7 @@ jobs:
         python.version: '3.6'
         ONNX_PATH: onnx==1.4.1
         KERAS: keras
-        
+
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.5.0
@@ -56,7 +56,11 @@ jobs:
       python -c "import onnxruntime"
       python -c "import onnxconverter_common"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
-    displayName: 'pytest'
+      pip install coverage onnx
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage report -m
+      coverage html
+    displayName: 'pytest + coverage'
 
   - task: PublishTestResults@2
     inputs:

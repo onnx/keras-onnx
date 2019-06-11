@@ -994,7 +994,7 @@ else:
 
     # process_generate_image = True
 
-    sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+    sess = onnxruntime.InferenceSession('./mrcnn_edit.onnx')
 
     for filename in f_list:
         # Load a random image from the images folder
@@ -1008,8 +1008,7 @@ else:
 
         loading_pass = True
         try:
-            image = skimage.io.imread('../data/elephant.jpg')
-            # image = skimage.io.imread(mypath + filename)
+            image = skimage.io.imread(mypath + filename)
             images = [image]
         except Exception as ex:
             print("loading image fails: " + filename)
@@ -1040,9 +1039,15 @@ else:
         print("keras runs good: " + filename)
         # sess = onnxruntime.InferenceSession('./mrcnn.onnx')
         onnx_pass = True
+        '''
+        results = \
+            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                            "input_anchors:01": anchors,
+                            "input_image_meta:01": image_metas.astype(np.float32)})
+        '''
         try:
             start_ort = timer()
-
+            '''
             from onnx import numpy_helper
             tensor1 = numpy_helper.from_array(molded_images.astype(np.float32))
             tensor1.name = 'input_image:01'
@@ -1056,12 +1061,12 @@ else:
             tensor3.name = 'input_image_meta:01'
             with open(os.path.join('test_data_set_0', 'input_2.pb'), 'wb') as f:
                 f.write(tensor3.SerializeToString())
-
+            '''
             results =\
                 sess.run(None, {"input_image:01": molded_images.astype(np.float32),
                                 "input_anchors:01": anchors,
                                 "input_image_meta:01": image_metas.astype(np.float32)})
-
+            '''
             tensor_output_1 = numpy_helper.from_array(results[0], 'mrcnn_detection/Reshape_1:0')
             with open(os.path.join('test_data_set_0', 'output_0.pb'), 'wb') as f:
                 f.write(tensor_output_1.SerializeToString())
@@ -1083,7 +1088,7 @@ else:
             tensor_output_7 = numpy_helper.from_array(results[6], 'rpn_bbox/concat:0')
             with open(os.path.join('test_data_set_0', 'output_6.pb'), 'wb') as f:
                 f.write(tensor_output_7.SerializeToString())
-
+            '''
             onnx_end_time = timer()
             total_onnx_time = total_onnx_time + onnx_end_time - start
             print("Total ORT inf time is %fs " % (onnx_end_time - start))
