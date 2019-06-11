@@ -15,7 +15,7 @@ def convert_keras_batch_normalization(scope, operator, container):
     elif hasattr(op, '_input_shape'):
         shape_len = len(op._input_shape)
     else:
-        raise AttributeError('This operator does not have input_shape or _input_shape' + operator.full_name)
+        raise AttributeError('There is no input_shape or _input_shape for the operator: ' + operator.full_name)
 
     skip_transpose = (op.axis != shape_len - 1 and op.axis != -1) or shape_len <= 2
     if not skip_transpose:

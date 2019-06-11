@@ -9,7 +9,7 @@ import onnx
 import unittest
 import keras2onnx
 import numpy as np
-from keras2onnx.proto import keras, is_tf_keras
+from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx
 from distutils.version import StrictVersion
 
 
@@ -382,7 +382,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_pooling_global(self):
         self._pooling_test_helper(keras.layers.GlobalAveragePooling2D, (4, 6, 2))
 
-    def activationlayer_helper(self, layer, data_for_advanced_layer=None):
+    def activationlayer_helper(self, layer, data_for_advanced_layer=None, op_version=None):
+        if op_version is None:
+            op_version = get_opset_number_from_onnx()
         if data_for_advanced_layer is None:
             data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
             layer = keras.layers.Activation(layer, input_shape=(data.size,))
@@ -391,7 +393,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         model = keras.Sequential()
         model.add(layer)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=op_version)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -443,6 +445,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_ThresholdedRelu(self):
         data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
+        self.activationlayer_helper(layer, data, op_version=8)
         layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
