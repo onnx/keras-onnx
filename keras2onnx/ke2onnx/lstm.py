@@ -25,8 +25,11 @@ def _calculate_keras_lstm_output_shapes(operator):
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_size = op.input_shape[-1]
-    seq_length = op.input_shape[-2]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
+    seq_length = input_shape[-2]
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards

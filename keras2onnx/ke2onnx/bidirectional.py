@@ -32,8 +32,11 @@ def convert_bidirectional(scope, operator, container):
     op = operator.raw_operator
     forward_layer = op.forward_layer
     backward_layer = op.backward_layer
-    input_size = op.input_shape[-1]
-    seq_length = op.input_shape[-2]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
+    seq_length = input_shape[-2]
     hidden_size = forward_layer.units
     output_seq = forward_layer.return_sequences
     output_state = forward_layer.return_state

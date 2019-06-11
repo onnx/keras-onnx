@@ -702,6 +702,34 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('tf_lstm', onnx_model, data, expected))
 
+    def test_LSTM_with_initializer(self):
+        # batch_size = N
+        # seq_length = H
+        # input_size = W
+        # hidden_size = C
+        N, H, W, C = 3, 1, 2, 5
+
+        # inputs shape: (batch_size, seq_length)
+        inputs = keras.Input(shape=(H, W))
+
+        # initial state shape: (hidden_size, 1)
+        state_h = keras.Input(shape=(C,))
+        state_c = keras.Input(shape=(C,))
+
+        # create keras model
+        lstm_layer = keras.layers.LSTM(units=C, activation='relu', return_sequences=True)(inputs,
+                                                                                          initial_state=[state_h,
+                                                                                                         state_c])
+        outputs = keras.layers.Dense(W, activation='sigmoid')(lstm_layer)
+        keras_model = keras.Model(inputs=[inputs, state_h, state_c], outputs=outputs)
+
+        x = np.random.rand(1, H, W).astype(np.float32)
+        sh = np.random.rand(1, C).astype(np.float32)
+        sc = np.random.rand(1, C).astype(np.float32)
+        expected = keras_model.predict([x, sh, sc])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, sh, sc], expected))
+
     def test_Bidirectional(self):
         for return_sequences in [True, False]:
             input_dim = 10
