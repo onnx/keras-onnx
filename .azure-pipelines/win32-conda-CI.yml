@@ -60,14 +60,11 @@ jobs:
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       python -c "import onnxconverter_common"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
-    displayName: 'pytest'
-
-  - script: |
       pip install coverage onnx
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests
       coverage report -m
       coverage html
-    displayName: 'coverage'
+    displayName: 'pytest + coverage'
 
   - task: PublishTestResults@2
     inputs:
