@@ -62,8 +62,6 @@ jobs:
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
       pip install coverage onnx
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_misc.py
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_opset_change.py
       coverage report -m
       coverage html
     displayName: 'pytest + coverage'
