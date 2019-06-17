@@ -137,7 +137,7 @@ class Node(object):
         self.set_attr("data_format", val)
 
     def is_nhwc(self):
-        """Return True if node is in NCHW format."""
+        """Return True if node is in NHWC format."""
         return self.data_format == "NHWC"
 
     def is_const(self):
@@ -180,17 +180,29 @@ class Node(object):
         attr = self.attr.get(name, default)
         return attr
 
+    def get_attr_value(self, name, default=None):
+        attr = self.get_attr(name)
+        if attr:
+            return helper.get_attribute_value(attr)
+        return default
+
     def get_attr_int(self, name):
         """Get attribute value as int."""
-        attr = self.get_attr(name)
-        utils.make_sure(attr is not None, "attribute %s is None", name)
-        attr = attr.i
-        return attr
+        attr_int = self.get_attr_value(name)
+        utils.make_sure(
+            attr_int is not None and isinstance(attr_int, int),
+            "attribute %s is None", name
+        )
+        return attr_int
 
     def get_attr_str(self, name, encoding="utf-8"):
         """Get attribute value as string."""
-        attr = self.get_attr(name)
-        return attr.s.decode(encoding) if attr else None
+        attr_str = self.get_attr_value(name)
+        utils.make_sure(
+            attr_str is not None and isinstance(attr_str, bytes),
+            "attribute %s is None", name
+        )
+        return attr_str.decode(encoding)
 
     def set_attr(self, name, value):
         self.attr[name] = helper.make_attribute(name, value)
@@ -437,7 +449,7 @@ class Graph(object):
                                              np_val.shape, np_val, raw=False)
         dtype = onnx_tensor.data_type
         node = self.make_node("Const", [], outputs=[name], name=name, attr={"value": onnx_tensor},
-                              skip_conversion=skip_conversion, dtypes=[dtype])
+                              skip_conversion=skip_conversion, dtypes=[dtype], infer_shape_dtype=False)
         self.set_shape(name, np_val.shape)
         self.set_dtype(name, utils.map_numpy_to_onnx_dtype(np_val.dtype))
         return node
@@ -582,8 +594,8 @@ class Graph(object):
         # op needs the "Shape" value to infer output shape.
         initializers = []
         for i, inp in enumerate(node.inputs):
-            if not inp:
-                if logger.isEnabledFor(logging.VERBOSE):
+            if inp is None:
+                if logger.isEnabledFor(logging.INFO):
                     logger.warning(
                         "[%s] infer a inexistent node: [%s], please check the code",
                         node.name, node.input[i]
@@ -870,7 +882,14 @@ class Graph(object):
             initializers.append(tensor)
 
         # create input_tensor_values
-        input_ids = [op.output[0] for op in placeholder_ops + const_ops]
+        input_ids = [op.output[0] for op in placeholder_ops]
+        # onnx with IR version below 4 requires initializer should be in inputs.
+        # here we check opset version rather than IR version for the reason:
+        # https://github.com/onnx/tensorflow-onnx/pull/557
+        # opset 9 come with IR 4.
+        if self.opset < 9:
+            input_ids += [op.output[0] for op in const_ops]
+
         input_tensor_values = self.make_onnx_graph_io(input_ids)
 
         # create output_tensor_values
