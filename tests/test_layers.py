@@ -775,6 +775,40 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
+    def test_seq_dynamic_batch_size(self):
+        data_dim = 4  # input_size
+        timesteps = 3  # seq_length
+
+        # expected input data shape: (batch_size, timesteps, data_dim)
+        test_input = np.random.random_sample((100, timesteps, data_dim))
+        test_output = np.random.random_sample((100, 128))
+
+        # Number of layer and number of neurons in each layer
+        num_neur = [128, 256, 128]
+        epochs = 200
+        batch_size = 50
+        nodeFuncList = [keras.layers.SimpleRNN, keras.layers.GRU, keras.layers.LSTM]
+
+        for nodeFunc in nodeFuncList:
+            model = keras.models.Sequential()
+            for i in range(len(num_neur)):  # multi-layer
+                if len(num_neur) == 1:
+                    model.add(nodeFunc(num_neur[i], input_shape=(timesteps, data_dim), unroll=True))
+                else:
+                    if i < len(num_neur) - 1:
+                        model.add(
+                            nodeFunc(num_neur[i], input_shape=(timesteps, data_dim), return_sequences=True, unroll=True))
+                    else:
+                        model.add(nodeFunc(num_neur[i], input_shape=(timesteps, data_dim), unroll=True))
+
+            # Compile the neural network
+            model.compile(loss='mean_squared_error', optimizer='adam')
+            model.fit(test_input, test_output, epochs=epochs, batch_size=batch_size, verbose=0)
+            test_input = np.random.random_sample((5, timesteps, data_dim)).astype(np.float32)
+            test_output = model.predict(test_input)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, test_input, test_output))
+
     def test_separable_convolution(self):
         N, C, H, W = 2, 3, 5, 5
         x = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
