@@ -68,7 +68,7 @@ def convert_keras_lstm(scope, operator, container):
     # Because of the format difference between Keras and ONNX LSTM's, we set up a preprocessing node to match them.
     lstm_x_name = scope.get_unique_variable_name('lstm_x')
     lstm_input_names.append(lstm_x_name)
-    apply_reshape(scope, operator.inputs[0].full_name, lstm_x_name, container, desired_shape=[-1, 1, input_size])
+    apply_transpose(scope, operator.inputs[0].full_name, lstm_x_name, container, perm=[1, 0, 2])
 
     # Add the weights to the final model's initializer list so that our LSTM operator can use it
     tensor_w_name = scope.get_unique_variable_name('W')
