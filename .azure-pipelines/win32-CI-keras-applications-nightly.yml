@@ -9,6 +9,7 @@ trigger:
 jobs:
 
 - job: 'Test'
+  timeoutInMinutes: 180
   pool:
     vmImage: 'vs2017-win2016'
   strategy:
@@ -57,7 +58,11 @@ jobs:
       python -c "import onnxconverter_common"
       pytest applications/test_keras_applications.py --doctest-modules --junitxml=junit/test-results.xml
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
-    displayName: 'pytest'
+      pip install coverage onnx
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage report -m
+      coverage html
+    displayName: 'pytest + coverage'
 
   - task: PublishTestResults@2
     inputs:
