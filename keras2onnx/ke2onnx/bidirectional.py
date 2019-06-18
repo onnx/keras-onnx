@@ -170,12 +170,12 @@ def convert_bidirectional(scope, operator, container):
     else:
         attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
         batch_indices_tensor = oopb.add_node('Slice',
-                                             input_shape_tensor,
+                                             [input_shape_tensor],
                                              operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
 
         attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
         seq_len_tensor = oopb.add_node('Slice',
-                                       input_shape_tensor,
+                                       [input_shape_tensor],
                                        operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
 
     attrs = {'axis': 0}
