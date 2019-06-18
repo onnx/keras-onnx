@@ -776,6 +776,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
     # Bidirectional LSTM with seq_length = None
+    @unittest.skipIf(get_opset_number_from_onnx() < 9,
+                     "None seq_length Bidirectional LSTM is not supported before opset 9.")
     def test_Bidirectional_seqlen_none(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Embedding(39, 128))

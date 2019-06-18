@@ -38,6 +38,9 @@ def convert_bidirectional(scope, operator, container):
         input_shape = input_shape[0]
     input_size = input_shape[-1]
     seq_length = input_shape[-2]
+    is_static_shape = seq_length is not None
+    if not is_static_shape and container.target_opset < 9:
+        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
     hidden_size = forward_layer.units
     output_seq = forward_layer.return_sequences
     output_state = forward_layer.return_state
@@ -260,10 +263,6 @@ def convert_bidirectional(scope, operator, container):
 
     # Create the major node, ONNX LSTM
     container.add_node('LSTM', lstm_input_names, lstm_output_names, op_version=op_version, **lstm_attrs)
-
-    is_static_shape = seq_length is not None
-    if not is_static_shape and container.target_opset < 5:
-        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
 
     if output_seq:
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
