@@ -262,7 +262,7 @@ def convert_bidirectional(scope, operator, container):
     container.add_node('LSTM', lstm_input_names, lstm_output_names, op_version=op_version, **lstm_attrs)
 
     is_static_shape = seq_length is not None
-    if not is_static_shape and container.target_opset <= 5:
+    if not is_static_shape and container.target_opset < 5:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
 
     if output_seq:
