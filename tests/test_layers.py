@@ -775,6 +775,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
+    # Bidirectional LSTM with seq_length = None
+    def test_Bidirectional_seqlen_none(self):
+        model = keras.models.Sequential()
+        model.add(keras.layers.Embedding(39, 128))
+        model.add(keras.layers.Bidirectional(keras.layers.LSTM(256, input_shape=(None, 32), return_sequences=True)))
+        model.add(keras.layers.Dense(44))
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.rand(1, 50).astype(np.float32)
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
     def test_seq_dynamic_batch_size(self):
         data_dim = 4  # input_size
         timesteps = 3  # seq_length
