@@ -804,8 +804,8 @@ def convert_DetectionLayer(scope, operator, container):
                        op_version=operator.target_opset,
                        name=nms_node.name + '_all_gather', **attrs)
     # output shape: [num_top_K, 6]
-    padded_result = oopb.add_node('DynamicPad',
-    # padded_result = oopb.add_node('Pad',
+    #padded_result = oopb.add_node('DynamicPad',
+    padded_result = oopb.add_node('Pad',
                                   [all_gather,
                                    np.array([0, 0, DETECTION_MAX_INSTANCES, 0],
                                             dtype=np.int64)],
@@ -994,7 +994,8 @@ else:
 
     # process_generate_image = True
 
-    sess = onnxruntime.InferenceSession('./mrcnn_edit.onnx')
+    # sess = onnxruntime.InferenceSession('./mrcnn_edit.onnx')
+    sess = onnxruntime.InferenceSession('./mrcnn_resnet_50.onnx')
 
     for filename in f_list:
         # Load a random image from the images folder
@@ -1008,7 +1009,8 @@ else:
 
         loading_pass = True
         try:
-            image = skimage.io.imread(mypath + filename)
+            #image = skimage.io.imread(mypath + filename)
+            image = skimage.io.imread('../data/elephant.jpg')
             images = [image]
         except Exception as ex:
             print("loading image fails: " + filename)
@@ -1234,7 +1236,7 @@ else:
                   + ", ratio = " + str(total_onnx_time / total_keras_time))
 
         #time.sleep(5)
-        break
+        #break
         if actual_count == 100:
             break
 
