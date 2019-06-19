@@ -8,7 +8,7 @@ from .funcbook import set_converter
 import sys
 import numpy as np
 import tf2onnx
-from onnx import onnx_pb
+from onnx import onnx_pb, helper
 
 
 def default_convert(scope, operator, container):
@@ -359,17 +359,25 @@ def on_Pad(ctx, node, name, args):
 
 
 def on_CropAndResize(ctx, node, name, args):
-    node.type = "RoiAlign"
+    # node.type = "RoiAlign"
+    node.type = "CropAndResize"
+    node.domain = 'com.microsoft'
     b_arr = bytearray(node.inputs[3].get_attr('value').t.raw_data)
     output_band = int.from_bytes(b_arr[::-1], "big") & 15
     #output_band = 3
-    node.set_attr("output_height", output_band)
-    node.set_attr("output_width", output_band)
-
+    #node.set_attr("crop_height", output_band)
+    #node.set_attr("crop_width", output_band)
+    mode = node.get_attr("method")
+    if mode:
+        mode_value = helper.get_attribute_value(mode)
+        del node.attr['method']
+        node.set_attr("mode", mode_value)
+    '''
     cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[2])
     cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
     ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
     ctx.copy_shape(node.name, cast_node.output[0])
+    '''
 
     transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
     transpose_node.set_attr("perm", [0, 3, 1, 2])
@@ -380,7 +388,7 @@ def on_CropAndResize(ctx, node, name, args):
     transpose_node_2.set_attr("perm", [0, 2, 3, 1])
     ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
 
-    del node.input[3]
+    # del node.input[3]
 
 def on_GatherNd(ctx, node, name, args):
     node.type = "GatherND"

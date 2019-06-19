@@ -995,7 +995,7 @@ else:
     # process_generate_image = True
 
     # sess = onnxruntime.InferenceSession('./mrcnn_edit.onnx')
-    sess = onnxruntime.InferenceSession('./mrcnn_resnet_50.onnx')
+    sess = onnxruntime.InferenceSession('./mrcnn.onnx')
 
     for filename in f_list:
         # Load a random image from the images folder
@@ -1009,8 +1009,8 @@ else:
 
         loading_pass = True
         try:
-            #image = skimage.io.imread(mypath + filename)
-            image = skimage.io.imread('../data/elephant.jpg')
+            image = skimage.io.imread(mypath + filename)
+            #image = skimage.io.imread('../data/elephant.jpg')
             images = [image]
         except Exception as ex:
             print("loading image fails: " + filename)
