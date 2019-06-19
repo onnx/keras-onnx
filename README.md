@@ -9,7 +9,7 @@
 The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
 Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). [keras2onnx](https://github.com/onnx/keras-onnx) converter development was moved into a independent repository to support more kinds of Keras models and reduce the complexity of mixing multiple converters.
 
-All Keras layers have been supported for conversion using keras2onnx since ONNX opset 7. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded into the source tree directly to avoid version conflicts and installation complexity.
+All Keras layers have been supported for conversion using keras2onnx since ONNX opset 7. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded directly into the source tree to avoid version conflicts and installation complexity.
 
 For Windows Machine Learning (WinML) users, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
 
