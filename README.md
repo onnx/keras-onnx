@@ -11,7 +11,7 @@ Initially, the Keras converter was developed in the project [onnxmltools](https:
 
 All Keras layers have been supported for conversion using keras2onnx since **ONNX opset 7**. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded directly into the source tree to avoid version conflicts and installation complexity.
 
-Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter with WinML, refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
+Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
 
 keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does not support **Python 2.x**.
 
