@@ -18,12 +18,12 @@ def convert_keras_batch_normalization(scope, operator, container):
         raise AttributeError('There is no input_shape or _input_shape for the operator: ' + operator.full_name)
 
     if isinstance(op.axis, list):
-            if len(op.axis) == 1:
-                axis = op.axis[0]
-            else:
-                raise AttributeError('No support for more than one axis in: ' + operator.full_name)
+        if len(op.axis) == 1:
+            axis = op.axis[0]
         else:
-            axis = op.axis
+            raise AttributeError('No support for more than one axis in: ' + operator.full_name)
+    else:
+        axis = op.axis
 
     skip_transpose = (op.axis != shape_len - 1 and op.axis != -1) or shape_len <= 2
     if not skip_transpose:
