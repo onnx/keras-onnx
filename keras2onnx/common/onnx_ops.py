@@ -3,11 +3,11 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
+from onnxconverter_common.onnx_ops import *  # noqa:
+
 from .interim import OnnxObjectContainer, InterimContext
 from ..proto import onnx_proto
-from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
-
-from onnxconverter_common.onnx_ops import *  # noqa:
 
 
 class OnnxOperatorBuilder:

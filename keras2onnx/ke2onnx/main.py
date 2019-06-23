@@ -12,6 +12,7 @@ from ..common.onnx_ops import apply_identity, apply_reshape
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
+from .merge import convert_keras_merge_layer
 from .dense import convert_keras_dense
 from .dot import convert_keras_dot
 from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
@@ -21,6 +22,7 @@ from .conv import convert_keras_separable_conv1d,convert_keras_separable_conv2d
 from .pooling import convert_keras_max_pooling_1d, convert_keras_max_pooling_2d, convert_keras_max_pooling_3d
 from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, convert_keras_average_pooling_3d
 from .crop import convert_keras_crop_1d, convert_keras_crop_2d, convert_keras_crop_3d
+from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
 from .embedding import convert_keras_embed
 from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
@@ -95,6 +97,12 @@ keras_layer_to_operator = {
     _layer.SeparableConv1D: convert_keras_separable_conv1d,
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
+    _layer.Add: convert_keras_merge_layer,
+    _layer.Multiply: convert_keras_merge_layer,
+    _layer.Subtract: convert_keras_merge_layer,
+    _layer.Average: convert_keras_merge_layer,
+    _layer.Maximum: convert_keras_merge_layer,
+
     _layer.Dense: convert_keras_dense,
     _layer.Dot: convert_keras_dot,
     _layer.Embedding: convert_keras_embed,
@@ -109,6 +117,10 @@ keras_layer_to_operator = {
     _layer.Cropping1D: convert_keras_crop_1d,
     _layer.Cropping2D: convert_keras_crop_2d,
     _layer.Cropping3D: convert_keras_crop_3d,
+
+    _layer.ZeroPadding1D: convert_keras_zero_pad_1d,
+    _layer.ZeroPadding2D: convert_keras_zero_pad_2d,
+    _layer.ZeroPadding3D: convert_keras_zero_pad_3d,
 
     _layer.Reshape: convert_keras_reshape,
 
