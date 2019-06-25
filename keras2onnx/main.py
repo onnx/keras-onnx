@@ -15,7 +15,7 @@ from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, DEFAULT_BATCH_SIZE, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
-from ._builtin import set_converter
+from ._builtin import set_converter, tf2onnx_builtin_conversion
 
 
 class KerasTfModelContainer(object):
@@ -158,11 +158,14 @@ def convert_tensorflow(frozen_graph_def,
         if get_tensorboard_writer() is not None:
             get_tensorboard_writer().add_graph(tf_graph)
 
+    custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
+    if custom_op_conversions:
+        custom_op_handlers += custom_op_conversions
     with tf.Session(graph=tf_graph):
         g = tf2onnx.tfonnx.process_tf_graph(tf_graph,
                                             continue_on_error=debug_mode,
                                             opset=target_opset,
-                                            custom_op_handlers=custom_op_conversions,
+                                            custom_op_handlers=custom_op_handlers,
                                             inputs_as_nchw=channel_first_inputs,
                                             output_names=output_names,
                                             input_names=input_names)

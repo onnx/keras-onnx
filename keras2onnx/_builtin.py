@@ -131,27 +131,6 @@ def on_StridedSlice(ctx, node, name, args):
         ctx.set_dtype(squeeze_node.output[0], input_dtype)
         ctx.copy_shape(node.output[0], squeeze_node.output[0])
 
-    # onnx slice as of opset 7 does only take float tensors ... cast if needed
-    '''
-    input_dtype = ctx.get_dtype(node.input[0])
-    if input_dtype != onnx_pb.TensorProto.FLOAT:
-        if node.inputs[0].type == "Cast":
-            # override the previous cast
-            cast_node = node.inputs[0]
-        else:
-            cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
-            nodes.insert(0, cast_node)
-        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
-        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
-        ctx.copy_shape(node.input[0], cast_node.output[0])
-        # undo the cast afer slice
-        name = tf2onnx.utils.make_name(node.name)
-        cast_node = ctx.insert_new_node_on_output("Cast", nodes[-1].output[0], name)
-        cast_node.set_attr("to", input_dtype)
-        ctx.set_dtype(cast_node.output[0], input_dtype)
-        ctx.copy_shape(node.output[0], cast_node.output[0])
-        nodes.append(cast_node)
-    '''
     return nodes
 
 
@@ -252,27 +231,6 @@ def on_StridedSlice_9(ctx, node, name, args):
         ctx.set_dtype(squeeze_node.output[0], input_dtype)
         ctx.copy_shape(node.output[0], squeeze_node.output[0])
 
-    # onnx slice as of opset 7 does only take float tensors ... cast if needed
-    '''
-    input_dtype = ctx.get_dtype(node.input[0])
-    if input_dtype != onnx_pb.TensorProto.FLOAT:
-        if node.inputs[0].type == "Cast":
-            # override the previous cast
-            cast_node = node.inputs[0]
-        else:
-            cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
-            nodes.insert(0, cast_node)
-        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
-        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
-        ctx.copy_shape(node.input[0], cast_node.output[0])
-        # undo the cast afer slice
-        name = tf2onnx.utils.make_name(node.name)
-        cast_node = ctx.insert_new_node_on_output("Cast", nodes[-1].output[0], name)
-        cast_node.set_attr("to", input_dtype)
-        ctx.set_dtype(cast_node.output[0], input_dtype)
-        ctx.copy_shape(node.output[0], cast_node.output[0])
-        nodes.append(cast_node)
-    '''
     return nodes
 
 
@@ -289,3 +247,10 @@ def on_Round(ctx, node, name, args):
     node.input[0] = add_output_name
     node.type = "Ceil"
     return [const_node, add_node, node]
+
+
+def tf2onnx_builtin_conversion(opset):
+    return {
+        'Round': (on_Round, None, None),
+        'StridedSlice': (on_StridedSlice_9 if opset >= 9 else on_StridedSlice, None, None)
+    }
