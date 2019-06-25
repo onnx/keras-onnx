@@ -84,6 +84,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         return res
 
+    def test_keras_with_tf2onnx(self):
+        model = keras.models.Sequential()
+        model.add(keras.layers.Dense(units=4, input_shape=(10,), activation='relu'))
+        model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['binary_accuracy'])
+        graph_def = keras2onnx.export_tf_frozen_graph(model)
+        onnx_model = keras2onnx.convert_tensorflow(graph_def, **keras2onnx.build_io_names_tf2onnx(model))
+        data = np.random.rand(4 * 10).astype(np.float32).reshape(4, 10)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('ktf2onnx_test', onnx_model, data, expected))
+
     def test_keras_lambda(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x ** 2, input_shape=[3, 5]))
