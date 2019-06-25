@@ -251,6 +251,6 @@ def on_Round(ctx, node, name, args):
 
 def tf2onnx_builtin_conversion(opset):
     return {
-        'Round': (on_Round, None, None),
-        'StridedSlice': (on_StridedSlice_9 if opset >= 9 else on_StridedSlice, None, None)
+        'Round': (on_Round, []),
+        'StridedSlice': (on_StridedSlice_9 if opset >= 9 else on_StridedSlice, [])
     }
