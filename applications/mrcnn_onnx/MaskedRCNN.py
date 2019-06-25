@@ -1041,12 +1041,6 @@ else:
         print("keras runs good: " + filename)
         # sess = onnxruntime.InferenceSession('./mrcnn.onnx')
         onnx_pass = True
-        '''
-        results = \
-            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                            "input_anchors:01": anchors,
-                            "input_image_meta:01": image_metas.astype(np.float32)})
-        '''
         try:
             start_ort = timer()
             '''
