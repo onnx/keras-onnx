@@ -30,6 +30,7 @@ from .funcbook import set_converter
 
 from .main import convert_keras
 from .main import export_tf_frozen_graph
+from .main import build_io_names_tf2onnx
 from .main import convert_tensorflow
 
 
