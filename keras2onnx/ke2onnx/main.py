@@ -12,6 +12,7 @@ from ..common.onnx_ops import apply_identity, apply_reshape
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
+from .merge import convert_keras_merge_layer
 from .dense import convert_keras_dense
 from .dot import convert_keras_dot
 from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
@@ -98,6 +99,12 @@ keras_layer_to_operator = {
     _layer.DepthwiseConv2D: convert_keras_depthwise_conv_2d,
     _layer.SeparableConv1D: convert_keras_separable_conv1d,
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
+
+    # _layer.Add: convert_keras_merge_layer,
+    # _layer.Multiply: convert_keras_merge_layer,
+    # _layer.Subtract: convert_keras_merge_layer,
+    # _layer.Average: convert_keras_merge_layer,
+    # _layer.Maximum: convert_keras_merge_layer,
 
     _layer.Dense: convert_keras_dense,
     _layer.Dot: convert_keras_dot,

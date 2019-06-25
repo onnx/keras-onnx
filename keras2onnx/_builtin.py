@@ -307,7 +307,6 @@ def on_TopKV2(ctx, node, name, args):
 
 def on_Pad(ctx, node, name, args):
     # TODO: need onnx schema update for Pad
-    # node.type = "DynamicPad"
     node.type = "Pad"
     node.domain = 'com.microsoft'
     # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
@@ -322,13 +321,6 @@ def on_Pad(ctx, node, name, args):
         raise ValueError(mode + " pad mode is not supported")
 
     origin_dtype = ctx.get_dtype(node.output[0])
-    '''
-    if node.inputs[1].is_const():
-        # add initializer
-        const_one_array = ctx.make_const(tf2onnx.utils.make_name("one"),np.array(node.inputs[1].get_tensor_value()))
-        input_name = node.input[1]
-        ctx.replace_input(node, input_name, const_one_array.output[0])
-    '''
     cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[1])
     cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
     ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
@@ -359,25 +351,13 @@ def on_Pad(ctx, node, name, args):
 
 
 def on_CropAndResize(ctx, node, name, args):
-    # node.type = "RoiAlign"
     node.type = "CropAndResize"
     node.domain = 'com.microsoft'
-    b_arr = bytearray(node.inputs[3].get_attr('value').t.raw_data)
-    output_band = int.from_bytes(b_arr[::-1], "big") & 15
-    #output_band = 3
-    #node.set_attr("crop_height", output_band)
-    #node.set_attr("crop_width", output_band)
     mode = node.get_attr("method")
     if mode:
         mode_value = helper.get_attribute_value(mode)
         del node.attr['method']
         node.set_attr("mode", mode_value)
-    '''
-    cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[2])
-    cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
-    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
-    ctx.copy_shape(node.name, cast_node.output[0])
-    '''
 
     transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
     transpose_node.set_attr("perm", [0, 3, 1, 2])
@@ -387,8 +367,6 @@ def on_CropAndResize(ctx, node, name, args):
                             name=tf2onnx.utils.make_name(node.name) + "_transpose_final")
     transpose_node_2.set_attr("perm", [0, 2, 3, 1])
     ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
-
-    # del node.input[3]
 
 def on_GatherNd(ctx, node, name, args):
     node.type = "GatherND"

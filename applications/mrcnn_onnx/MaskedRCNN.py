@@ -4,11 +4,10 @@ import numpy as np
 import skimage
 import onnx
 import keras2onnx
-import time
 
 from timeit import default_timer as timer
 from mrcnn.config import Config
-from mrcnn import model as modellib, utils
+from mrcnn import model as modellib
 from mrcnn import visualize
 
 ROOT_DIR = os.path.abspath("./")
@@ -73,62 +72,6 @@ from mrcnn.model import PyramidROIAlign, BatchNorm, DetectionLayer
 def create_onnx_node(scope, operator, container, type):
     # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer, str) -> None
     container.add_node(type, operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
-
-
-def convert_PyramidROIAlign(scope, operator, container):
-    # create_onnx_node(scope, operator, container, 'PyramidROIAlign')
-    #create_onnx_node(scope, operator, container, 'RoiAlign')
-    preprocessor_type = 'RoiAlign'
-    temp_name_list = []
-    for i_ in range(2, 6):
-        base_node_name = operator.full_name + '_' + str(i_)
-        shape_name = scope.get_unique_variable_name('roi_shape')
-        container.add_node('Shape', operator.input_full_names[0], shape_name, op_version=operator.target_opset)
-
-        starts_name = scope.get_unique_variable_name('roi_slice_starts')
-        starts = np.asarray([1], dtype=np.int32)
-        container.add_initializer(starts_name, onnx_proto.TensorProto.INT32, starts.shape, starts.flatten())
-
-        ends_name = scope.get_unique_variable_name('roi_slice_ends')
-        ends = np.asarray([2], dtype=np.int32)
-        container.add_initializer(ends_name, onnx_proto.TensorProto.INT32, ends.shape, ends.flatten())
-
-        axes_name = scope.get_unique_variable_name('roi_slice_axes')
-        axes = np.asarray([0], dtype=np.int32)
-        container.add_initializer(axes_name, onnx_proto.TensorProto.INT32, axes.shape, axes.flatten())
-
-        slice_name = scope.get_unique_variable_name('roi_slice')
-
-        attrs = {'name': base_node_name + '_slice'}
-        container.add_node('Slice', [shape_name, starts_name, ends_name, axes_name], slice_name, op_version=operator.target_opset, **attrs)
-
-        constant_of_shape_name = scope.get_unique_variable_name('roi_constant_of_shape')
-        attrs = {'name': base_node_name + '_constant_of_shape'}
-        container.add_node('ConstantOfShape', slice_name, constant_of_shape_name, op_version=operator.target_opset, **attrs)
-
-        cast_name = scope.get_unique_variable_name('roi_cast')
-        attrs = {'name': base_node_name + '_roi_cast', 'to': 7}
-        container.add_node('Cast', constant_of_shape_name, cast_name, op_version=operator.target_opset, **attrs)
-
-        squeeze_name = scope.get_unique_variable_name('roi_squeeze')
-        attrs = {'name': base_node_name + '_axes', 'axes': [0]}
-        container.add_node('Squeeze', operator.input_full_names[0], squeeze_name, op_version=operator.target_opset,
-                           **attrs)
-
-        transpose_name = scope.get_unique_variable_name('roi_transpose')
-        attrs = {'name': base_node_name + '_transpose', 'perm': [0, 3, 1, 2]}
-        container.add_node('Transpose', operator.input_full_names[i_], transpose_name, op_version=operator.target_opset, **attrs)
-
-        temp_name = scope.get_unique_variable_name('pyramid_roi')
-        attrs = {'name': scope.get_unique_operator_name(preprocessor_type),
-                 'output_height': operator.raw_operator.pool_shape[0],
-                 'output_width': operator.raw_operator.pool_shape[1]}
-        container.add_node('RoiAlign', [transpose_name, squeeze_name, cast_name], temp_name, op_version=operator.target_opset,
-                           **attrs)
-        temp_name_list.append(temp_name)
-
-    attrs = {'name': scope.get_unique_operator_name(preprocessor_type) + '_concat', 'axis': 0}
-    container.add_node('Concat', temp_name_list, operator.output_full_names, op_version=operator.target_opset, **attrs)
 
 
 def convert_BatchNorm(scope, operator, container):
@@ -340,16 +283,7 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
     x2 = oopb.add_node('Add',
                                [x1, width_exp],
                                operator.inputs[0].full_name + '_x2')
-    '''
-    concat_result = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_result')
-    attrs = {'axis': 1}
-    container.add_node("Concat",
-                       [y1, x1, y2, x2],
-                       concat_result,
-                       op_version=operator.target_opset,
-                       name=operator.outputs[0].full_name + '_concat_result', **attrs)
-    '''
-    # output shape: [spatial_dimension, 4]
+
     windows_squeeze = scope.get_unique_variable_name('windows_squeeze')
     attrs = {'axes': [0]}
     container.add_node('Squeeze', windows_transpose, windows_squeeze, op_version=operator.target_opset,
@@ -413,31 +347,7 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                        concat_result,
                        op_version=operator.target_opset,
                        name=operator.outputs[0].full_name + '_concat_result', **attrs)
-    '''
-    indices_float = scope.get_unique_variable_name('class_ids_float')
-    attrs = {'to': 1}
-    container.add_node('Cast', indices, indices_float, op_version=operator.target_opset,
-                       **attrs)
-    attrs = {'axis': 1}
-    indices_acc = oopb.add_node('Concat',
-                         [concat_result,
-                          indices_float
-                          ],
-                         operator.inputs[1].full_name + '_indices_acc', **attrs)
-    # output shape: [spatial_dimension, 6]
-    indices_cut = oopb.add_node('Slice',
-                         [indices_acc,
-                          ('_start', oopb.int64, np.array([0], dtype='int64')),
-                          ('_end', oopb.int64, np.array([1000], dtype='int64')),
-                          ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                          ],
-                         operator.inputs[1].full_name + '_slcie_slice')
-    concat_unsqueeze = scope.get_unique_variable_name('concat_unsqueeze')
-    attrs = {'axes': [0]}
-    container.add_node('Unsqueeze', indices_cut, concat_unsqueeze, op_version=operator.target_opset,
-                       **attrs)
-    return concat_unsqueeze
-    '''
+
     concat_unsqueeze = scope.get_unique_variable_name('concat_unsqueeze')
     attrs = {'axes': [0]}
     container.add_node('Unsqueeze', concat_result, concat_unsqueeze, op_version=operator.target_opset,
@@ -552,15 +462,6 @@ def convert_DetectionLayer(scope, operator, container):
     apply_transpose(scope, sliced_score, score_transpose, container, perm=[0, 2, 1])
     # output shape: [num_batches, num_classes, spatial_dimension]
 
-
-    # box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
-    # score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
-
-    #container.add_node("Unsqueeze", box_transpose,
-    #                   box_batch, op_version=operator.target_opset, axes=[0])
-    # container.add_node("Unsqueeze", score_transpose,
-    #                   score_batch, op_version=operator.target_opset, axes=[0])
-
     max_output_size = scope.get_unique_variable_name('max_output_size')
     iou_threshold = scope.get_unique_variable_name('iou_threshold')
     score_threshold = scope.get_unique_variable_name('layer.score_threshold')
@@ -652,7 +553,6 @@ def convert_DetectionLayer(scope, operator, container):
     container.add_initializer(step_init_3, onnx_proto.TensorProto.INT32,
                               [1], [-1])
     from keras2onnx.common.data_types import Int32TensorType, FloatTensorType
-    #class_box_idx_output = scope.get_unique_variable_name(operator.output_full_names[0] + '_class_box_idx')
     class_box_idx_output = scope.get_local_variable_or_declare_one(operator.output_full_names[0] + '_class_box_idx',
                                                             type=Int32TensorType(shape=[None, 2]))
     container.add_node("Slice",
@@ -671,7 +571,6 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_box_squeeze', **attrs)
     # output shape: [spatial_dimension, 4]
 
-    #score_squeeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_squeeze')
     score_squeeze = scope.get_local_variable_or_declare_one(operator.output_full_names[0] + '_score_squeeze',
                                                              type=FloatTensorType(shape=[None]))
     attrs = {'axes': [0]}
@@ -710,10 +609,6 @@ def convert_DetectionLayer(scope, operator, container):
 
 
     top_k_var = scope.get_unique_variable_name('topK')
-    '''
-    container.add_initializer(top_k_var, onnx_proto.TensorProto.INT64,
-                              [1], [100])
-    '''
     container.add_initializer(top_k_var, onnx_proto.TensorProto.FLOAT,
                               [1], [100.0])
 
@@ -738,53 +633,16 @@ def convert_DetectionLayer(scope, operator, container):
     score_top_k_output_idx = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_top_k_output_idx')
     # output shape: [num_top_K]
     attrs = {'axis': 0}
-    # container.add_node('TopK', [score_gather, top_k_var], [score_top_k_output_val, score_top_k_output_idx], op_version=operator.target_opset,
     container.add_node('TopK', [score_gather, top_k_min_int], [score_top_k_output_val, score_top_k_output_idx],
                        op_version=operator.target_opset,
                        name=nms_node.name + '_topK', **attrs)
 
-    # nonzero_classid = oopb.add_node('NonZero',
-    #                                 [class_idx_output],
-    #                                 nms_node.name + '_nonzero_classid',
-    #                                 )
-    # nonzero_reshaped = oopb.add_node('Reshape',
-    #                                  [nonzero_classid,
-    #                                   ('shape', oopb.int64, np.array([-1]))],
-    #                                  nms_node.name + '_nonzero_reshaped')
-    #
-    # intersection_idx = oopb.add_node('DenseToDenseSetOperation',
-    #                                            [nonzero_reshaped, score_top_k_output_idx],
-    #                                            nms_node.name + '_intersection',
-    #                                            op_domain='com.microsoft')
-
-    '''
-    box_unsqueeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_unsqueeze')
-    attrs = {'axes': [1]}
-    container.add_node("Unsqueeze",
-                       box_gather,
-                       box_unsqueeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_box_unsqueeze', **attrs)
-
-    score_unsqueeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_unsqueeze')
-    attrs = {'axes': [1]}
-    container.add_node("Unsqueeze",
-                       score_gather,
-                       score_unsqueeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_score_unsqueeze', **attrs)
-    '''
     class_idx_cast = scope.get_unique_variable_name(operator.output_full_names[0] + '_class_idx_cast')
     attrs = {'to': 1}
     container.add_node('Cast', class_idx_output, class_idx_cast, op_version=operator.target_opset,
                        name=nms_node.name+'_class_idx_cast', **attrs)
     # output shape: [num_selected_indices, 1]
 
-    '''
-    cast_name = scope.get_unique_variable_name(operator.output_full_names[0] + '_nms_cast')
-    attrs = {'to': 1}
-    container.add_node('Cast', nms_output, cast_name, op_version=operator.target_opset, **attrs)
-    '''
     concat_var = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_var')
     concat_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'Concat'), operator.node_list[0])
     attrs = {'axis': 1}
@@ -804,7 +662,6 @@ def convert_DetectionLayer(scope, operator, container):
                        op_version=operator.target_opset,
                        name=nms_node.name + '_all_gather', **attrs)
     # output shape: [num_top_K, 6]
-    #padded_result = oopb.add_node('DynamicPad',
     padded_result = oopb.add_node('Pad',
                                   [all_gather,
                                    np.array([0, 0, DETECTION_MAX_INSTANCES, 0],
@@ -820,93 +677,14 @@ def convert_DetectionLayer(scope, operator, container):
                                  nms_node.name + '_detection_final'
                                  )
 
-    '''
-    starts_init_4 = scope.get_unique_variable_name('starts')
-    ends_init_4 = scope.get_unique_variable_name('ends')
-    axes_init_4 = scope.get_unique_variable_name('axes')
-
-    container.add_initializer(starts_init_4, onnx_proto.TensorProto.INT32,
-                              [1], [4])
-    container.add_initializer(ends_init_4, onnx_proto.TensorProto.INT32,
-                              [1], [5])
-    container.add_initializer(axes_init_4, onnx_proto.TensorProto.INT32,
-                              [1], [1])
-
-    concat_slice = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_slice')
-    container.add_node("Slice",
-                       [all_gather, starts_init_4, ends_init_4, axes_init_4],
-                       concat_slice,
-                       op_version=operator.target_opset,
-                       name=nms_node.name+'_concat_slice')
-    # output shape: [num_selected_indices, 1]
-
-    concat_non_zero = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_non_zero')
-    container.add_node("NonZero",
-                       concat_slice,
-                       concat_non_zero,
-                       op_version=operator.target_opset,
-                       name=nms_node.name+'_concat_non_zero')
-    # output shape: [2, num_nonzero_indices]
-
-    starts_init_5 = scope.get_unique_variable_name('starts')
-    ends_init_5 = scope.get_unique_variable_name('ends')
-    axes_init_5 = scope.get_unique_variable_name('axes')
-
-    container.add_initializer(starts_init_5, onnx_proto.TensorProto.INT32,
-                              [1], [0])
-    container.add_initializer(ends_init_5, onnx_proto.TensorProto.INT32,
-                              [1], [1])
-    container.add_initializer(axes_init_5, onnx_proto.TensorProto.INT32,
-                              [1], [1])
-
-    concat_non_zero_slice = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_non_zero_slice')
-    container.add_node("Slice",
-                       [concat_non_zero, starts_init_5, ends_init_5, axes_init_5],
-                       concat_non_zero_slice,
-                       op_version=operator.target_opset,
-                       name=nms_node.name+'_concat_non_zero_slice')
-    # output shape: [1, num_nonzero_indices]
-
-    concat_non_zero_squeeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_non_zero_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node("Squeeze",
-                       concat_non_zero_slice,
-                       concat_non_zero_squeeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_concat_non_zero_squeeze', **attrs)
-    # output shape: [num_nonzero_indices]
-
-    cocat_gather = scope.get_unique_variable_name(operator.output_full_names[0] + '_cocat_gather')
-    attrs = {'axis': 0}
-    container.add_node("Gather",
-                       [concat_var, concat_non_zero_squeeze],
-                       cocat_gather,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_cocat_gather', **attrs)
-    # output shape: [num_nonzero_indices, 6]
-
-    pad_concat = scope.get_unique_variable_name(operator.output_full_names[0] + '_pad_concat')
-    pad_param = scope.get_unique_variable_name('pad')
-    container.add_initializer(pad_param, onnx_proto.TensorProto.INT64,
-                              [1, 4], [0, 0, 99, 0])
-    # container.add_node("DynamicPad",
-    container.add_node("Pad",
-                       [cocat_gather, pad_param],
-                       pad_concat,
-                       op_version=operator.target_opset, op_domain='com.microsoft',
-                       name=nms_node.name+'_pad_concat')
-    '''
-
     attrs = {'axes': [0]}
     container.add_node("Unsqueeze",
-                       # pad_concat,
                        detection_final,
                        operator.output_full_names[0],
                        op_version=operator.target_opset,
                        name=nms_node.name + '_concat_unsqueeze', **attrs)
     # output shape: [1, num_top_K, 6]
 
-# set_converter(PyramidROIAlign, convert_PyramidROIAlign)
 set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
@@ -921,7 +699,6 @@ _custom_op_handlers = {
 }
 
 # Run detection
-#results = model.detect([image], verbose=1)
 class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'bus', 'train', 'truck', 'boat', 'traffic light',
                'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird',
@@ -937,14 +714,6 @@ class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                'teddy bear', 'hair drier', 'toothbrush']
-
-'''
-for res in results:
-    print("rois: " + str(res['rois']))
-    print(", ".join('class :' + class_names[id_] for id_ in res['class_ids']))
-    print("scores: " + str(res['scores']))
-    # print("masks: " + str(res['masks']))
-'''
 
 def generate_image(images, molded_images, windows, results):
     results_final = []
@@ -992,14 +761,9 @@ else:
     process_generate_image = True
     enable_skip = True
 
-    # process_generate_image = True
-
-    # sess = onnxruntime.InferenceSession('./mrcnn_edit.onnx')
     sess = onnxruntime.InferenceSession('./mrcnn.onnx')
 
     for filename in f_list:
-        # Load a random image from the images folder
-        # image = skimage.io.imread('../data/elephant.jpg')
         if enable_skip:
             skip_count = skip_count + 1
             if skip_count < 26:
@@ -1039,14 +803,7 @@ else:
 
 
         print("keras runs good: " + filename)
-        # sess = onnxruntime.InferenceSession('./mrcnn.onnx')
         onnx_pass = True
-        '''
-        results = \
-            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                            "input_anchors:01": anchors,
-                            "input_image_meta:01": image_metas.astype(np.float32)})
-        '''
         try:
             start_ort = timer()
             '''
@@ -1129,29 +886,6 @@ else:
                 actual_list = actual_list_copy
 
             if n_ == 3:
-                '''
-                final_rois_onnx, final_class_ids_onnx, final_scores_onnx, final_masks_onnx = \
-                    model.unmold_detections(results[0][0], results[3][0],  # detections[i], mrcnn_mask[i]
-                                            image.shape, molded_images[0].shape,
-                                            windows[0])
-                final_masks_onnx = final_masks_onnx.astype(int)
-                total_mask_onnx = np.zeros((final_masks_onnx.shape[0], final_masks_onnx.shape[1]), dtype=int)
-                for mask_idx_ in range(final_masks_onnx.shape[2]):
-                    total_mask_onnx = total_mask_onnx + final_masks_onnx[:, :, mask_idx_]
-                final_rois_keras, final_class_ids_keras, final_scores_keras, final_masks_keras = \
-                    model.unmold_detections(results_k[0][0], results_k[3][0],  # detections[i], mrcnn_mask[i]
-                                            image.shape, molded_images[0].shape,
-                                            windows[0])
-                final_masks_keras = final_masks_keras.astype(int)
-                total_mask_keras = np.zeros((final_masks_keras.shape[0], final_masks_keras.shape[1]), dtype=int)
-                for mask_idx_ in range(final_masks_keras.shape[2]):
-                    total_mask_keras = total_mask_keras + final_masks_keras[:, :, mask_idx_]
-
-                area_intersection = np.logical_and(total_mask_keras, total_mask_onnx)
-                area_union = np.logical_or(total_mask_keras, total_mask_onnx)
-                count_intersection = np.count_nonzero(area_intersection)
-                count_union = np.count_nonzero(area_union)
-                '''
                 expected_list = np.array([1 if expected > 0.999 else 0 for expected in expected_list])
                 actual_list = np.array([1 if actual > 0.999 else 0 for actual in actual_list])
 
@@ -1171,7 +905,7 @@ else:
                 union_list = expected_list + actual_list
                 intersection_list = np.array([1 if union > 1.999 else 0 for union in union_list])
                 count_keras = np.count_nonzero(expected_list)
-                count_onnx = np.count_nonzero(actual_list)                
+                count_onnx = np.count_nonzero(actual_list)
                 count_intersection = np.count_nonzero(intersection_list)
                 count_union = np.count_nonzero(union_list)
                 ratio_str = str(count_intersection / count_union) if count_union > 0 else '1'
@@ -1235,7 +969,6 @@ else:
             print("avg_keras_time = " + str(total_keras_time / total_count) + ", avg_onnx_time = " + str(total_onnx_time / total_count)
                   + ", ratio = " + str(total_onnx_time / total_keras_time))
 
-        #time.sleep(5)
         #break
         if actual_count == 100:
             break

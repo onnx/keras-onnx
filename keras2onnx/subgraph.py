@@ -121,6 +121,11 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
                 output_node.attr["dtype"].CopyFrom(input_node.attr["dtype"])
             elif str(input_node.attr["T"]):
                 output_node.attr["dtype"].CopyFrom(input_node.attr["T"])
+            else:
+                if input_node.op == 'All':
+                    output_node.attr["dtype"].CopyFrom(attr_value_pb2.AttrValue(type="DT_BOOL"))
+                else:
+                    raise RuntimeError("Can't get the node data type for %s" % input_node.name)
             ts_shape = tf.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
             output_node.attr["shape"].CopyFrom(
                 attr_value_pb2.AttrValue(shape=ts_shape.as_proto()))

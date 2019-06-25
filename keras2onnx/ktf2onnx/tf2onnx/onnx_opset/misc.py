@@ -46,26 +46,3 @@ class NukeNode:
     @classmethod
     def version_1(cls, ctx, node, **kwargs):
         ctx.remove_node(node.name)
-
-@tf_op("DenseToDenseSetOperation")
-class DenseToDenseSetOperation:
-    @classmethod
-    def version_4(cls, ctx, node, **kwargs):
-        node.type = 'DenseIntersection'
-        node.domain = 'com.microsoft'
-
-@tf_op("SparseToDense")
-class SparseToDense:
-    @classmethod
-    def version_4(cls, ctx, node, **kwargs):
-        node.type = 'Identity'
-        ctx.remove_input(node, node.input[3])
-        ctx.remove_input(node, node.input[2])
-        ctx.remove_input(node, node.input[1])
-
-@tf_op("Unique")
-class Unique:
-    @classmethod
-    def version_4(cls, ctx, node, **kwargs):
-        node.type = 'Unique'
-        node.domain = 'com.microsoft'
