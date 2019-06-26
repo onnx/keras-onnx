@@ -67,11 +67,8 @@ def build_opdict_from_keras(model):
                 continue
 
         for node_ in extract_inbound_nodes(l_):
-            # for ts_ in node_.output_tensors:
-            #    output_dict[ts_.name] = (l_, model)
-            ts_names = tf.map_fn(lambda x: x.name, node_.output_tensors)
-            for ts_name_ in ts_names:
-                output_dict[ts_name_] = (l_, model)
+            for ts_ in node_.output_tensors:
+               output_dict[ts_.name] = (l_, model)
 
     return output_dict
 
