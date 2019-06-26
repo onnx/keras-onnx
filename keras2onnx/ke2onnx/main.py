@@ -55,6 +55,7 @@ def build_opdict_from_keras(model):
     # type: (keras.Model) -> {}
 
     output_dict = {}
+    import tensorflow as tf
     for l_ in model.layers:
         if hasattr(l_, 'layers'):
             submodel_dict = build_opdict_from_keras(l_)
@@ -66,7 +67,8 @@ def build_opdict_from_keras(model):
                 continue
 
         for node_ in extract_inbound_nodes(l_):
-            for ts_ in node_.output_tensors:
+            # for ts_ in node_.output_tensors:
+            for ts_ in tf.map_fn(lambda x: x, node_.output_tensors):
                 output_dict[ts_.name] = (l_, model)
 
     return output_dict
