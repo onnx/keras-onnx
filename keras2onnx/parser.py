@@ -6,7 +6,7 @@
 import six
 import tensorflow as tf
 from six.moves import queue
-from .proto import keras
+from .proto import keras, is_tf_keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
@@ -488,6 +488,8 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 def parse_graph(topo, graph, target_opset, output_names):
     # type: (Topology, tf.Graph, int, []) -> Topology
     keras_op_table = None
+    if is_tf_keras:
+        tf.enable_eager_execution()
     if topo.raw_model.model is not None:
         keras_op_table = \
             {tsname_to_node(nm_): x for (nm_, x) in
