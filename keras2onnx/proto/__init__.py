@@ -8,16 +8,12 @@ _tf_keras = os.environ.get('TF_KERAS')
 is_tf_keras = True
 if _tf_keras:
     from tensorflow.python import keras
-    import tensorflow as tf
-    tf.enable_eager_execution()
 else:
     try:
         import keras
         is_tf_keras = False
     except ImportError:
         from tensorflow.python import keras
-        import tensorflow as tf
-        tf.enable_eager_execution()
 
 def _check_onnx_version():
     import pkg_resources
