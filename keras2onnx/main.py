@@ -7,7 +7,7 @@ import os
 import logging
 import tf2onnx
 import tensorflow as tf
-from .proto import keras, is_tf_keras
+from .proto import keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
@@ -72,8 +72,6 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :param custom_op_conversions: the handler for custom operator conversion
     :return an ONNX ModelProto
     """
-    if is_tf_keras:
-        tf.enable_eager_execution()
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
 
     if name is None:

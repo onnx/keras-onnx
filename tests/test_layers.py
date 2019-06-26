@@ -16,6 +16,9 @@ from distutils.version import StrictVersion
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
+if is_tf_keras:
+    import tensorflow as tf
+    tf.enable_eager_execution()
 
 class TestKerasTF2ONNX(unittest.TestCase):
 
