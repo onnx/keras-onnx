@@ -15,6 +15,7 @@ else:
     except ImportError:
         from tensorflow.python import keras
 
+
 def _check_onnx_version():
     import pkg_resources
     min_required_version = pkg_resources.parse_version('1.0.1')
