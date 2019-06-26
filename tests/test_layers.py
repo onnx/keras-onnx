@@ -11,14 +11,13 @@ import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx
 from distutils.version import StrictVersion
+import tensorflow as tf
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
-if is_tf_keras:
-    import tensorflow as tf
-    tf.enable_eager_execution()
+tf.enable_eager_execution()
 
 class TestKerasTF2ONNX(unittest.TestCase):
 
