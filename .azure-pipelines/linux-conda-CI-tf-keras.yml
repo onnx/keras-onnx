@@ -1,0 +1,61 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+trigger:
+- master
+
+jobs:
+
+- job: 'Test'
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  strategy:
+    matrix:
+      # No python 2.x since tf2onnx does not support it
+      Python35:
+        python.version: '3.5'
+        ONNX_PATH: onnx==1.2.3
+
+      Python36:
+        python.version: '3.6'
+        ONNX_PATH: onnx==1.5.0
+
+      Python37:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.5.0
+
+    maxParallel: 3
+
+  steps:
+  - script: sudo install -d -m 0777 /home/vsts/.conda/envs
+    displayName: Fix Conda permissions
+
+  - task: CondaEnvironment@1
+    inputs:
+      createCustomEnvironment: true
+      environmentName: 'py$(python.version)'
+      packageSpecs: 'python=$(python.version)'
+
+  - script: |
+      python -m pip install --upgrade pip
+      conda config --set always_yes yes --set changeps1 no
+      pip install $(ONNX_PATH)
+      pip install tensorflow
+      pip install -r requirements.txt
+      pip install -r requirements-dev.txt
+    displayName: 'Install dependencies'
+
+  - script: |
+      pip install -e .
+      python -c "import onnxruntime"
+      python -c "import onnxconverter_common"
+      pytest tests --doctest-modules --junitxml=junit/test-results.xml
+    displayName: 'pytest'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFiles: '**/test-results.xml'
+      testRunTitle: 'Python $(python.version)'
+    condition: succeededOrFailed()
