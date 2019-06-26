@@ -25,7 +25,7 @@ import tf2onnx.custom_opsets  # pylint: disable=unused-import
 from tf2onnx.graph import Graph
 from tf2onnx.graph_matcher import OpTypePattern, GraphMatcher
 from tf2onnx.rewriter import *  # pylint: disable=wildcard-import
-from tf2onnx.shape_inference import infer_shape_for_graph
+from tf2onnx.shape_inference import infer_shape
 from tf2onnx.utils import port_name
 from . import constants, logging, schemas, utils, handler
 
@@ -47,7 +47,7 @@ def tflist_to_onnx(node_list, shape_override):
     ignored_attr = ["unknown_rank", "_class", "Tshape", "use_cudnn_on_gpu", "Index", "Tpaddings",
                     "TI", "Tparams", "Tindices", "Tlen", "Tdim", "dynamic_size", "Tmultiples",
                     "Tblock_shape", "Tcrops", "index_type", "Taxis", "U", "maxval",
-                    "Tout", "Tlabels", "Tindex", "element_shape"]
+                    "Tout", "Tlabels", "Tindex", "element_shape", "Targmax"]
     # some stats
     op_cnt = collections.Counter()
     attr_cnt = collections.Counter()
@@ -63,10 +63,7 @@ def tflist_to_onnx(node_list, shape_override):
         for out in node.outputs:
             shape = shape_override.get(out.name)
             if shape is None:
-                try:
-                    shape = out.get_shape().as_list()
-                except Exception as ex:
-                    shape = None
+                shape = utils.get_tf_tensor_shape(out)
             dtypes[out.name] = utils.map_tf_dtype(out.dtype)
             output_shapes[out.name] = shape
 
@@ -89,11 +86,11 @@ def tflist_to_onnx(node_list, shape_override):
                 # out_idx is used by ListDiff
                 attr[a] = utils.map_tf_dtype(utils.get_tf_node_attr(node, a))
             elif a == "shape":
-                attr[a] = utils.get_shape(node)
+                shape = utils.get_tf_shape_attr(node)
+                if shape is not None:
+                    attr[a] = shape
             elif a == "Tperm":
                 pass
-            elif a == "_output_shapes":
-                attr[a] = utils.get_shape(node)
             elif a == "value":
                 onnx_tensor = utils.tf_to_onnx_tensor(utils.get_tf_node_attr(node, a), name=port_name(node.name))
                 attr[a] = onnx_tensor
@@ -279,7 +276,7 @@ def rewrite_flatten(g, ops):
             end = slice_node.inputs[2].get_tensor_value(as_list=False)
             strides = slice_node.inputs[3].get_tensor_value(as_list=False)
             need_rewrite = np.array_equal(begin, [0]) and len(end) == 1 and \
-                           np.array_equal(strides, [1]) and end[0] - begin[0] == len(input_shape) - 2
+                           np.array_equal(strides, [1]) and end[0] - begin[0] == 1
             if not need_rewrite:
                 continue
 
@@ -469,11 +466,9 @@ def rewrite_incomplete_type_support_rs5(g, ops):
 
 
 def rewrite_incomplete_type_support_rs6(g, ops):
-    return rewrite_incomplete_type_support(g, ops, [
+    impacted_ops = [
         "Div",
-        "Greater",
         "IsNaN",
-        "Less",
         "Max",
         "Min",
         "ReduceSum",
@@ -482,7 +477,13 @@ def rewrite_incomplete_type_support_rs6(g, ops):
         "Tile",
         "Transpose",
         "Where"
-    ])
+    ]
+    # TODO: logic to insert cast has bug, not all inputs of one node need cast
+    # for example, slice's input "starts" doesn't need it.
+    if g.opset == 10:
+        impacted_ops.remove("Slice")
+
+    return rewrite_incomplete_type_support(g, ops, impacted_ops)
 
 
 def rewrite_conv2d_with_pad(g, ops):
@@ -528,12 +529,16 @@ def rewrite_conv2d_with_pad(g, ops):
     return ops
 
 
-def tensorflow_onnx_mapping(g, continue_on_error, ops_mapping):
+def tensorflow_onnx_mapping(g, ops_mapping):
+    logger.verbose("Mapping TF node to ONNX node(s)")
     mapped_op = collections.Counter()
     unmapped_op = collections.Counter()
+    exceptions = []
 
     ops = [n for n in g.get_nodes()]
     for node in ops:
+        logger.debug("Process node: %s\n%s", node.name, node.summary)
+
         if node.need_skip():
             logger.debug("explicitly skip node " + node.name)
             continue
@@ -541,44 +546,39 @@ def tensorflow_onnx_mapping(g, continue_on_error, ops_mapping):
         op = node.type
         map_info = ops_mapping.get(op)
         if map_info is None:
-            if continue_on_error:
-                unmapped_op[op] += 1
-                continue
-            else:
-                raise ValueError("tensorflow op " + op + " is not supported")
+            unmapped_op[op] += 1
+            logger.error("Tensorflow op [%s: %s] is not supported", node.name, op)
+            continue
         mapped_op[op] += 1
+
         func, kwargs = map_info
         if kwargs:
             # if there is a onnx_op key we'll map the old type to a new type
             onnx_op = kwargs.get("onnx_op")
             if onnx_op:
                 node.type = onnx_op
-        try:
-            body_graphs = node.get_body_graphs()
-            if body_graphs:
-                for attr, b_g in body_graphs.items():
-                    logger.debug("start handling subgraph of %s's attribute %s", node.name, attr)
-                    b_g.topological_sort(b_g.get_nodes())
-                    # we assume only ONNX nodes have subgraph defined in pre-rewriters.
-                    # that means, if we create node having subgraphs in this step, the
-                    # created subgraphs' nodes won't be mapped.
-                    m_ops, unm_ops = tensorflow_onnx_mapping(b_g, continue_on_error, ops_mapping)
-                    mapped_op += m_ops
-                    unmapped_op += unm_ops
-                    logger.debug("finish handling subgraph of %s's attribute %s", node.name, attr)
+        body_graphs = node.get_body_graphs()
+        if body_graphs:
+            for attr, b_g in body_graphs.items():
+                logger.debug("start handling subgraph of %s's attribute %s", node.name, attr)
+                b_g.topological_sort(b_g.get_nodes())
+                # we assume only ONNX nodes have subgraph defined in pre-rewriters.
+                # that means, if we create node having subgraphs in this step, the
+                # created subgraphs' nodes won't be mapped.
+                m_ops, unm_ops, body_exceptions = tensorflow_onnx_mapping(b_g, ops_mapping)
+                mapped_op += m_ops
+                unmapped_op += unm_ops
+                exceptions.extend(body_exceptions)
+                logger.debug("finish handling subgraph of %s's attribute %s", node.name, attr)
 
+        try:
             func(g, node, **kwargs)
             node.skip_conversion = True
         except Exception as ex:
-            type_, value_, traceback_ = sys.exc_info()
-            logger.error("node %s: exception %s" % (node.name, ex))
-            ex_ext = traceback.format_exception(type_, value_, traceback_)
-            if continue_on_error:
-                logger.info(ex_ext)
-            else:
-                raise ex
+            logger.error("Failed to convert node %s\n%s", node.name, node.summary, exc_info=1)
+            exceptions.append(ex)
 
-    return mapped_op, unmapped_op
+    return mapped_op, unmapped_op, exceptions
 
 
 def transpose_inputs(ctx, inputs_as_nchw):
@@ -686,15 +686,17 @@ def process_tf_graph(tf_graph, continue_on_error=False, verbose=False, target=No
         logger.warning("Argument verbose for process_tf_graph is deprecated. Please use --verbose option instead.")
     del verbose
 
-    opset = utils.find_opset(opset)
-    print("using tensorflow={}, onnx={}, opset={}, tfonnx={}/{}".format(
-        tf.__version__, utils.get_onnx_version(), opset,
-        tf2onnx.__version__, tf2onnx.version.git_version[:6]))
+    logger.info("Using tensorflow=%s, onnx=%s, tf2onnx=%s/%s",
+                tf.__version__, utils.get_onnx_version(), tf2onnx.__version__, tf2onnx.version.git_version[:6])
 
+    opset = utils.find_opset(opset)
+    logger.info("Using opset <onnx, %s>", opset)
     if opset > schemas.get_max_supported_opset_version():
-        logger.warning("currently installed onnx package %s is too low to support opset %s, "
+        logger.warning("Currently installed onnx package %s is too low to support opset %s, "
                        "please upgrade onnx package to avoid potential conversion issue.",
                        utils.get_onnx_version(), opset)
+
+    tf_graph = infer_shape(tf_graph, shape_override)
 
     if shape_override is None:
         shape_override = {}
@@ -758,8 +760,6 @@ def process_tf_graph(tf_graph, continue_on_error=False, verbose=False, target=No
             custom_opset[k] = (compat_handler, kwargs)
         ops_mapping.update(custom_opset)
 
-    infer_shape_for_graph(g)
-
     if inputs_as_nchw:
         transpose_inputs(g, inputs_as_nchw)
 
@@ -767,8 +767,8 @@ def process_tf_graph(tf_graph, continue_on_error=False, verbose=False, target=No
     # bi-directional re-writer should be placed after single directional re-writer
     rewriters = [rewrite_transpose, rewrite_flatten,
                  rewrite_random_uniform, rewrite_random_uniform_fold_const,
-                 rewrite_random_normal, rewrite_dropout,
-                 rewrite_leakyrelu, rewrite_conv2d_with_pad,
+                 rewrite_random_normal, rewrite_dropout, rewrite_eye,
+                 rewrite_leakyrelu, rewrite_thresholded_relu, rewrite_conv2d_with_pad,
                  rewrite_single_direction_lstm, rewrite_bi_direction_lstm,
                  rewrite_single_direction_gru, rewrite_bi_direction_gru,
                  rewrite_custom_rnn_cell, rewrite_generic_loop, rewrite_cond
@@ -783,7 +783,11 @@ def process_tf_graph(tf_graph, continue_on_error=False, verbose=False, target=No
     g.delete_unused_nodes(output_names)
     topological_sort(g, continue_on_error)
 
-    mapped_op, unmapped_op = tensorflow_onnx_mapping(g, continue_on_error, ops_mapping)
+    mapped_op, unmapped_op, exceptions = tensorflow_onnx_mapping(g, ops_mapping)
+    if unmapped_op:
+        logger.error("Unsupported ops: %s", unmapped_op)
+    if exceptions and not continue_on_error:
+        raise exceptions[0]
 
     # post-processing rewriters
     late_rewriters = []

@@ -1,0 +1,61 @@
+# Python package
+# Create and test a Python package on multiple Python versions.
+# Add steps that analyze code, save the dist with the build record, publish to a PyPI-compatible index, and more:
+# https://docs.microsoft.com/azure/devops/pipelines/languages/python
+
+trigger:
+- master
+
+jobs:
+
+- job: 'Test'
+  timeoutInMinutes: 180
+  pool:
+    vmImage: 'Ubuntu-16.04'
+  strategy:
+    matrix:
+      Python36:
+        python.version: '3.6'
+        ONNX_PATH: onnx==1.4.1
+        KERAS: keras
+
+    maxParallel: 3
+
+  steps:
+  - script: sudo install -d -m 0777 /home/vsts/.conda/envs
+    displayName: Fix Conda permissions
+
+  - task: CondaEnvironment@1
+    inputs:
+      createCustomEnvironment: true
+      environmentName: 'py$(python.version)'
+      packageSpecs: 'python=$(python.version)'
+
+  - script: |
+      python -m pip install --upgrade pip
+      conda config --set always_yes yes --set changeps1 no
+      pip install $(ONNX_PATH)
+      pip install tensorflow
+      pip install $(KERAS)
+      pip install -r requirements.txt
+      pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly
+    displayName: 'Install dependencies'
+
+  - script: |
+      pip install -e .
+      python -c "import onnxruntime"
+      python -c "import onnxconverter_common"
+      pytest applications/test_keras_applications.py --doctest-modules --junitxml=junit/test-results.xml
+      pytest tests --doctest-modules --junitxml=junit/test-results.xml
+      pip install coverage onnx
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage report -m
+      coverage html
+    displayName: 'pytest + coverage'
+
+  - task: PublishTestResults@2
+    inputs:
+      testResultsFiles: '**/test-results.xml'
+      testRunTitle: 'Python $(python.version)'
+    condition: succeededOrFailed()

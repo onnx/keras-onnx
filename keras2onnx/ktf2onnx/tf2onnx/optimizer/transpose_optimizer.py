@@ -7,9 +7,10 @@ from __future__ import unicode_literals
 from collections import defaultdict
 
 import numpy as np
-
-from tf2onnx import utils
-from tf2onnx.optimizer.optimizer_base import GraphOptimizerBase
+import onnx
+from tf2onnx.constants import NCHW_TO_NHWC, NHWC_TO_NCHW
+from .. import utils
+from .optimizer_base import GraphOptimizerBase
 
 
 # pylint: disable=logging-not-lazy,unused-argument,missing-docstring,abstract-method
@@ -18,12 +19,12 @@ from tf2onnx.optimizer.optimizer_base import GraphOptimizerBase
 
 def is_nhwc_transpose(transpose_node):
     perm_attr = transpose_node.get_attr('perm')
-    return transpose_node.type == "Transpose" and perm_attr and perm_attr.ints == [0, 2, 3, 1]
+    return transpose_node.type == "Transpose" and perm_attr and perm_attr.ints == NCHW_TO_NHWC
 
 
 def is_nchw_transpose(transpose_node):
     perm_attr = transpose_node.get_attr('perm')
-    return transpose_node.type == "Transpose" and perm_attr and perm_attr.ints == [0, 3, 1, 2]
+    return transpose_node.type == "Transpose" and perm_attr and perm_attr.ints == NHWC_TO_NCHW
 
 
 def is_useless_transpose(transpose_node):
@@ -60,7 +61,9 @@ class TransposeOptimizer(GraphOptimizerBase):
             target_t = reshape_op.inputs[0].get_tensor_value(as_list=False)
             target_shape = reshape_op.inputs[1].get_tensor_value(as_list=False)
             new_data = np.reshape(target_t, tuple(target_shape))
-            const_name = utils.port_name(utils.make_name("Const"))
+            const_name = reshape_op.output[0]
+            self._g.remove_node(reshape_op.name)
+            self._g.make_const(const_name, new_data)
 
             # point all children nodes inputs to the new node
             for output_name in reshape_op.output:
@@ -68,45 +71,44 @@ class TransposeOptimizer(GraphOptimizerBase):
                     for i, name in enumerate(child.input):
                         if name == output_name:
                             child.input[i] = const_name
-            self._g.make_const(const_name, new_data)
-            self._g.remove_node(reshape_op.name)
+
             self._g.topological_sort(self._g.get_nodes())
 
     def post_optimize_action(self):
+        def _calculate_new_shape(graph, op):
+            input_shape = graph.get_shape(op.input[0])
+            if input_shape.count(-1) <= 1:
+                if is_nchw_transpose(op):
+                    new_shape = [input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
+                else:
+                    new_shape = [input_shape[0], input_shape[2], input_shape[3], input_shape[1]]
+                return graph.make_const(utils.make_name("new_shape"), np.array(new_shape, dtype=np.int64)).output[0]
+
+            # reshape requires tha output shape can only contain one -1, if not some extra op needed.
+            input_shape = graph.make_node("Shape", [op.input[0]]).output[0]
+            if is_nchw_transpose(op):
+                indice = graph.make_const(utils.make_name("indice"), np.array(NHWC_TO_NCHW)).output[0]
+            else:
+                indice = graph.make_const(utils.make_name("indice"), np.array(NCHW_TO_NHWC)).output[0]
+
+            return graph.make_node("Gather", [input_shape, indice]).output[0]
+
         nodes = self.nodes
         # if channel==1 or height==width==1, replace transpose with reshape
+        # replacing trans with reshape is because transpose will copy data even if this transpose doesn't nothing
         for op in nodes:
             if op.type == "Transpose":
                 input_shape = self._g.get_shape(op.input[0])
                 if not input_shape:
                     continue
-                # reshape only supports one dime is -1
-                if input_shape.count(-1) > 1:
-                    continue
 
-                new_shape = []
-                # when transpose is NHWC_TO_NCHW
-                if is_nchw_transpose(op) and (input_shape[3] == 1 or (input_shape[1] == 1 and input_shape[2] == 1)):
-                    new_shape = [input_shape[0], input_shape[3], input_shape[1], input_shape[2]]
-                # when transpose is NCHW_TO_NHWC
-                if is_nhwc_transpose(op) and (input_shape[1] == 1 or (input_shape[2] == 1 and input_shape[3] == 1)):
-                    new_shape = [input_shape[0], input_shape[2], input_shape[3], input_shape[1]]
-                if new_shape:
-                    out_nodes = self._g.find_output_consumers(op.output[0])
-                    need_insert_reshape = False
-                    for out_node in out_nodes:
-                        if out_node.type != "Reshape":
-                            need_insert_reshape = True
-                    if need_insert_reshape:
-                        op_name = utils.make_name("reshape")
-                        shape_name = utils.make_name(op_name)
-                        self._g.make_const(shape_name, np.array(new_shape, dtype=np.int64))
-                        self._g.remove_node(op.name)
-                        self._g.make_node("Reshape", inputs=[op.input[0], shape_name], outputs=op.output,
-                                          name=op_name)
-                    else:
-                        self._remove_useless_tranpose(op)
-        self._g.topological_sort(self._g.get_nodes())
+                if (is_nchw_transpose(op) and (input_shape[3] == 1 or (input_shape[1:3] == [1, 1])))\
+                   or (is_nhwc_transpose(op) and (input_shape[1] == 1 or (input_shape[2:4] == [1, 1]))):
+                    new_shape = _calculate_new_shape(self._g, op)
+                    # replace transpose with reshape
+                    self._g.remove_node(op.name)
+                    self._g.make_node("Reshape", [op.input[0], new_shape], name=op.name, outputs=op.output)
+                    self._g.topological_sort(self._g.get_nodes())
 
     def merge_duplicated_transposes(self):
         # strategy used in previous procedure is to move transpose nodes down if possible,
@@ -129,10 +131,12 @@ class TransposeOptimizer(GraphOptimizerBase):
         # dangling transpose nodes can be deleted
         graph.delete_unused_nodes(graph.outputs)
 
-    def optimize(self, graph):
+    def _optimize(self, graph):
+        return self._apply_optimization(graph, self._optimize_at_current_graph_level)
+
+    def _optimize_at_current_graph_level(self, graph):
         self._g = graph
         self.pre_optimize_action()
-        previous_counter = self._g.dump_node_statistics()
         no_action = False
         iteration_cnt = 0
         while not no_action:
@@ -161,13 +165,6 @@ class TransposeOptimizer(GraphOptimizerBase):
 
         self.merge_duplicated_transposes()
         self.post_optimize_action()
-
-        current_counter = self._g.dump_node_statistics()
-        transpose_cnt = current_counter["Transpose"]
-        self.logger.info(" %d transpose op(s) left", transpose_cnt)
-        self._print_stat_diff(previous_counter, current_counter)
-        if transpose_cnt > 2:
-            self.logger.warning("please try add --fold_const to help remove more transpose")
         return self._g
 
     def _initialize_handlers(self):
@@ -187,17 +184,18 @@ class TransposeOptimizer(GraphOptimizerBase):
             "Shape": self._shape_handler,
             "Slice": self._slice_handler,
             "Split": self._split_handler,
+            "Squeeze": self._squeeze_handler,
             "Tanh": self._simple_through_handler,
             "Transpose": self._transpose_handler,
         }
 
     def _handle_node_having_branches(self, node):
         # create transpose pairs if some input are not.
-        self._create_transpose_pairs_before_node(node)
-
+        if not self._create_transpose_pairs_before_node(node):
+            return False
         # make sure node's all input transpose all have only 1 consumer node,
         # otherwise, it would impact their other output nodes
-        if self._transpose_has_single_consumer_node(node.inputs):
+        if self._nodes_has_single_consumer_node(node.inputs):
             self._create_transpose_pairs_after_node(node)
             input_transposes = node.inputs
             for n in input_transposes:
@@ -233,7 +231,7 @@ class TransposeOptimizer(GraphOptimizerBase):
 
     # the assumption is: both node and trans have only 1 output
     def _switch_transpose_and_node(self, node, trans):
-        if not self._transpose_has_single_consumer_node([trans]):
+        if not self._nodes_has_single_consumer_node([trans]):
             return False
 
         input_index = self._get_input_index_for_trans(node, trans)
@@ -248,7 +246,7 @@ class TransposeOptimizer(GraphOptimizerBase):
         shape = self._g.get_shape(node.output[0])
         if shape:
             # only nhwc transpose can reach here
-            new_shape = [shape[i] for i in [0, 3, 1, 2]]
+            new_shape = [shape[i] for i in NHWC_TO_NCHW]
             self._g.set_shape(node.output[0], new_shape)
         return True
 
@@ -281,13 +279,12 @@ class TransposeOptimizer(GraphOptimizerBase):
         self._g.replace_all_inputs(self._g.get_nodes(), trans.output[0], trans.input[0])
         self._g.remove_node(trans.name)
 
-    def _transpose_has_single_consumer_node(self, trans_nodes):
-        result = True
-        for n in trans_nodes:
-            cnt = len(set(self._g.find_output_consumers(n.output[0])))
-            result = result and cnt == 1
-            if not result:
-                return False
+    def _nodes_has_single_consumer_node(self, nodes):
+        for n in nodes:
+            for output in n.output:
+                cnt = len(set(self._g.find_output_consumers(output)))
+                if cnt != 1:
+                    return False
         return True
 
     def _get_non_nchw_transpose_output_nodes(self, node):
@@ -305,11 +302,21 @@ class TransposeOptimizer(GraphOptimizerBase):
         non_nchw_trans_consumers = self._get_non_nchw_transpose_output_nodes(node)
         # add Transpose(0, 3, 1, 2) and Transpose(0, 2, 3, 1) before each non_nchw_trans_consumers
         for consumer in non_nchw_trans_consumers:
-            nchw_node = self._g.make_node("Transpose", [node.output[0]], attr={"perm": [0, 3, 1, 2]})
-            nhwc_node = self._g.make_node("Transpose", [nchw_node.output[0]], attr={"perm": [0, 2, 3, 1]})
+            nchw_node = self._g.make_node("Transpose", [node.output[0]], attr={"perm": NHWC_TO_NCHW})
+            nhwc_node = self._g.make_node("Transpose", [nchw_node.output[0]], attr={"perm": NCHW_TO_NHWC})
             self._g.replace_input(consumer, node.output[0], nhwc_node.output[0])
 
     def _create_transpose_pairs_before_node(self, node):
+        def shape_after_expand(ori_shape):
+            # according to broadcasting rule to expand shape to 4D while not tile the tensor here
+            # still count on the broadcasting op to tile the tensor
+            if ori_shape.count(-1) >= 2:
+                self.logger.warning("%s shape can contain one -1 at most, otherwise reshape op can't work", node.name)
+                return None
+            ori_rank = len(ori_shape)
+            new_shape = [1]*(4-ori_rank) + ori_shape
+            return new_shape
+
         non_nhwc_trans_inputs = []
         for input_id, n in zip(node.input, node.inputs):
             if not is_nhwc_transpose(n):
@@ -318,10 +325,42 @@ class TransposeOptimizer(GraphOptimizerBase):
                     non_nhwc_trans_inputs.append([input_id, n])
 
         # add Transpose(0, 3, 1, 2) and Transpose(0, 2, 3, 1) before each non_nhwc_trans_consumers
+        shape_unknow = [input_id for input_id, _ in non_nhwc_trans_inputs if self._g.get_shape(input_id) is None]
+        if shape_unknow:
+            if self._g.opset <= 9:
+                msg = "%s 's shape is unknown, ConstantOfShape will be used which exists in version 9 or higher" \
+                      "while graph's opset version is %s" % (shape_unknow, self._g.opset)
+                self.logger.warning(msg)
+                return False
+
         for input_id, n in non_nhwc_trans_inputs:
-            nchw_node = self._g.make_node("Transpose", [input_id], attr={"perm": [0, 3, 1, 2]})
-            nhwc_node = self._g.make_node("Transpose", [nchw_node.output[0]], attr={"perm": [0, 2, 3, 1]})
+            shape = self._g.get_shape(input_id)
+            # if rank of n is not 4, then we need to insert a reshape op before inserting a transpose
+            # for example shape of n is [x, y], then output shape of reshape will be [1, 1, x, y]
+            if shape is None:
+                const_4 = self._g.make_const(utils.make_name("const_4"), np.array([4], np.int64)).output[0]
+                tensor_1 = onnx.helper.make_tensor("value", onnx.TensorProto.INT64, [1], [1])
+                shape_node = self._g.make_node("Shape", [input_id]).output[0]
+                rank_node = self._g.make_node("Shape", [shape_node]).output[0]
+                expand_rank = self._g.make_node("Sub", [const_4, rank_node]).output[0]
+                array_fill_1 = self._g.make_node("ConstantOfShape", [expand_rank], attr={"value": tensor_1}).output[0]
+                new_shape = self._g.make_node("Concat", [array_fill_1, shape_node], attr={"axis": 0}).output[0]
+                reshape = self._g.make_node("Reshape", [input_id, new_shape]).output[0]
+                input_of_new_trans = reshape
+            elif len(shape) == 4:
+                input_of_new_trans = input_id
+            else:
+                shape_4d = shape_after_expand(shape)
+                if shape_4d is None:
+                    return False
+                const = self._g.make_const(utils.make_name("reshape_shape"), np.array(shape_4d, np.int64)).output[0]
+                reshape = self._g.make_node("Reshape", [input_id, const]).output[0]
+                input_of_new_trans = reshape
+
+            nchw_node = self._g.make_node("Transpose", [input_of_new_trans], attr={"perm": NHWC_TO_NCHW})
+            nhwc_node = self._g.make_node("Transpose", [nchw_node.output[0]], attr={"perm": NCHW_TO_NHWC})
             self._g.replace_input(node, input_id, nhwc_node.output[0])
+        return True
 
     def _add_handler(self, trans, node):
         if node.inputs[1].is_const():
@@ -429,7 +468,10 @@ class TransposeOptimizer(GraphOptimizerBase):
 
     def _concat_handler(self, trans, node):
         if self._handle_node_having_branches(node):
-            node.set_attr("axis", 1)
+            perm = trans.get_attr_value("perm")
+            axis = node.get_attr_value("axis", 0)
+            new_axis = perm[axis]
+            node.set_attr("axis", new_axis)
             return True
         return False
 
@@ -437,6 +479,45 @@ class TransposeOptimizer(GraphOptimizerBase):
         # Todo: need handle cases where Slit node has more than 1 outputs.
         if self._handle_node_having_branches(node):
             node.set_attr("axis", 1)
+            return True
+        return False
+
+    def _squeeze_handler(self, trans, node):
+        def _calculate_new_attr(ori_perm, ori_squeeze_axes):
+            new_squeeze_axes = sorted([ori_perm[i] for i in ori_squeeze_axes])
+            # calculate output shape after trans and squeeze
+            input_shape = "abcd"
+            shape_after_trans = [input_shape[i] for i in ori_perm]
+            output_shape = [shape_after_trans[i] for i in range(4) if i not in ori_squeeze_axes]
+            # calculate new_perm
+            # after switch, the output shape should be same, using this condtion we can figure the new perm
+            shape_after_squeeze = [input_shape[i] for i in range(4) if i not in new_squeeze_axes]
+            new_perm = [shape_after_squeeze.index(i) for i in output_shape]
+
+            return new_perm, new_squeeze_axes
+
+        if not self._nodes_has_single_consumer_node([trans]):
+            return False
+
+        if node.get_attr("axes"):
+            squeeze_axes = sorted(list(node.get_attr("axes").ints))
+            trans_perm = list(trans.get_attr("perm").ints)
+            squeeze_shape = self._g.get_shape(node.output[0])
+            # switch tran and squeeze
+            # 1 switch
+            ops = self._g.get_nodes()
+            self._g.replace_all_inputs(ops, node.output[0], trans.output[0])
+            node.input[0] = trans.input[0]
+            trans.input[0] = node.output[0]
+            # 2 correct attr of nodes
+            new_perm, new_squeeze_axes = _calculate_new_attr(ori_perm=trans_perm, ori_squeeze_axes=squeeze_axes)
+            trans.set_attr("perm", new_perm)
+            node.set_attr("axes", new_squeeze_axes)
+            # 3 set shape
+            self._g.set_shape(trans.output[0], squeeze_shape)
+            input_shape = self._g.get_shape(node.input[0])
+            new_squeeze_output_shape = [input_shape[i] for i in range(4) if i not in new_squeeze_axes]
+            self._g.set_shape(node.output[0], new_squeeze_output_shape)
             return True
         return False
 
@@ -460,10 +541,17 @@ class TransposeOptimizer(GraphOptimizerBase):
         return False
 
     def _slice_handler(self, trans, node):
-        axes = node.get_attr("axes").ints
-        keepdims = node.get_attr("keepdims")
+        axes = None
+        if self._g.opset < 10:
+            axes = node.get_attr("axes").ints
+        else:  # in opset 10, axes is input instead of an attribute.
+            if len(node.inputs) >= 4:
+                axes_node = node.inputs[3]
+                if axes_node.is_const():
+                    axes = axes_node.get_tensor_value(as_list=True)
+
         if axes == [0, 1, 2, 3]:
-            node.set_attr("axes", [0, 2, 3, 1])
+            node.set_attr("axes", NCHW_TO_NHWC)
             return self._switch_transpose_and_node(node, trans)
         return False
 
@@ -472,7 +560,7 @@ class TransposeOptimizer(GraphOptimizerBase):
 
     def _shape_handler(self, trans, node):
         # input > trans > shape  can be changed into  input > shape > gather
-        if not self._transpose_has_single_consumer_node([trans]):
+        if not self._nodes_has_single_consumer_node([trans]):
             return False
 
         output_shape = self._g.get_shape(node.output[0])
@@ -480,7 +568,7 @@ class TransposeOptimizer(GraphOptimizerBase):
         self._g.remove_node(trans.name)
         self._g.remove_node(node.name)
         shape_node = self._g.make_node("Shape", [trans.input[0]])
-        const_node = self._g.make_const("Const", np.array(trans.get_attr("perm").ints))
+        const_node = self._g.make_const(utils.make_name("Const"), np.array(trans.get_attr("perm").ints))
         gather_node = self._g.make_node("Gather", [shape_node.output[0], const_node.output[0]], outputs=node.output)
         self._g.set_shape(gather_node.output[0], output_shape)
         self._g.set_dtype(gather_node.output[0], output_dtype)

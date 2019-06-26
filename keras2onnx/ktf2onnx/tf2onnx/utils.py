@@ -13,13 +13,20 @@ import os
 import re
 import shutil
 import tempfile
+from distutils.version import LooseVersion
+
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import six
 import numpy as np
 import tensorflow as tf
 from tensorflow.core.framework import types_pb2, tensor_pb2
+from tensorflow.python.framework import tensor_util
 from google.protobuf import text_format
 import onnx
 from onnx import helper, onnx_pb, defs, numpy_helper
+
 from . import constants
 
 #
@@ -86,6 +93,7 @@ class TensorValueInfo(object):
 
 
 ONNX_UNKNOWN_DIMENSION = -1
+ONNX_EMPTY_INPUT = ""
 
 # index for internally generated names
 INTERNAL_NAME = 1
@@ -121,81 +129,61 @@ def split_nodename_and_shape(name):
 
 
 def tf_to_onnx_tensor(tensor, name=""):
-    """
-    Convert tensorflow tensor to onnx tensor.
-    Here deal with three types of tensor:
-    1. normal tensor, e.g., np.array([1,2,3], dtype=DTYPE):
-        tensor_content: raw data of [1,2,3]
-        tensor_shape.dim: [3]
-        DTYPE_val: empty
-    2. scalar tensor, e.g., np.array(1, dtype=DTYPE):
-        tensor_content: empty
-        tensor_shape.dim: [0]
-        DTYPE_val: 1
-    3. empty tensor, e.g., np.array([], dtype=DTYPE) and np.array([[]], dtype=DTYPE):
-        tensor_content: empty
-        tensor_shape.dim: [0] and [1, 0]
-        DTYPE_val: empty
-    """
-    new_type = TF_TO_ONNX_DTYPE[tensor.dtype]
-    tdim = tensor.tensor_shape.dim
-    dims = [d.size for d in tdim]
-    is_raw, data = get_tf_tensor_data(tensor)
-    # empty tensor
-    if not is_raw and data is None:
-        np_data = np.array([], dtype=map_onnx_to_numpy_type(new_type)).reshape(dims)
-        return numpy_helper.from_array(np_data, name=name)
-    make_sure(data, "tensor data isn't expected to be None or empty")
-    # scalar tensor
-    if dims == [0] and not is_raw and len(data) == 1:
-        return helper.make_tensor(name, new_type, [], data, False)
-    if not is_raw and len(data) == 1 and np.prod(dims) > 1:
-        batch_data = np.zeros(dims, dtype=map_onnx_to_numpy_type(new_type))
-        batch_data.fill(data[0])
-        return numpy_helper.from_array(batch_data, name=name)
-    return helper.make_tensor(name, new_type, dims, data, is_raw)
+    """Convert tensorflow tensor to onnx tensor."""
+    np_data = get_tf_tensor_data(tensor)
+    if np_data.dtype == np.object:
+        # assume np_data is string, numpy_helper.from_array accepts ndarray,
+        # in which each item is of str while the whole dtype is of object.
+        try:
+            np_data = np_data.astype(np.str).astype(np.object)
+        except: # pylint: disable=bare-except
+            raise RuntimeError("Not support type: {}".format(type(np_data.flat[0])))
+    return numpy_helper.from_array(np_data, name=name)
 
 
 def get_tf_tensor_data(tensor):
     """Get data from tensor."""
-    assert isinstance(tensor, tensor_pb2.TensorProto)
-    is_raw = False
-    if tensor.tensor_content:
-        data = tensor.tensor_content
-        is_raw = True
-    elif tensor.float_val:
-        data = tensor.float_val
-    elif tensor.dcomplex_val:
-        data = tensor.dcomplex_val
-    elif tensor.int_val:
-        data = tensor.int_val
-    elif tensor.int64_val:
-        data = tensor.int64_val
-    elif tensor.bool_val:
-        data = tensor.bool_val
-    elif tensor.string_val:
-        data = tensor.string_val
-    elif tensor.dtype in [tf.int32, tf.int64, tf.float32, tf.float16]:
-        data = None
-    else:
-        raise ValueError('tensor data not supported')
-    return [is_raw, data]
+    make_sure(isinstance(tensor, tensor_pb2.TensorProto), "Require TensorProto")
+    np_data = tensor_util.MakeNdarray(tensor)
+    make_sure(isinstance(np_data, np.ndarray), "{} isn't ndarray".format(np_data))
+    return np_data
 
 
-def get_shape(node):
-    """Get shape from tensorflow node."""
-    # FIXME: do we use this?
+def get_tf_const_value(op, as_list=True):
+    """
+    If as_list=True, return the array as a (possibly nested) list.
+    Otherwise, return data of type np.ndarray.
+
+    If a tensor is a scalar having value 1,
+        when as_list=False, return np.array(1), type is <class 'numpy.ndarray'>
+        when as_list=True, return 1, type is <class 'int'>.
+    """
+    make_sure(is_tf_const_op(op), "{} isn't a const op".format(op.name))
+    value = get_tf_tensor_data(op.get_attr("value"))
+    if as_list:
+        value = value.tolist()
+    return value
+
+
+def get_tf_shape_attr(node):
+    """Get shape from tensorflow attr "shape"."""
     dims = None
     try:
-        if node.type == "Const":
-            shape = get_tf_node_attr(node, "value").tensor_shape
+        shape = get_tf_node_attr(node, "shape")
+        if not shape.unknown_rank:
             dims = [int(d.size) for d in shape.dim]
-        else:
-            shape = get_tf_node_attr(node, "shape")
-            dims = [d.size for d in shape.dim]
     except:  # pylint: disable=bare-except
         pass
     return dims
+
+
+def get_tf_tensor_shape(tensor):
+    shape = []
+    try:
+        shape = tensor.get_shape().as_list()
+    except Exception:  # pylint: disable=broad-except
+        shape = None
+    return shape
 
 
 def map_tf_dtype(dtype):
@@ -242,7 +230,14 @@ def make_onnx_inputs_outputs(name, elem_type, shape, **kwargs):
        elem_type,  # type: TensorProto.DataType
        shape,  # type: Optional[Sequence[int]]
     """
-    return helper.make_tensor_value_info(name, elem_type, make_onnx_shape(shape), **kwargs)
+    if elem_type is None:
+        elem_type = onnx_pb.TensorProto.UNDEFINED
+    return helper.make_tensor_value_info(
+        name,
+        elem_type,
+        make_onnx_shape(shape),
+        **kwargs
+    )
 
 
 def find_opset(opset):
@@ -306,7 +301,7 @@ def construct_graph_from_nodes(parent_g, nodes, outputs, shapes, dtypes):
         all_outputs |= set(op.output)
 
         new_node = g.make_node(op.type, op.input, outputs=op.output, attr=op.attr, name=op.name,
-                               skip_conversion=op.skip_conversion)
+                               skip_conversion=op.skip_conversion, infer_shape_dtype=False)
         body_graphs = op.graph.contained_graphs.pop(op.name, None)
         if body_graphs:
             for attr_name, body_graph in body_graphs.items():
@@ -325,7 +320,7 @@ def construct_graph_from_nodes(parent_g, nodes, outputs, shapes, dtypes):
     new_output_names = []
     for output, shape, dtype in zip(outputs, shapes, dtypes):
         node = g.make_node("Identity", inputs=[output], op_name_scope="sub_graph_ending_node",
-                           shapes=[shape], dtypes=[dtype])
+                           shapes=[shape], dtypes=[dtype], infer_shape_dtype=False)
         new_output_names.append(node.output[0])
     g.outputs = new_output_names
     return g
@@ -428,6 +423,10 @@ def get_onnx_version():
     return onnx.__version__
 
 
+def get_tf_version():
+    return LooseVersion(tf.__version__)
+
+
 def make_opsetid(domain, version):
     make_sure(isinstance(version, int), "version must be an integer")
     return helper.make_opsetid(domain, version)
@@ -455,3 +454,110 @@ def is_debug_mode():
 def set_debug_mode(enabled):
     global _is_debug_mode
     _is_debug_mode = enabled
+
+
+def get_max_value(np_dtype):
+    return np.iinfo(np_dtype).max
+
+
+def get_min_value(np_dtype):
+    return np.iinfo(np_dtype).min
+
+
+def get_url(url, path, max_retries=5):
+    """ Download url and save to path. """
+    retries = Retry(total=max_retries, backoff_factor=0.1, status_forcelist=[500, 502, 503, 504])
+    adapter = HTTPAdapter(max_retries=retries)
+    session = requests.Session()
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+    response = session.get(url, allow_redirects=True)
+    if response.status_code not in [200]:
+        response.raise_for_status()
+
+    dir_name = os.path.dirname(path)
+    if dir_name:
+        os.makedirs(dir_name, exist_ok=True)
+
+    with open(path, "wb") as f:
+        f.write(response.content)
+
+
+def have_same_inference_value(g, output_1, output_2):
+    """
+    If two outputs have the same value in inference.
+    Check whether they come from the same subgraph and the same subgraphs
+    contain nodes with the same attributes and share the same ancestors.
+    """
+
+    def is_same(node_1, node_2):
+        # go further util two instance isn't the same
+        if node_1 == node_2:
+            return True
+        # check body graph
+        if node_1.get_body_graphs() or node_2.get_body_graphs():
+            logger.warning("Comparing two nodes containing body graph isn't supported.")
+            return False
+        # check domain
+        if node_1.domain != node_2.domain:
+            return False
+        # check type
+        if node_1.type != node_2.type:
+            return False
+        # check onnx attributes
+        if node_1.attr_onnx.keys() != node_2.attr_onnx.keys():
+            return False
+        for name in node_1.attr_onnx.keys(): # pylint: disable=consider-iterating-dictionary
+            if node_1.get_attr_value(name) != node_2.get_attr_value(name):
+                return False
+        return True
+
+    if output_1 == output_2:
+        return True
+    node_1 = g.get_node_by_output(output_1)
+    node_2 = g.get_node_by_output(output_2)
+    # compare their domain, attr, etc. see __eq__ in Node class
+    if not is_same(node_1, node_2):
+        return False
+
+    for inp_1, inp_2 in zip(node_1.input, node_2.input):
+        if not have_same_inference_value(g, inp_1, inp_2):
+            return False
+    return True
+
+
+def is_tf_reverse_op(op):
+    return op.type in ("ReverseV2", "ReverseSequence")
+
+
+def is_tf_concat_op(op):
+    return op.type in ("Concat", "ConcatV2", "ConcatV3")
+
+
+def is_tf_tensor_array_gather_op(op):
+    return op.type in ("TensorArrayGatherV2", "TensorArrayGatherV3")
+
+
+def is_tf_tensor_array_write_op(op):
+    return op.type in ("TensorArrayWriteV2", "TensorArrayWriteV3")
+
+
+def is_tf_tensor_array_op(op):
+    return op.type in ("TensorArrayV2", "TensorArrayV3")
+
+
+def is_tf_loopcond_op(op):
+    return op.type == "LoopCond"
+
+
+def is_tf_select_op(op):
+    return op.type == "Select"
+
+
+def is_tf_slice_op(op):
+    return op.type == "Slice"
+
+
+def is_tf_const_op(op):
+    return op.type in ["Const", "ConstV2"]

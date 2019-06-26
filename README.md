@@ -5,22 +5,24 @@
 | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/linux-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=9&branchName=master) | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/win32-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=10&branchName=master) |
 
 
-# Introduction 
+# Introduction
 The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
-Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). To support more kinds of Keras models and reduce the complexity of mixing multiple converters, keras2onnx was created to convert the Keras model only.
+Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). keras2onnx converter development was moved into an [independent repository](https://github.com/onnx/keras-onnx) to support more kinds of Keras models and reduce the complexity of mixing multiple converters.
 
-keras2onnx converter supports not only all keras built-in layers, but also the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded into the source tree directly now to avoid version conflicts and installation complexity.
+All Keras layers have been supported for conversion using keras2onnx since **ONNX opset 7**. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded directly into the source tree to avoid version conflicts and installation complexity.
 
-keras2onnx has been tested on **Python 3.5 and 3.6** (CI build). It does not support **Python 2.x**.
+Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
+
+keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does not support **Python 2.x**.
 
 # Notes
 
 # tf.keras v.s. keras.io
 Both Keras model types are supported now. If keras package was installed as the one from https://keras.io/, the converter converts the model as it was created by this keras.io package, otherwise it will convert as it was by tf.keras.<br>
-If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API. 
+If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
 
 # Usage
-Before running the converter, please notice that tensorflow has to be installed in your python environment, 
+Before running the converter, please notice that tensorflow has to be installed in your python environment,
 you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
 ## Validate pre-trained Keras application models
 It will be useful to convert the models from Keras to ONNX from a python script.
@@ -80,7 +82,7 @@ sess = onnxruntime.InferenceSession(temp_model_file)
 
 We converted successfully for all the keras application models such as:
 Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201, NASNetMobile, and NASNetLarge.
-Try the following models and convert them to onnx using the code above. 
+Try the following models and convert them to onnx using the code above.
 
 ```
 from keras.applications.xception import Xception
@@ -123,12 +125,8 @@ from keras.applications.nasnet import NASNetLarge
 model = NASNetLarge(include_top=True, weights='imagenet')
 ```
 
-# Contributing
+## Contribute
+We welcome contributions in the form of feedback, ideas, or code.
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.microsoft.com.
-
-When you submit a pull request, a CLA-bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., label, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+## License
+[MIT License](LICENSE)

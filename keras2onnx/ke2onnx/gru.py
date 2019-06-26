@@ -25,7 +25,7 @@ def convert_keras_gru(scope, operator, container):
     gru_input_names = []
 
     gru_x_name = scope.get_unique_variable_name('gru_x')
-    apply_reshape(scope, operator.inputs[0].full_name, gru_x_name, container, desired_shape=[-1, 1, input_size])
+    apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
     gru_input_names.append(gru_x_name)
 
     tensor_w_name = scope.get_unique_variable_name('tensor_w')
@@ -52,7 +52,7 @@ def convert_keras_gru(scope, operator, container):
 
     # sequence lens
     gru_input_names.append('')
-    # TODO: figure out keras way of inital_h
+    # inital_h
     if len(operator.inputs) == 1:
         gru_input_names.append('')
     else:

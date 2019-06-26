@@ -12,11 +12,17 @@ from ..common.onnx_ops import apply_identity, apply_reshape
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
+from .merge import convert_keras_merge_layer
 from .dense import convert_keras_dense
-from .upsample import *
-from .conv import *
-from .pooling import *
-from .crop import *
+from .dot import convert_keras_dot
+from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
+from .conv import convert_keras_conv1d, convert_keras_conv2d, convert_keras_conv3d
+from .conv import convert_keras_conv_transpose_2d, convert_keras_conv_transpose_3d, convert_keras_depthwise_conv_2d
+from .conv import convert_keras_separable_conv1d,convert_keras_separable_conv2d
+from .pooling import convert_keras_max_pooling_1d, convert_keras_max_pooling_2d, convert_keras_max_pooling_3d
+from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, convert_keras_average_pooling_3d
+from .crop import convert_keras_crop_1d, convert_keras_crop_2d, convert_keras_crop_3d
+from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
 from .embedding import convert_keras_embed
 from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
@@ -35,10 +41,7 @@ def extract_inbound_nodes(layer):
 
 def convert_keras_reshape(scope, operator, container):
     iop = operator.raw_operator
-    target_shape = iop.target_shape
-    if operator.target_opset >= 7:
-        # TODO: need extra the batch size from the input tensor.
-        target_shape = (1, ) + target_shape  # adding the 'batch_size' to target shape.
+    target_shape = tuple([-1 if i_ is None else i_ for i_ in iop.output_shape])
 
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
@@ -94,7 +97,14 @@ keras_layer_to_operator = {
     _layer.SeparableConv1D: convert_keras_separable_conv1d,
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
+    _layer.Add: convert_keras_merge_layer,
+    _layer.Multiply: convert_keras_merge_layer,
+    _layer.Subtract: convert_keras_merge_layer,
+    _layer.Average: convert_keras_merge_layer,
+    _layer.Maximum: convert_keras_merge_layer,
+
     _layer.Dense: convert_keras_dense,
+    _layer.Dot: convert_keras_dot,
     _layer.Embedding: convert_keras_embed,
 
     _layer.MaxPooling1D: convert_keras_max_pooling_1d,
@@ -107,6 +117,10 @@ keras_layer_to_operator = {
     _layer.Cropping1D: convert_keras_crop_1d,
     _layer.Cropping2D: convert_keras_crop_2d,
     _layer.Cropping3D: convert_keras_crop_3d,
+
+    _layer.ZeroPadding1D: convert_keras_zero_pad_1d,
+    _layer.ZeroPadding2D: convert_keras_zero_pad_2d,
+    _layer.ZeroPadding3D: convert_keras_zero_pad_3d,
 
     _layer.Reshape: convert_keras_reshape,
 

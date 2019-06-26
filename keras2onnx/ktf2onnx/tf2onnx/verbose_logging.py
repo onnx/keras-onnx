@@ -32,7 +32,7 @@ def getLogger(name=None):  # pylint: disable=invalid-name, function-redefined
     return logger
 
 
-_SIMPLE_LOG_FORMAT = "%(message)s"
+_BASIC_LOG_FORMAT = "%(asctime)s - %(levelname)s - %(message)s"
 _VERBOSE_LOG_FORMAT = "%(asctime)s - %(levelname)s - %(name)s: %(message)s"
 
 
@@ -41,21 +41,21 @@ def basicConfig(**kwargs):  # pylint: disable=invalid-name, function-redefined
     # Choose pre-defined format if format argument is not specified
     if "format" not in kwargs:
         level = kwargs.get("level", _logging.root.level)
-        kwargs["format"] = _SIMPLE_LOG_FORMAT if level >= INFO else _VERBOSE_LOG_FORMAT
+        kwargs["format"] = _BASIC_LOG_FORMAT if level >= INFO else _VERBOSE_LOG_FORMAT
 
     _logging.basicConfig(**kwargs)
     set_tf_verbosity(_logging.getLogger().getEffectiveLevel())
 
 
-_VERBOSITY_TO_LEVEL = [INFO, VERBOSE, DEBUG]
+_LOG_LEVELS = [FATAL, ERROR, WARNING, INFO, VERBOSE, DEBUG]
 
 
-def get_verbosity_level(verbosity, default_level=INFO):
+def get_verbosity_level(verbosity, base_level=INFO):
     """ If verbosity is specified, return corresponding level, otherwise, return default_level. """
     if verbosity is None:
-        return default_level
-    verbosity = min(max(0, verbosity), len(_VERBOSITY_TO_LEVEL) - 1)
-    return _VERBOSITY_TO_LEVEL[verbosity]
+        return base_level
+    verbosity = min(max(0, verbosity) + _LOG_LEVELS.index(base_level), len(_LOG_LEVELS) - 1)
+    return _LOG_LEVELS[verbosity]
 
 
 def set_level(level):
@@ -66,6 +66,8 @@ def set_level(level):
 
 def set_tf_verbosity(level):
     """ Set TF logging verbosity."""
+    # TF log is too verbose, adjust it
+    level = ERROR if level >= INFO else level
     tf.logging.set_verbosity(level)
 
     # TF_CPP_MIN_LOG_LEVEL:

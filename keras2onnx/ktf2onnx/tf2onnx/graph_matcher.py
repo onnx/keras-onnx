@@ -24,6 +24,7 @@ import copy
 import six
 
 
+
 class OpTypePattern(object):
     """A tree pattern that matches TF expressions with certain op types."""
 

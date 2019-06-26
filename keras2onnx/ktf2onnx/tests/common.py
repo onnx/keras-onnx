@@ -11,13 +11,33 @@ from collections import defaultdict
 
 from distutils.version import LooseVersion
 from parameterized import parameterized
+import numpy as np
+import tensorflow as tf
 from tf2onnx import constants, logging, utils
 
-__all__ = ["TestConfig", "get_test_config", "unittest_main", "check_onnxruntime_backend",
-           "check_tf_min_version", "check_tf_max_version", "skip_tf_versions", "check_onnxruntime_min_version",
-           "check_opset_min_version", "check_target", "skip_caffe2_backend", "skip_onnxruntime_backend",
-           "skip_opset", "check_onnxruntime_incompatibility", "validate_const_node",
-           "group_nodes_by_type", "test_ms_domain", "check_node_domain"]
+__all__ = [
+    "TestConfig",
+    "get_test_config",
+    "unittest_main",
+    "check_onnxruntime_backend",
+    "check_tf_min_version",
+    "check_tf_max_version",
+    "skip_tf_versions",
+    "skip_tf_cpu",
+    "check_onnxruntime_min_version",
+    "check_opset_min_version",
+    "check_opset_max_version",
+    "check_target",
+    "skip_caffe2_backend",
+    "skip_onnxruntime_backend",
+    "skip_opset",
+    "check_onnxruntime_incompatibility",
+    "validate_const_node",
+    "group_nodes_by_type",
+    "test_ms_domain",
+    "check_node_domain",
+    "check_op_count"
+]
 
 
 # pylint: disable=missing-docstring
@@ -25,7 +45,7 @@ __all__ = ["TestConfig", "get_test_config", "unittest_main", "check_onnxruntime_
 class TestConfig(object):
     def __init__(self):
         self.platform = sys.platform
-        self.tf_version = self._get_tf_version()
+        self.tf_version = utils.get_tf_version()
         self.opset = int(os.environ.get("TF2ONNX_TEST_OPSET", constants.PREFERRED_OPSET))
         self.target = os.environ.get("TF2ONNX_TEST_TARGET", ",".join(constants.DEFAULT_TARGET)).split(',')
         self.backend = os.environ.get("TF2ONNX_TEST_BACKEND", "onnxruntime")
@@ -48,10 +68,6 @@ class TestConfig(object):
     @property
     def is_debug_mode(self):
         return utils.is_debug_mode()
-
-    def _get_tf_version(self):
-        import tensorflow as tf
-        return LooseVersion(tf.__version__)
 
     def _get_backend_version(self):
         version = None
@@ -84,7 +100,7 @@ class TestConfig(object):
         if "pytest" not in sys.argv[0]:
             parser = argparse.ArgumentParser()
             parser.add_argument("--backend", default=config.backend,
-                                choices=["caffe2", "onnxmsrtnext", "onnxruntime"],
+                                choices=["caffe2", "onnxruntime"],
                                 help="backend to test against")
             parser.add_argument("--opset", type=int, default=config.opset, help="opset to test against")
             parser.add_argument("--target", default=",".join(config.target), choices=constants.POSSIBLE_TARGETS,
@@ -167,11 +183,27 @@ def skip_tf_versions(excluded_versions, message=""):
     return unittest.skipIf(condition, reason)
 
 
+def is_tf_gpu():
+    return tf.test.is_gpu_available()
+
+
+def skip_tf_cpu(message=""):
+    is_tf_cpu = not is_tf_gpu()
+    return unittest.skipIf(is_tf_cpu, message)
+
+
 def check_opset_min_version(min_required_version, message=""):
     """ Skip if opset < min_required_version """
     config = get_test_config()
     reason = _append_message("conversion requires opset >= {}".format(min_required_version), message)
     return unittest.skipIf(config.opset < min_required_version, reason)
+
+
+def check_opset_max_version(max_accepted_version, message=""):
+    """ Skip if opset > max_accepted_version """
+    config = get_test_config()
+    reason = _append_message("conversion requires opset <= {}".format(max_accepted_version), message)
+    return unittest.skipIf(config.opset > max_accepted_version, reason)
 
 
 def skip_opset(opset_v, message=""):
@@ -257,7 +289,8 @@ def check_onnxruntime_incompatibility(op):
 def validate_const_node(node, expected_val):
     if node.is_const():
         node_val = node.get_tensor_value()
-        return node_val == expected_val
+        np.testing.assert_allclose(expected_val, node_val)
+        return True
     return False
 
 

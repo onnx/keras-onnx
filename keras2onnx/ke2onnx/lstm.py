@@ -25,8 +25,11 @@ def _calculate_keras_lstm_output_shapes(operator):
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_size = op.input_shape[-1]
-    seq_length = op.input_shape[-2]
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
+    seq_length = input_shape[-2]
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
@@ -51,10 +54,10 @@ def convert_keras_lstm(scope, operator, container):
     if op.use_bias:
         b = np.zeros(shape=(8, hidden_size))
         keras_b = op.get_weights()[2]
-        b[0:] = keras_b[0 * hidden_size:][:hidden_size]
-        b[1:] = keras_b[3 * hidden_size:][:hidden_size]
-        b[2:] = keras_b[1 * hidden_size:][:hidden_size]
-        b[3:] = keras_b[2 * hidden_size:][:hidden_size]
+        b[0] = keras_b[0 * hidden_size:][:hidden_size]
+        b[1] = keras_b[3 * hidden_size:][:hidden_size]
+        b[2] = keras_b[1 * hidden_size:][:hidden_size]
+        b[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     # Declare essential attributes of ONNX LSTM
     lstm__type = 'LSTM'
@@ -65,7 +68,7 @@ def convert_keras_lstm(scope, operator, container):
     # Because of the format difference between Keras and ONNX LSTM's, we set up a preprocessing node to match them.
     lstm_x_name = scope.get_unique_variable_name('lstm_x')
     lstm_input_names.append(lstm_x_name)
-    apply_reshape(scope, operator.inputs[0].full_name, lstm_x_name, container, desired_shape=[-1, 1, input_size])
+    apply_transpose(scope, operator.inputs[0].full_name, lstm_x_name, container, perm=[1, 0, 2])
 
     # Add the weights to the final model's initializer list so that our LSTM operator can use it
     tensor_w_name = scope.get_unique_variable_name('W')
@@ -79,7 +82,7 @@ def convert_keras_lstm(scope, operator, container):
                               [1, 4 * hidden_size, hidden_size], W_h.flatten())
     lstm_input_names.append(tensor_r_name)
 
-    if len(b) > 0:
+    if b is not None and len(b) > 0:
         tensor_b_name = scope.get_unique_variable_name('B')
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 8 * hidden_size], b.flatten())
         lstm_input_names.append(tensor_b_name)
@@ -88,10 +91,24 @@ def convert_keras_lstm(scope, operator, container):
 
     # sequence_lens
     lstm_input_names.append('')
-    # TODO initial_h (optional) : T
-    lstm_input_names.append('')
-    # TODO initial_c (optional) : T
-    lstm_input_names.append('')
+    # inital_h
+    if len(operator.inputs) <= 1:
+        lstm_input_names.append('')
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        inital_h_reshape = scope.get_unique_variable_name('inital_h_reshape')
+        apply_reshape(scope, operator.inputs[1].full_name, inital_h_reshape, container,
+                      desired_shape=[1, -1, hidden_size])
+        lstm_input_names.append(inital_h_reshape)
+    # initial_c
+    if len(operator.inputs) <= 2:
+        lstm_input_names.append('')
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        inital_c_reshape = scope.get_unique_variable_name('inital_c_reshape')
+        apply_reshape(scope, operator.inputs[2].full_name, inital_c_reshape, container,
+                      desired_shape=[1, -1, hidden_size])
+        lstm_input_names.append(inital_c_reshape)
     # P (optional) : No peep hole in keras.
     lstm_input_names.append('')
 

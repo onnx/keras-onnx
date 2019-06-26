@@ -39,9 +39,8 @@ _TFOUTPUT = "output"
 _OUTPUT = "output:0"
 _TFOUTPUT1 = "output1"
 _OUTPUT1 = "output1:0"
-
-
-# pylint: disable=C0111
+_TFOUTPUT2 = "output2"
+_OUTPUT2 = "output2:0"
 
 
 def make_xval(shape):
@@ -54,7 +53,7 @@ def get_conv_getdata(kind=1):
         # generate all combinations (costly)
         dims = [
             ("padding", ["SAME", "VALID"]),
-            ("input_sizes", [[32, 35, 35, 288], [32, 17, 17, 1248], [1, 28, 28, 3], [32, 8, 8, 2048]]),
+            ("input_sizes", [[32, 35, 35, 3], [32, 17, 17, 3], [1, 28, 28, 3], [32, 8, 8, 3]]),
             ("filter_sizes", [[1, 3, 3, 1], [1, 2, 2, 1], [1, 5, 5, 1], [1, 1, 1, 1], [1, 5, 2, 1], [1, 2, 5, 1]]),
             ("strides", [[1, 2, 2, 1], [1, 1, 1, 1]]),
         ]
@@ -65,12 +64,12 @@ def get_conv_getdata(kind=1):
     elif kind == 1:
         # some combination to that give decent padding coverage
         data = [
-            ('SAME', [32, 35, 35, 288], [1, 3, 3, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 35, 35, 288], [1, 2, 2, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 35, 35, 288], [1, 1, 1, 1], [1, 1, 1, 1]),
-            ('SAME', [32, 35, 35, 288], [1, 5, 2, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 35, 35, 288], [1, 2, 5, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 35, 35, 288], [1, 2, 5, 1], [1, 1, 1, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 3, 3, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 2, 2, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 1, 1, 1], [1, 1, 1, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 5, 2, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 2, 5, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 35, 35, 3], [1, 2, 5, 1], [1, 1, 1, 1]),
             ('SAME', [1, 28, 28, 3], [1, 3, 3, 1], [1, 2, 2, 1]),
             ('SAME', [1, 28, 28, 3], [1, 3, 3, 1], [1, 1, 1, 1]),
             ('SAME', [1, 28, 28, 3], [1, 2, 2, 1], [1, 2, 2, 1]),
@@ -78,16 +77,27 @@ def get_conv_getdata(kind=1):
             ('SAME', [1, 28, 28, 3], [1, 5, 5, 1], [1, 2, 2, 1]),
             ('SAME', [1, 28, 28, 3], [1, 5, 5, 1], [1, 1, 1, 1]),
             ('SAME', [1, 28, 28, 3], [1, 5, 2, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 8, 8, 2048], [1, 3, 3, 1], [1, 2, 2, 1]),
-            ('SAME', [32, 8, 8, 2048], [1, 3, 3, 1], [1, 1, 1, 1]),
-            ('VALID', [32, 35, 35, 288], [1, 3, 3, 1], [1, 1, 1, 1]),
-            ('VALID', [32, 35, 35, 288], [1, 2, 2, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 8, 8, 3], [1, 3, 3, 1], [1, 2, 2, 1]),
+            ('SAME', [32, 8, 8, 3], [1, 3, 3, 1], [1, 1, 1, 1]),
+            ('VALID', [32, 35, 35, 3], [1, 3, 3, 1], [1, 1, 1, 1]),
+            ('VALID', [32, 35, 35, 3], [1, 2, 2, 1], [1, 2, 2, 1]),
         ]
         for idx, v in enumerate(data):
             yield (idx,) + v
     else:
         raise ValueError("kind not known")
 
+def get_maxpoolwithargmax_getdata():
+    data = [
+        ('SAME', [1, 3, 3, 1], [1, 3, 3, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 5, 5, 1], [1, 4, 4, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 10, 5, 1], [1, 2, 2, 1], [1, 2, 2, 1]),
+        ('SAME', [1, 10, 5, 1], [1, 4, 4, 1], [1, 1, 1, 1]),
+        ('VALID', [1, 3, 3, 1], [1, 3, 3, 1], [1, 2, 2, 1]),
+        ('VALID', [1, 5, 5, 1], [1, 4, 4, 1], [1, 2, 2, 1]),
+    ]
+    for idx, v in enumerate(data):
+        yield (idx,) + v
 
 class BackendTests(Tf2OnnxBackendTestBase):
     def _run_test_case(self, output_names_with_port, feed_dict, **kwargs):
@@ -129,6 +139,63 @@ class BackendTests(Tf2OnnxBackendTestBase):
         op = tf.expand_dims(x, 0)
         _ = tf.identity(op, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @check_opset_min_version(9, "ConstantOfShape")
+    def test_eye_non_const1(self):
+        # tf.eye(num_rows), num_rows is not const here
+        tf.reset_default_graph()
+        x_val = np.array(5, dtype=np.int32)
+        x = tf.placeholder(tf.int32, shape=[], name=_TFINPUT)
+        y = tf.eye(x, dtype=tf.int32)
+        _ = tf.identity(y, name=_TFOUTPUT)
+        y1 = tf.eye(x, dtype=tf.int64)
+        _ = tf.identity(y1, name=_TFOUTPUT1)
+        y2 = tf.eye(x, dtype=tf.float32)
+        _ = tf.identity(y2, name=_TFOUTPUT2)
+        self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+        # tf.eye(num_rows, num_columns), both num_rows and num_columns are not const here
+        tf.reset_default_graph()
+        x_val = np.array([5, 10], dtype=np.int32)
+        x = tf.placeholder(tf.int32, shape=[2], name=_TFINPUT)
+        y = tf.eye(x[0], x[1], dtype=tf.int32)
+        _ = tf.identity(y, name=_TFOUTPUT)
+        y1 = tf.eye(x[0], x[1], dtype=tf.int64)
+        _ = tf.identity(y1, name=_TFOUTPUT1)
+        y2 = tf.eye(x[0], x[1], dtype=tf.float32)
+        _ = tf.identity(y2, name=_TFOUTPUT2)
+        self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+    @check_tf_min_version("1.11", "eye has bug when version is below 1.11")
+    @check_opset_min_version(9, "ConstantOfShape")
+    def test_eye_non_const2(self):
+        # tf.eye(num_rows), num_rows is not const here
+        for np_dtype, tf_dtype in zip([np.int32, np.int64, np.float32, np.float64],
+                                      [tf.int32, tf.int64, tf.float32, tf.float64]):
+            tf.reset_default_graph()
+            x_val = np.array(5, dtype=np_dtype)
+            x = tf.placeholder(tf_dtype, shape=[], name=_TFINPUT)
+            y = tf.eye(x, dtype=tf.int32)
+            _ = tf.identity(y, name=_TFOUTPUT)
+            y1 = tf.eye(x, dtype=tf.int64)
+            _ = tf.identity(y1, name=_TFOUTPUT1)
+            y2 = tf.eye(x, dtype=tf.float32)
+            _ = tf.identity(y2, name=_TFOUTPUT2)
+            self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
+
+        # tf.eye(num_rows, num_columns), both num_rows and num_columns are not const here
+        for np_dtype, tf_dtype in zip([np.int32, np.int64, np.float32, np.float64],
+                                      [tf.int32, tf.int64, tf.float32, tf.float64]):
+            tf.reset_default_graph()
+            x_val = np.array([5, 10], dtype=np_dtype)
+            x = tf.placeholder(tf_dtype, shape=[2], name=_TFINPUT)
+            y = tf.eye(x[0], x[1], dtype=tf.int32)
+            _ = tf.identity(y, name=_TFOUTPUT)
+            y1 = tf.eye(x[0], x[1], dtype=tf.int64)
+            _ = tf.identity(y1, name=_TFOUTPUT1)
+            y2 = tf.eye(x[0], x[1], dtype=tf.float32)
+            _ = tf.identity(y2, name=_TFOUTPUT2)
+            self._run_test_case([_OUTPUT, _OUTPUT1, _OUTPUT2], {_INPUT: x_val}, rtol=0)
 
     @check_opset_min_version(7, "trig")
     def test_trig_ops(self):
@@ -191,8 +258,19 @@ class BackendTests(Tf2OnnxBackendTestBase):
                 self.logger.debug(str(p))
                 self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
-    @unittest.skipIf(get_test_config().is_onnxruntime_backend and get_test_config().backend_version == "0.2.1",
-                     "onnxruntime bug")
+    @skip_tf_cpu("only tf_gpu can run maxpool with NCHW format")
+    def test_maxpool_gpu(self):
+        # make sure converter behaves well when data format is NCHW
+        # and when data format is NCHW, only gpu version of tensorflow can run it.
+        ksize = [1, 1, 2, 2]
+        strides = [1, 1, 2, 2]
+        x_val = make_xval([1, 3, 50, 80])
+        for padding in ["SAME", "VALID"]:
+            x = tf.placeholder(tf.float32, shape=[None] * 4, name=_TFINPUT)
+            mp = tf.nn.max_pool(x, ksize, strides, padding=padding, data_format="NCHW")
+            _ = tf.identity(mp, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
     @check_onnxruntime_incompatibility("AveragePool")
     def test_avgpool(self):
         for tf_shape in ["known", "unknown"]:
@@ -209,6 +287,18 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
                 self.logger.debug(str(p))
                 self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=1e-06)
+
+    @check_onnxruntime_incompatibility("AveragePool")
+    @skip_tf_cpu("only tf_gpu can run avgpool with NCHW format")
+    def test_avgpool_gpu(self):
+        ksize = [1, 1, 2, 2]
+        strides = [1, 1, 2, 2]
+        x_val = make_xval([1, 3, 50, 80])
+        for padding in ["SAME", "VALID"]:
+            x = tf.placeholder(tf.float32, shape=[None] * 4, name=_TFINPUT)
+            mp = tf.nn.avg_pool(x, ksize, strides, padding=padding, data_format="NCHW")
+            _ = tf.identity(mp, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     def _conv_test(self, x_val, w, strides=None, padding="VALID", dilations=None, rtol=1e-07):
         if strides is None:
@@ -399,13 +489,20 @@ class BackendTests(Tf2OnnxBackendTestBase):
                             process_args={"inputs_as_nchw": [_INPUT]},
                             onnx_feed_dict={_INPUT: x_val_for_onnx})
 
-    @unittest.skip("")
-    def test_lrn(self):
-        # FIXME: numerical results are not correct
+    def test_lrn_default(self):
         x_shape = [1, 3, 4, 3]
         x_val = np.arange(1, 1 + np.prod(x_shape)).astype("float32").reshape(x_shape)
-        _ = tf.placeholder(tf.float32, shape=x_val.shape, name=_TFINPUT)
-        op = tf.nn.local_response_normalization(x_val)
+        x_ = tf.placeholder(tf.float32, shape=x_shape, name=_TFINPUT)
+        op = tf.nn.local_response_normalization(x_)
+        _ = tf.identity(op, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=1e-05)
+
+    def test_lrn(self):
+        # can't set bias = 0
+        x_shape = [1, 2, 2, 8]
+        x_val = np.arange(1, 1 + np.prod(x_shape)).astype("float32").reshape(x_shape)
+        x_ = tf.placeholder(tf.float32, shape=x_shape, name=_TFINPUT)
+        op = tf.nn.local_response_normalization(x_, depth_radius=4, bias=2, alpha=2, beta=1)
         _ = tf.identity(op, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=1e-05)
 
@@ -458,7 +555,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
     def test_add_bcast(self):
         x1_val = np.array([1.0, 2.0, -3.0, -4.0], dtype=np.float32).reshape((2, 2))
         x2_val = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0], dtype=np.float32).reshape((2, 2, 2))
-        # if we'd broadcast 2,2 to 2,1 onnxmsrt will fail
         x1 = tf.placeholder(tf.float32, x1_val.shape, name="input")
         x2 = tf.placeholder(tf.float32, x2_val.shape, name=_TFINPUT1)
         x_ = tf.add(x1, x2)
@@ -705,7 +801,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(mi, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val1, _INPUT1: x_val2})
 
-    @check_onnxruntime_incompatibility("Equal")
     def test_equal(self):
         x_val1 = np.array([4, 2, 4, 1], dtype=np.int32).reshape((2, 2))
         x_val2 = np.array([2, 4, 4, 1], dtype=np.int32).reshape((2, 2))
@@ -724,6 +819,23 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(mi, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val1, _INPUT1: x_val2})
 
+    def test_not_equal(self):
+        x_val1 = np.array([4, 2, 4, 1], dtype=np.int32).reshape((2, 2))
+        x_val2 = np.array([2, 4, 4, 1], dtype=np.int32).reshape((2, 2))
+        x1 = tf.placeholder(tf.int32, [2, 2], name=_TFINPUT)
+        x2 = tf.placeholder(tf.int32, [2, 2], name=_TFINPUT1)
+        mi = tf.not_equal(x1, x2)
+        _ = tf.identity(mi, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val1, _INPUT1: x_val2})
+
+        tf.reset_default_graph()
+        x_val1 = np.array([4, 2, 4, 1], dtype=np.float32).reshape((2, 2))
+        x_val2 = np.array([2, 4, 4, 1], dtype=np.float32).reshape((2, 2))
+        x1 = tf.placeholder(tf.float32, [2, 2], name=_TFINPUT)
+        x2 = tf.placeholder(tf.float32, [2, 2], name=_TFINPUT1)
+        mi = tf.not_equal(x1, x2)
+        _ = tf.identity(mi, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val1, _INPUT1: x_val2})
 
     def test_sequeeze_no_axis_specified(self):
         x_val = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape((2, 2, 1))
@@ -777,8 +889,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_shape=True)
 
-    @unittest.skipIf(get_test_config().opset < 5 or get_test_config().backend in ["onnxmsrtnext"],
-                     "since opset 5, broken in msrtnext")
     @check_opset_min_version(6, "cast")
     def test_reshape_dynamic(self):
         x_val = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float32).reshape((2, 2))
@@ -839,10 +949,9 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=1e-05)
 
-    @check_onnxruntime_incompatibility("Max")
     def test_relu6(self):
-        x_val = np.array([0.5, 1.0, -0.5, -1.0], dtype=np.float32).reshape((2, 2))
-        x = tf.placeholder(tf.float32, [2, 2], name=_TFINPUT)
+        x_val = np.array([0.5, 1.0, -0.5, -1.0, 6, 7], dtype=np.float32).reshape((2, 3))
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = tf.nn.relu6(x)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
@@ -945,15 +1054,51 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
+    @check_opset_min_version(10, "Slice in opset 10 can accept dymaic 'start' and 'ends'")
+    def test_slice_with_non_const(self):
+        x_val = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.float32)
+        t1 = np.array([0, 1], dtype=np.int32)
+        t2 = np.array([2, 2], dtype=np.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        t1_ = tf.placeholder(tf.int32, t1.shape, name=_TFINPUT1)
+        t2_ = tf.placeholder(tf.int32, t2.shape, name=_TFINPUT2)
+        x_ = tf.slice(x0, t1_, t2_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: t1, _INPUT2: t2})
+
+    @check_opset_min_version(10, "Slice in opset 10 can accept dymaic 'start' and 'ends'")
+    def test_slice_with_size_is_negative_one(self):
+        x_val = np.array([[1, 2, 3, 4], [5, 6, 7, 8]], dtype=np.float32)
+        t1 = np.array([0, 1], dtype=np.int32)
+        # input "size" contains -1
+        t2 = np.array([2, -1], dtype=np.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        t1_ = tf.placeholder(tf.int32, t1.shape, name=_TFINPUT1)
+        t2_ = tf.placeholder(tf.int32, t2.shape, name=_TFINPUT2)
+        x_ = tf.slice(x0, t1_, t2_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: t1, _INPUT2: t2})
+
+    @skip_caffe2_backend()
+    def test_slice1(self):
+        # FIXME: only 1 dimension supported by caffe2
+        x_val = np.array([[[1, 1, 1], [2, 2, 2]], [[3, 3, 3], [4, 4, 4]], [[5, 5, 5], [6, 6, 6]]], dtype=np.float32)
+        t1 = tf.constant([1, 0, 0], dtype=tf.int32)
+        t2 = tf.constant([1, 1, 3], dtype=tf.int32)
+        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = tf.slice(x0, t1, t2)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
     def test_split(self):
-        x_val = np.linspace(1.0, 5 * 30.0, 5 * 30).astype(np.float32).reshape(5, 30)
+        x_val = np.linspace(1.0, 5 * 30.0, 5 * 30).astype(np.float32).reshape((5, 30))
         x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_, _, _ = tf.split(x0, [4, 15, 11], 1)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     def test_split_with_more_outputs(self):
-        x_val = np.linspace(1.0, 5 * 30.0, 5 * 30).astype(np.float32).reshape(5, 30)
+        x_val = np.linspace(1.0, 5 * 30.0, 5 * 30).astype(np.float32).reshape((5, 30))
         x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         _, _, _ = tf.split(x0, [4, 15, 11], 1, name="split_test")
         self._run_test_case(["split_test:0", "split_test:1", "split_test:2"], {_INPUT: x_val})
@@ -1103,17 +1248,6 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
-    @unittest.skip("")
-    def test_slice1(self):
-        # FIXME: only 1 dimension supported by caffe2 and msrt
-        x_val = np.array([[[1, 1, 1], [2, 2, 2]], [[3, 3, 3], [4, 4, 4]], [[5, 5, 5], [6, 6, 6]]], dtype=np.float32)
-        t1 = tf.constant([1, 0, 0], dtype=tf.int32)
-        t2 = tf.constant([1, 1, 3], dtype=tf.int32)
-        x0 = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
-        x_ = tf.slice(x0, t1, t2)
-        _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val})
-
     @skip_caffe2_backend()
     @check_onnxruntime_incompatibility("Pow")
     def test_pow_scalar(self):
@@ -1171,7 +1305,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
         # since results are random, compare the shapes only
         self._run_test_case([_OUTPUT], {}, check_value=False, check_shape=True)
 
-    @unittest.skip("")
+    @unittest.skip("TF RandomUniformInt is not supported")
     def test_randomuniform_int(self):
         shape = tf.constant([2, 3], name="shape")
         x_ = tf.random_uniform(shape, name="rand", dtype=tf.int32, maxval=10)
@@ -1180,6 +1314,33 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         # since results are random, compare the shapes only
         self._run_test_case([_OUTPUT], {}, check_value=False, check_shape=True)
+
+    @skip_caffe2_backend()
+    def test_randomuniform_dyn_shape(self):
+        # test for dynamic shape coming from a shape op
+        x_val = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+        x = tf.placeholder(x_val.dtype, [None, 3], name=_TFINPUT)
+        x_ = tf.stack([x, x])
+        x_ = tf.identity(x_)
+        x_ = tf.shape(x_, name="shape")
+        x_ = tf.random_uniform(x_, name="rand", dtype=tf.float32)
+        x_ = tf.identity(x_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        # since results are random, compare the shapes only
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_value=False, check_shape=True)
+
+    @skip_caffe2_backend()
+    def test_randomuniform_calc_shape(self):
+        # test for dynamic shape coming from some subgraph
+        x_val = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=np.float32)
+        x = tf.placeholder(x_val.dtype, [None, 3], name=_TFINPUT)
+        x_ = tf.identity(x)
+        x_ = tf.shape(x_, name="shape")[1:]
+        x_ = tf.random_uniform(x_, name="rand", dtype=tf.float32)
+        x_ = tf.identity(x_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        # since results are random, compare the shapes only
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, check_value=False, check_shape=True)
 
     @skip_caffe2_backend()
     def test_argminmax(self):
@@ -1211,11 +1372,12 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
+    @check_opset_min_version(7, "sign")
     def test_sign(self):
-        x_val1 = np.array([1, 2, 0, -1, 0, -2], dtype=np.int32).reshape((2, 3))
-        x_val2 = np.array([1, 2, 0, -1, 0, -2], dtype=np.int64).reshape((2, 3))
-        x_val3 = np.array([1.0, 2.0, 0.0, -1.0, 0.0, -2.0], dtype=np.float32).reshape((2, 3))
-        for x_val in [x_val1, x_val2, x_val3]:
+        x_vals = [np.array([1.0, 2.0, 0.0, -1.0, 0.0, -2.0], dtype=np.float32).reshape((2, 3)),
+                  np.array([1, 2, 0, -1, 0, -2], dtype=np.int32).reshape((2, 3)),
+                  np.array([1, 2, 0, -1, 0, -2], dtype=np.int64).reshape((2, 3))]
+        for x_val in x_vals:
             x = tf.placeholder(x_val.dtype, x_val.shape, name=_TFINPUT)
             x_ = tf.sign(x)
             _ = tf.identity(x_, name=_TFOUTPUT)
@@ -1287,9 +1449,19 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [None, 3, 3], name=_TFINPUT)
         x_ = tf.layers.flatten(x)
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+        self._run_test_case([_OUTPUT], {_INPUT: x_val},
+                            graph_validator=lambda g: check_op_count(g, "Flatten", 1))
 
+    @skip_caffe2_backend("issue undefined dim 1")
     def test_flatten1(self):
+        x_val = np.array([[[[1, 2, 3], [4, 5, 6], [7, 8, 9]]]], dtype=np.float32)
+        x = tf.placeholder(tf.float32, [None, 1, 3, 3], name=_TFINPUT)
+        x_ = tf.layers.flatten(x)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val},
+                            graph_validator=lambda g: check_op_count(g, "Flatten", 1))
+
+    def test_flatten2(self):
         x_val = np.array([[[1, 2, 3], [4, 5, 6], [7, 8, 9]]], dtype=np.float32)
         x = tf.placeholder(tf.float32, [1, 3, 3], name=_TFINPUT)
         x_ = tf.layers.flatten(x)
@@ -1305,13 +1477,24 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
+    @check_onnxruntime_min_version("0.5.0", "topk-10's shape inference function has a bug")
     @check_opset_min_version(6, "cast")
-    def test_topk(self):
+    def test_topk1(self):
         x_val = np.arange(3 * 2 * 3).astype("float32")
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         values, _ = tf.nn.top_k(x, 5, sorted=True)
         _ = tf.identity(values, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @check_opset_min_version(10, "TopK with dynamic K")
+    def test_topk2(self):
+        x_val = np.arange(3 * 2 * 3).astype("float32")
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        k_val = np.array(10).astype(np.int32)
+        k = tf.placeholder(tf.int32, name=_TFINPUT1)
+        values, _ = tf.nn.top_k(x, k, sorted=True)
+        _ = tf.identity(values, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: k_val})
 
     def test_stack_axis(self):
         for axis in [0, 1]:
@@ -1340,11 +1523,28 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     @skip_caffe2_backend("Space2Depth not implemented")
     def test_space_to_depth(self):
-        self._test_reorganize_data(tf.space_to_depth, [1, 2, 2, 1])
+        self._test_reorganize_data(tf.space_to_depth, [1, 28, 28, 3])
 
-    @skip_caffe2_backend("Space2Depth not implemented")
+    @skip_caffe2_backend("Depth2Space not implemented")
     def test_depth_to_space(self):
-        self._test_reorganize_data(tf.depth_to_space, [1, 1, 1, 4])
+        self._test_reorganize_data(tf.depth_to_space, [1, 14, 14, 12])
+
+    def _test_reorganize_data_gpu(self, op, shape):
+        x_val = make_xval(shape)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = op(x, block_size=2, data_format="NCHW")
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @skip_tf_cpu("only tf_gpu can run Space2Depth with NCHW format")
+    @skip_caffe2_backend("Space2Depth not implemented")
+    def test_space_to_depth_gpu(self):
+        self._test_reorganize_data_gpu(tf.space_to_depth, [1, 3, 50, 80])
+
+    @skip_tf_cpu("only tf_gpu can run Depth2Space with NCHW format")
+    @skip_caffe2_backend("Depth2Space not implemented")
+    def test_depth_to_space_gpu(self):
+        self._test_reorganize_data_gpu(tf.depth_to_space, [1, 120, 25, 40])
 
     @check_opset_min_version(6, "addn")
     def test_addn(self):
@@ -1356,28 +1556,28 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     @skip_caffe2_backend("multiple dims not supported")
     def test_strided_slice1(self):
-        x_val = np.arange(3 * 2 * 3).astype("float32").reshape(3, 2, 3)
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = tf.strided_slice(x, [1, 0, 0], [2, 1, 3], [1, 1, 1])
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     def test_strided_slice2(self):
-        x_val = np.arange(3 * 2 * 3).astype("float32").reshape(3, 2, 3)
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = tf.strided_slice(x, [1, 0, 0], [2, 2, 3], [1, 1, 1])
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     def test_strided_slice3(self):
-        x_val = np.arange(3 * 2 * 3).astype("float32").reshape(3, 2, 3)
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = x[1:]
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     def test_strided_slice4(self):
-        x_val = np.arange(3 * 2 * 3).astype("float32").reshape(3, 2, 3)
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = x[:2]
         _ = tf.identity(x_, name=_TFOUTPUT)
@@ -1385,7 +1585,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     @skip_caffe2_backend("multiple dims not supported")
     def test_strided_slice5(self):
-        x_val = np.arange(3 * 2 * 3).astype("float32").reshape(3, 2, 3)
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = x[:2, 0:1, 1:]
         _ = tf.identity(x_, name=_TFOUTPUT)
@@ -1395,7 +1595,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
     def test_strided_slice6(self):
         # example from here:
         # https://www.tensorflow.org/versions/r1.0/api_docs/cc/class/tensorflow/ops/strided-slice
-        x_val = np.arange(5 * 6).astype("float32").reshape(5, 6)
+        x_val = np.arange(5 * 6).astype("float32").reshape((5, 6))
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = x[2, :]
         _ = tf.identity(x_, name=_TFOUTPUT)
@@ -1403,7 +1603,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
     @skip_caffe2_backend("multiple dims not supported")
     def test_strided_slice7(self):
-        x_val = np.arange(5 * 6).astype("float32").reshape(5, 6)
+        x_val = np.arange(5 * 6).astype("float32").reshape((5, 6))
 
         x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
         x_ = tf.strided_slice(x, [0, 1], [3, 4], [1, 1], begin_mask=2)
@@ -1427,6 +1627,138 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x_ = tf.strided_slice(x, [0, 1], [3, 4], [1, 1], ellipsis_mask=2)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice8(self):
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = x[0:1, ..., 1, 2:, :6]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+        tf.reset_default_graph()
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = x[0:1, 1, 2:, :6, ...]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+        tf.reset_default_graph()
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        x_ = x[..., 0:1, 1, 2:, :6]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_1(self):
+        # simple case
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array([0, 1, 2], dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = tf.strided_slice(x, y, [2, 2, 3], [1, 1, 1])
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_2(self):
+        # int32
+        x_val = np.arange(3 * 2 * 3).astype("int32").reshape((3, 2, 3))
+        y_val = np.array([0, 1, 2], dtype=np.int32)
+        x = tf.placeholder(tf.int32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = tf.strided_slice(x, y, [2, 2, 3], [1, 1, 1])
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_3(self):
+        # common usage, ellipsis_mask
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[y:2, :, :]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_4(self):
+        # begin_mask, end_mask
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[y:, :y]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_5(self):
+        # only slice the first axis
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[y:2]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_6(self):
+        # shrink mask
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[y]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+        tf.reset_default_graph()
+        x_val = np.arange(3 * 2 * 3).astype("float32").reshape((3, 2, 3))
+        y_val = np.array(-1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[y]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+    @check_opset_min_version(10, "Slice")
+    @skip_caffe2_backend("multiple dims not supported")
+    def test_strided_slice_dynamic_7(self):
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[0:y, ..., y, y:, :y]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+        tf.reset_default_graph()
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[0:y, y, y:, :y, ...]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
+
+        tf.reset_default_graph()
+        x_val = np.arange(1 * 2 * 3 * 4 * 5 * 6).astype("float32").reshape((1, 2, 3, 4, 5, 6))
+        y_val = np.array(1, dtype=np.int32)
+        x = tf.placeholder(tf.float32, x_val.shape, name=_TFINPUT)
+        y = tf.placeholder(tf.int32, y_val.shape, name=_TFINPUT1)
+        x_ = x[..., 0:y, y, y:, :y]
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: y_val})
 
     @skip_caffe2_backend("fails with schema error")
     @check_opset_min_version(7, "batchnorm")
@@ -1467,7 +1799,10 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         graph = self._run_test_case([_OUTPUT], {_INPUT: x_val})
         if self.config.opset >= 9:
-            scale_node = group_nodes_by_type(graph)["Upsample"][0].inputs[1]
+            # in opset 10, upsample is removed and resize is defined.
+            node_statistic = group_nodes_by_type(graph)
+            mapped_node = (node_statistic.get("Upsample") or node_statistic.get("Resize"))[0]
+            scale_node = mapped_node.inputs[1]
             self.assertTrue(validate_const_node(scale_node, [1.0, 1.0, 2.0, 2.0]))
 
     @check_opset_min_version(9, "resize_nearest_neighbor")
@@ -1495,7 +1830,10 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(x_, name=_TFOUTPUT)
         graph = self._run_test_case([_OUTPUT], {_INPUT: x_val})
         if self.config.opset >= 9:
-            scale_node = group_nodes_by_type(graph)["Upsample"][0].inputs[1]
+            # in opset 10, upsample is removed and resize is defined.
+            node_statistic = group_nodes_by_type(graph)
+            mapped_node = (node_statistic.get("Upsample") or node_statistic.get("Resize"))[0]
+            scale_node = mapped_node.inputs[1]
             self.assertTrue(validate_const_node(scale_node, [1.0, 1.0, 2.0, 2.0]))
 
     @check_opset_min_version(9, "resize_bilinear")
@@ -1510,6 +1848,35 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x_ = tf.image.resize_bilinear(x, x_new_size_)
         _ = tf.identity(x_, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: x_new_size})
+
+    @check_opset_min_version(10, "resize scale can less than 1")
+    def test_resize_bilinear_with_non_const2(self):
+        # scales has an element larger than 1 and also has an element less that 1
+        x_shape = [3, 100, 8, 5]
+        x_val = np.arange(1, 1 + np.prod(x_shape), dtype=np.float32).reshape(x_shape)
+        x = tf.placeholder(tf.float32, x_shape, name=_TFINPUT)
+
+        x_new_size = np.array([20, 16]).astype(np.int32)
+        x_new_size_ = tf.placeholder(shape=[None], dtype=tf.int32, name=_TFINPUT1)
+
+        x_ = tf.image.resize_bilinear(x, x_new_size_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val, _INPUT1: x_new_size})
+
+    @check_opset_min_version(10, "resize scale can less than 1")
+    def test_resize_nearest_neighbor2(self):
+        x_shape = [1, 300, 20, 2]
+        x_new_size = [30, 40]
+        x_val = np.arange(1, 1 + np.prod(x_shape)).astype("float32").reshape(x_shape)
+        x = tf.placeholder(tf.float32, x_shape, name=_TFINPUT)
+        x_new_size_ = tf.constant(x_new_size)
+        x_ = tf.image.resize_nearest_neighbor(x, x_new_size_)
+        _ = tf.identity(x_, name=_TFOUTPUT)
+        graph = self._run_test_case([_OUTPUT], {_INPUT: x_val})
+        node_statistic = group_nodes_by_type(graph)
+        mapped_node = node_statistic.get("Resize")[0]
+        scale_node = mapped_node.inputs[1]
+        self.assertTrue(validate_const_node(scale_node, [1.0, 1.0, 0.1, 2.0]))
 
     @check_opset_min_version(9, "fill")
     def test_fill_float32(self):
@@ -1587,11 +1954,9 @@ class BackendTests(Tf2OnnxBackendTestBase):
             _ = tf.identity(x_, name=_TFOUTPUT)
             self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=0.01)
 
-    def _test_reverse_sequence_batch_major(self, extra_opset=None):
-        process_args = {}
-        if extra_opset is not None:
-            process_args["extra_opset"] = [extra_opset]
-
+    @check_opset_min_version(8, "Scan")
+    @skip_opset(9, "ReverseSequence")
+    def test_reverse_sequence_batch_major(self):
         x_val = np.array([[[1, 2, 3], [4, 5, 6], [0, 0, 0]],
                           [[1, 2, 3], [4, 5, 6], [7, 8, 9]],
                           [[1, 2, 3], [0, 0, 0], [0, 0, 0]]],
@@ -1599,7 +1964,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [None, 3, 3], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=1, batch_axis=0, seq_lengths=[2, 3, 1])
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
         tf.reset_default_graph()
 
         x_val = np.array([[1, 2, 3], [1, 2, 3], [1, 2, 3],
@@ -1610,7 +1975,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [None, 3], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=1, batch_axis=0, seq_lengths=[3] * 9)
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
         tf.reset_default_graph()
 
         x_val_shape = [5, 5, 7, 8, 9]
@@ -1618,33 +1983,29 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [None, 5, 7, 8, 9], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=1, batch_axis=0, seq_lengths=[5, 5, 5, 5, 5])
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
-    def _test_reverse_sequence_time_major(self, extra_opset=None):
-        process_args = {}
-        if extra_opset is not None:
-            process_args["extra_opset"] = [extra_opset]
-
+    @check_opset_min_version(8, "Scan")
+    @skip_opset(9, "ReverseSequence")
+    def test_reverse_sequence_time_major(self):
         x_val = np.array([[[1, 2, 3], [1, 2, 3], [1, 2, 3]],
                           [[4, 5, 6], [4, 5, 6], [0, 0, 0]],
-                          [[0, 0, 0], [7, 8, 9], [0, 0, 0]]
-                          ],
+                          [[0, 0, 0], [7, 8, 9], [0, 0, 0]]],
                          dtype=np.float32)
         x = tf.placeholder(tf.float32, [3, None, 3], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=0, batch_axis=1, seq_lengths=[2, 3, 1])
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
         tf.reset_default_graph()
 
         x_val = np.array([[1, 2, 3], [1, 2, 3], [1, 2, 3],
                           [4, 5, 6], [4, 5, 6], [1, 1, 1],
-                          [0, 0, 0], [7, 8, 9], [0, 0, 0]
-                          ],
+                          [0, 0, 0], [7, 8, 9], [0, 0, 0]],
                          dtype=np.float32)
         x = tf.placeholder(tf.float32, [9, None], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=0, batch_axis=1, seq_lengths=[9, 9, 9])
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
         tf.reset_default_graph()
 
         x_val_shape = [5, 5, 7, 8, 9]
@@ -1652,28 +2013,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [5, None, 7, 8, 9], name=_TFINPUT)
         x_ = tf.reverse_sequence(x, seq_axis=0, batch_axis=1, seq_lengths=[5, 5, 5, 5, 5])
         _ = tf.identity(x_, name=_TFOUTPUT)
-        self._run_test_case([_OUTPUT], {_INPUT: x_val}, process_args=process_args)
-
-    @check_opset_min_version(8, "Scan")
-    @skip_opset(9, "ReverseSequence")
-    def test_reverse_sequence_batch_major(self):
-        self._test_reverse_sequence_batch_major()
-
-    @check_opset_min_version(8, "Scan")
-    @skip_opset(9, "ReverseSequence")
-    def test_reverse_sequence_time_major(self):
-        self._test_reverse_sequence_time_major()
-
-    # only support onnxruntime with version larger than 0.4.0
-    @test_ms_domain()
-    @check_onnxruntime_min_version("0.4.0")
-    def test_ms_reverse_sequence_batch_major(self, extra_opset):
-        self._test_reverse_sequence_batch_major(extra_opset)
-
-    @test_ms_domain()
-    @check_onnxruntime_min_version("0.4.0")
-    def test_ms_reverse_sequence_time_major(self, extra_opset):
-        self._test_reverse_sequence_time_major(extra_opset)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
     @check_opset_min_version(8, "where")
     def test_where(self):
@@ -1813,18 +2153,18 @@ class BackendTests(Tf2OnnxBackendTestBase):
 
             self._run_test_case([_OUTPUT], {_INPUT: label_val, _INPUT1: logits_val}, atol=1e-5)
 
+    @check_opset_min_version(7, "sparse_softmax_cross_entropy_with_logits")
     def test_sparse_softmax_cross_entropy_with_logits(self):
         num_class = 5
-        label_val = np.array([3, 2, 0, 4]).astype(np.int32)
-        logits_val = np.random.random((len(label_val), num_class)).astype(np.float32)
-
-        label = tf.placeholder(tf.int32, shape=[None], name=_TFINPUT)
-        logits = tf.placeholder(tf.float32, shape=[None, num_class], name=_TFINPUT1)
-
-        res1 = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label, logits=logits)
-        _ = tf.identity(res1, name=_TFOUTPUT)
-
-        self._run_test_case([_OUTPUT], {_INPUT: label_val, _INPUT1: logits_val})
+        for logic_shape in [[None, None], [None, num_class]]:
+            tf.reset_default_graph()
+            label_val = np.array([3, 2, 0, 4]).astype(np.int32)
+            logits_val = np.random.random((len(label_val), num_class)).astype(np.float32)
+            label = tf.placeholder(tf.int32, shape=[None], name=_TFINPUT)
+            logits = tf.placeholder(tf.float32, shape=logic_shape, name=_TFINPUT1)
+            res1 = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=label, logits=logits)
+            _ = tf.identity(res1, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: label_val, _INPUT1: logits_val})
 
     @check_target('rs6', 'SparseSoftmaxCrossEntropyWithLogits')
     def test_sparse_softmax_cross_entropy_with_logits_large_class(self):
@@ -1963,6 +2303,7 @@ class BackendTests(Tf2OnnxBackendTestBase):
         _ = tf.identity(res1, name=_TFOUTPUT1)
         self._run_test_case([_OUTPUT, _OUTPUT1], {_INPUT: input_val})
 
+    @check_opset_min_version(7, "fill")
     def test_zeros_like(self):
         input_val = np.random.random_sample([10, 20]).astype(np.float32)
         input_x = tf.placeholder(dtype=tf.float32, shape=[None] * input_val.ndim, name=_TFINPUT)
@@ -2014,6 +2355,143 @@ class BackendTests(Tf2OnnxBackendTestBase):
         x = tf.placeholder(tf.float32, [3], name=_TFINPUT)
         x_ = tf.nn.softsign(x)
         _ = tf.identity(x_, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val})
+
+    def test_batch_to_spacend(self):
+        block_size = [2, 2]
+        crop = [[0, 1], [2, 1]]
+
+        input_val = np.random.random_sample([40, 3, 5, 100]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.batch_to_space_nd(input_x, block_size, crop, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+    def test_batch_to_space3d(self):
+        block_size = [2, 2]
+        crop = [[0, 1], [2, 1]]
+
+        input_val = np.random.random_sample([40, 3, 100]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHC
+        _ = tf.batch_to_space_nd(input_x, block_size, crop, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+    def test_space_to_batchnd(self):
+        block_size = [2, 2]
+        pad = [[0, 1], [2, 1]]
+        input_val = np.random.random_sample([40, 5, 7, 66]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.space_to_batch_nd(input_x, block_size, pad, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+        tf.reset_default_graph()
+
+        pad = [[0, 0], [1, 2]]
+        input_val = np.random.random_sample([10, 6, 7, 66]).astype(np.float32)
+        input_x = tf.placeholder(dtype=tf.float32, shape=input_val.shape, name=_TFINPUT)  # NHWC
+        _ = tf.space_to_batch_nd(input_x, block_size, pad, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: input_val})
+
+    @check_opset_min_version(10, "is_inf")
+    def test_isinf(self):
+        x_types = [np.float32, np.float64]
+        for x_type in x_types:
+            x_val1 = np.array([1.0, -2.0, 3.0, -4.0], dtype=x_type)
+            x_val2 = np.array([np.inf, np.inf, np.inf, np.inf], dtype=x_type).reshape((2, 2))
+            x_val3 = np.array([1.0, np.inf, -3.0, np.inf, 5.0, np.inf, -7.0, np.inf], dtype=x_type).reshape((2, 2, 2))
+            for x_val in [x_val1, x_val2, x_val3]:
+                x = tf.placeholder(x_type, x_val.shape, name=_TFINPUT)
+                x_ = tf.is_inf(x)
+                _ = tf.identity(x_, name=_TFOUTPUT)
+                self._run_test_case([_OUTPUT], {_INPUT: x_val})
+                tf.reset_default_graph()
+
+    @check_opset_min_version(10, "NonMaxSuppression")
+    def test_non_max_suppression(self):
+        box_num = 10
+        boxes_val = np.random.random_sample([box_num, 4]).astype(np.float32)
+        scores_val = np.random.random_sample([box_num]).astype(np.float32)
+        boxes = tf.placeholder(tf.float32, shape=[None, 4], name=_TFINPUT)
+        scores = tf.placeholder(tf.float32, shape=[None], name=_TFINPUT1)
+        res1 = tf.image.non_max_suppression(boxes, scores, max_output_size=int(box_num / 2))
+        res2 = tf.image.non_max_suppression(boxes, scores, max_output_size=0)
+        _ = tf.identity(res1, name=_TFOUTPUT)
+        _ = tf.identity(res2, name=_TFOUTPUT1)
+        self._run_test_case([_OUTPUT, _OUTPUT1], {_INPUT: boxes_val, _INPUT1: scores_val})
+
+    def _conv1d_test(self, x_val, w, stride=None, padding="VALID", rtol=1e-07):
+        if stride is None:
+            stride = 1
+        tf.reset_default_graph()
+        kernel = tf.constant(w, dtype=tf.float32, name='k')
+        x = tf.placeholder(tf.float32, shape=x_val.shape, name=_TFINPUT)
+        conv = tf.nn.conv1d(x, kernel, stride=stride, padding=padding)
+        _ = tf.identity(conv, name=_TFOUTPUT)
+        self._run_test_case([_OUTPUT], {_INPUT: x_val}, rtol=rtol)
+
+    def test_conv1d_1(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w)
+
+    def test_conv1d_2(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, stride=2)
+
+    def test_conv1d_3(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, padding="SAME")
+
+    def test_conv1d_4(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([2., 1., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w, rtol=1e-05)
+
+    def test_conv1d_5(self):
+        x_val = make_xval((1, 7, 1))
+        w = np.array([3., 3., 3.], dtype=np.float32).reshape(3, 1, 1)
+        self._conv1d_test(x_val, w)
+
+    @check_opset_min_version(10, "ThresholdedRelu")
+    def test_thresholded_relu(self):
+        # tf.keras.layers.ThresholdedReLU only supports `float32` for x
+        x_val = np.array([0.0, 1.0, -1.0, 2.0, -2.0, 0.5, -0.5, 1.5, -1.5], dtype=np.float32).reshape((3, 3))
+        theta_vals = [-1.0, -0.5, 0.0, 0.5, 1.0]
+        for theta_val in theta_vals:
+            x = tf.placeholder(x_val.dtype, x_val.shape, name=_TFINPUT)
+            t = tf.keras.layers.ThresholdedReLU(theta=theta_val)
+            x_ = t.call(x)
+            _ = tf.identity(x_, name=_TFOUTPUT)
+            self._run_test_case([_OUTPUT], {_INPUT: x_val},
+                                graph_validator=lambda g: check_op_count(g, "ThresholdedRelu", 1))
+            tf.reset_default_graph()
+
+    @check_tf_min_version("1.13")
+    @check_opset_min_version(8, "MaxPoolWithArgmax")
+    def test_maxpoolwithargmax(self):
+        for tf_shape in ["known", "unknown"]:
+            tf.reset_default_graph()
+            for p in get_maxpoolwithargmax_getdata():
+                _, padding, x_shape, ksize, strides = p
+                tf.reset_default_graph()
+                x_val = make_xval(x_shape)
+                if tf_shape == "known":
+                    x = tf.placeholder(tf.float32, shape=x_val.shape, name=_TFINPUT)
+                else:
+                    x = tf.placeholder(tf.float32, shape=[None] * x_val.ndim, name=_TFINPUT)
+                mp = tf.nn.max_pool_with_argmax(x, ksize, strides, padding=padding)
+                _ = tf.identity(mp[0], name=_TFOUTPUT)
+                _ = tf.identity(mp[1], name=_TFOUTPUT1)
+                self.logger.debug(str(p))
+                self._run_test_case([_OUTPUT, _OUTPUT1], {_INPUT: x_val})
+
+    @check_opset_min_version(10, "Selu")
+    def test_selu(self):
+        x_val = np.random.random_sample([3]).astype(np.float32)
+        x = tf.placeholder(x_val.dtype, x_val.shape, name=_TFINPUT)
+        y = tf.nn.selu(x)
+        _ = tf.identity(y, name=_TFOUTPUT)
         self._run_test_case([_OUTPUT], {_INPUT: x_val})
 
 if __name__ == '__main__':
