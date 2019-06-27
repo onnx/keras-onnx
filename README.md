@@ -20,6 +20,7 @@ keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does n
 
 # tf.keras v.s. keras.io
 Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
+
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
 
 # Usage
