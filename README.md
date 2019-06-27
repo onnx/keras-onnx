@@ -1,8 +1,9 @@
 # keras2onnx
 
-| Linux | Windows |
-|-------|---------|
-| [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/linux-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=9&branchName=master) | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/win32-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=10&branchName=master) |
+|          | Linux | Windows |
+|----------|-------|---------|
+| keras.io | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/linux-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=9&branchName=master) | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/win32-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=10&branchName=master) | 
+| tf.keras | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/linux-tf-keras-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=19&branchName=master) | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/win32-tf-keras-CI?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=20&branchName=master) | 
 
 
 # Introduction
@@ -13,12 +14,13 @@ All Keras layers have been supported for conversion using keras2onnx since **ONN
 
 Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
 
-keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does not support **Python 2.x**.
+keras2onnx has been tested on **Python 3.5, 3.6, and 3.7** (CI build). It does not support **Python 2.x**. The tf.keras support in the keras2onnx converter has been tested with **Tensorflow 1.13.1**.
 
 # Notes
 
 # tf.keras v.s. keras.io
-Both Keras model types are supported now. If keras package was installed as the one from https://keras.io/, the converter converts the model as it was created by this keras.io package, otherwise it will convert as it was by tf.keras.<br>
+Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
+
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
 
 # Usage
