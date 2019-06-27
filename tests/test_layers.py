@@ -748,6 +748,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs_01": x, 'state_h_01': sh, 'state_c_01': sc}, expected))
 
+    @unittest.skipIf(get_opset_number_from_onnx() < 9,
+                     "None seq_length LSTM is not supported before opset 9.")
+    def test_LSTM_seqlen_none(self):
+        lstm_dim = 2
+        inp = keras.layers.Input(batch_shape=(1, None, 1))
+        out = keras.layers.LSTM(lstm_dim, return_sequences=True, stateful=True)(inp)
+        keras_model = keras.Model(inputs=inp, outputs=out)
+
+        onnx_model = keras2onnx.convert_keras(keras_model, target_opset=10)
+        data = np.random.rand(1, 5, 1).astype(np.float32)
+        expected = keras_model.predict(data)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
     def test_Bidirectional(self):
         for return_sequences in [True, False]:
             input_dim = 10
