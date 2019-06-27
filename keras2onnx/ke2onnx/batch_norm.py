@@ -25,7 +25,7 @@ def convert_keras_batch_normalization(scope, operator, container):
     else:
         axis = op.axis
 
-    skip_transpose = (op.axis != shape_len - 1 and op.axis != -1) or shape_len <= 2
+    skip_transpose = (axis != shape_len - 1 and axis != -1) or shape_len <= 2
     if not skip_transpose:
         perm_1 = list(range(1, shape_len - 1))
         perm_1 = [0, shape_len - 1] + perm_1

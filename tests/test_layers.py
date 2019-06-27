@@ -21,6 +21,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
+        self.keras_version = keras.__version__.split('-')[0]
 
     def tearDown(self):
         for fl in self.model_files:
@@ -269,7 +270,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_conv2d_padding_same(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
+    @unittest.skipIf(is_tf_keras, "Generic conv implementation only supports NHWC tensor format in tf_keras")
     def test_conv2d_format(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), channels_first=True)
 
@@ -500,17 +501,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         layer = keras.layers.Cropping2D(cropping=((1, 2), (2, 3)), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_upsample(self):
         if sys.version_info >= (3, 6):
-            ishape = (20,)
+            ishape = (20, 5)
             layer = keras.layers.UpSampling1D(size=2)
             self._misc_conv_helper(layer, ishape)
+            if not is_tf_keras:
+                ishape = (20,)
+                layer = keras.layers.UpSampling1D(size=2)
+                self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 1)
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
-            if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
+            if StrictVersion(self.keras_version) >= StrictVersion("2.2.3"):
                 layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                 self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
@@ -566,19 +570,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_batch_normalization(self):
         data = self.asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
-        self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 3)
-        self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 3)
-        self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
-        self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
+        # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
+        if not is_tf_keras:
+            self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
+            self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
+            self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
+            self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_batch_normalization_2(self):
-        for axis in [1, -1]:
+        # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
+        axis_list = [-1] if is_tf_keras else [1, -1]
+        for axis in axis_list:
             batch_size = 4
             input_dim_1 = 10
             input_dim_2 = 20
@@ -1006,7 +1012,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_MobileNet(self):
         mobilenet = keras.applications.mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
@@ -1014,7 +1019,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
