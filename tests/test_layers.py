@@ -748,7 +748,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs_01": x, 'state_h_01': sh, 'state_c_01': sc}, expected))
 
-
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
     def test_LSTM_seqlen_none(self):
