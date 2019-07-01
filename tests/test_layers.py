@@ -1024,6 +1024,24 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
 
+    def test_seq2seq(self):
+        import seq2seq
+        from seq2seq.models import SimpleSeq2Seq
+
+        model = SimpleSeq2Seq(input_dim=5, hidden_dim=10, output_length=8, output_dim=8)
+        model.compile(loss='mse', optimizer='rmsprop')
+        model.save('seq2seq.h5')
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+
+    def test_dqn(self):
+        from keras.models import load_model
+        keras_model = load_model('dqn.h5')
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        x = np.random.rand(3, 4, 84, 84).astype(np.float32)
+        expected = keras_model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+
 
 if __name__ == "__main__":
     unittest.main()
