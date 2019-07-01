@@ -21,6 +21,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
+        self.keras_version = keras.__version__.split('-')[0]
 
     def tearDown(self):
         for fl in self.model_files:
@@ -83,6 +84,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
                       file=sys.stderr)
 
         return res
+
+    def test_keras_with_tf2onnx(self):
+        model = keras.models.Sequential()
+        model.add(keras.layers.Dense(units=4, input_shape=(10,), activation='relu'))
+        model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['binary_accuracy'])
+        graph_def = keras2onnx.export_tf_frozen_graph(model)
+        onnx_model = keras2onnx.convert_tensorflow(graph_def, **keras2onnx.build_io_names_tf2onnx(model))
+        data = np.random.rand(4 * 10).astype(np.float32).reshape(4, 10)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('ktf2onnx_test', onnx_model, data, expected))
 
     def test_keras_lambda(self):
         model = keras.models.Sequential()
@@ -259,6 +270,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_conv2d_padding_same(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
 
+    @unittest.skipIf(is_tf_keras, "Generic conv implementation only supports NHWC tensor format in tf_keras")
     def test_conv2d_format(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), channels_first=True)
 
@@ -491,14 +503,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_upsample(self):
         if sys.version_info >= (3, 6):
-            ishape = (20,)
+            ishape = (20, 5)
             layer = keras.layers.UpSampling1D(size=2)
             self._misc_conv_helper(layer, ishape)
+            if not is_tf_keras:
+                ishape = (20,)
+                layer = keras.layers.UpSampling1D(size=2)
+                self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 1)
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
-            if StrictVersion(keras.__version__) >= StrictVersion("2.2.3"):
+            if StrictVersion(self.keras_version) >= StrictVersion("2.2.3"):
                 layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                 self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
@@ -556,15 +572,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_batch_normalization(self):
         data = self.asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
-        self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 3)
-        self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 3)
-        self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
-        self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
+        # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
+        if not is_tf_keras:
+            self._batch_norm_helper(data, 'ones', 'zeros', True, True, 1)
+            self._batch_norm_helper(data, 'ones', 'ones', True, True, 1)
+            self._batch_norm_helper(data, 'ones', 'ones', True, False, 1)
+            self._batch_norm_helper(data, 'zeros', 'zeros', False, True, 1)
 
     def test_batch_normalization_2(self):
-        for axis in [1, -1]:
+        # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
+        axis_list = [-1] if is_tf_keras else [1, -1]
+        for axis in axis_list:
             batch_size = 4
             input_dim_1 = 10
             input_dim_2 = 20
@@ -734,6 +754,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs_01": x, 'state_h_01': sh, 'state_c_01': sc}, expected))
 
+    @unittest.skipIf(get_opset_number_from_onnx() < 9,
+                     "None seq_length LSTM is not supported before opset 9.")
+    def test_LSTM_seqlen_none(self):
+        lstm_dim = 2
+        inp = keras.layers.Input(batch_shape=(1, None, 1))
+        out = keras.layers.LSTM(lstm_dim, return_sequences=True, stateful=True)(inp)
+        keras_model = keras.Model(inputs=inp, outputs=out)
+
+        onnx_model = keras2onnx.convert_keras(keras_model, target_opset=10)
+        data = np.random.rand(1, 5, 1).astype(np.float32)
+        expected = keras_model.predict(data)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
     def test_Bidirectional(self):
         for return_sequences in [True, False]:
             input_dim = 10
@@ -844,6 +877,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
+    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_model(self):
         Input = keras.layers.Input
         Dense = keras.layers.Dense
@@ -872,6 +906,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive', onnx_model, x, expected))
 
+    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_and_shared_model(self):
         Input = keras.layers.Input
         Dense = keras.layers.Dense
