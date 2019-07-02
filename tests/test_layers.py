@@ -122,9 +122,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
 
+    def _test_stridedslice_ellipsis_mask_with_version(self, target_opset):
+        _custom_op_handlers = {
+            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
+        model = keras.models.Sequential()
+        model.add(keras.layers.Lambda(lambda x: x[:, :2, ..., 1:], input_shape=[3, 4, 5, 6, 3]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
+
+        data = np.random.rand(5 * 3 * 4 * 5 * 6 * 3).astype(np.float32).reshape(5, 3, 4, 5, 6, 3)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice_ellipsis_mask', onnx_model, data, expected))
+
     def test_stridedslice(self):
-        self._test_stridedslice_with_version(9)
-        self._test_stridedslice_with_version(10)
+        for opset_ in [9, 10]:
+            self._test_stridedslice_with_version(opset_)
+            self._test_stridedslice_ellipsis_mask_with_version(opset_)
 
     def test_dense(self):
         for bias_value in [True, False]:
