@@ -73,6 +73,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
+    tf2onnx.logging.set_level(logging.DEBUG if debug_mode else logging.INFO)
 
     if name is None:
         name = model.name

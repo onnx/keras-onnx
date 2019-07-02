@@ -109,9 +109,6 @@ def _get_tensor_safe(graph, name):
 
 # This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
 def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
-    operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
-    operator.nodelist = node_list
-
     inputs = []
     ishapes = []
     outputs = []
@@ -133,7 +130,6 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
     i0_reshape_name = i_.op.name + '_reshape_0:0'
     i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_))
-    operator.add_input(i0_reshape)
     i0_reshape_shape = (-1,) + ishapes[0][2:]
     ishapes0 = [-1 if s_ is None else s_ for s_ in ishapes[0]]
     model_reshape_0 = keras.layers.Reshape(i0_reshape_shape, input_shape=ishapes0)
@@ -146,6 +142,7 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     oname = o_.name
     k2o_logger().debug('output: ' + oname)
     o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
+    o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
     model_reshape_1 = keras.layers.Reshape(oshapes1, input_shape=oshapes1)
     operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed', raw_model=model_reshape_1,
@@ -153,8 +150,17 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
     o1_reshape = varset.declare_local_variable(o1_reshape_name, _infer_variable_type(o_))
-    operator.add_output(o1_reshape)
     operator_reshape_1.add_input(o1_reshape)
+
+    inner_layer = layer.layer
+    setattr(inner_layer, '_input_shape', i0_reshape_shape)
+    setattr(inner_layer, '_output_shape', o1_reshape_shape)
+    setattr(layer, 'layer', inner_layer)
+
+    operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
+    operator.nodelist = node_list
+    operator.add_input(i0_reshape)
+    operator.add_output(o1_reshape)
 
     cvt = get_converter(type(layer.layer))
     if cvt is not None and hasattr(cvt, 'shape_infer'):
@@ -391,13 +397,19 @@ def _build_keras_nodeset(inference_nodeset, keras_node_dict):
     return nodes
 
 
-def _get_output_nodes(node_list):
-    nodes_has_children = set()
-    for node in node_list:
-        if node:
-            for input_tensor in node.inputs:
-                nodes_has_children.add(input_tensor.op)
-    return set(node_list) - nodes_has_children
+def _get_output_nodes(node_list, layer, node):
+    if layer:
+        for nd_ in extract_inbound_nodes(layer):
+            name_set = set(tsname_to_node(ts_.name) for ts_ in nd_.output_tensors)
+            if node.name in name_set:
+                return set(n_ for n_ in node_list if n_.name in name_set)
+    else:
+        nodes_has_children = set()
+        for node in node_list:
+            if node:
+                for input_tensor in node.inputs:
+                    nodes_has_children.add(input_tensor.op)
+        return set(node_list) - nodes_has_children
 
 
 def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names):
@@ -449,7 +461,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
         q_subgraph = queue.Queue()
         i_subgraph = set()
         nodes = []
-        for ot_ in (_get_output_nodes(activated_keras_nodes
+        for ot_ in (_get_output_nodes(activated_keras_nodes, type_k, node
                                       ) if activated_keras_nodes else [node]):
             if ot_ not in nodes:
                 visited.add(ot_)

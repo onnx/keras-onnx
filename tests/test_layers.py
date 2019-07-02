@@ -764,7 +764,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         sc = np.random.rand(1, C).astype(np.float32)
         expected = keras_model.predict([x, sh, sc])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs_01": x, 'state_h_01': sh, 'state_c_01': sc}, expected))
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs:01": x, 'state_h:01': sh, 'state_c:01': sc}, expected))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
