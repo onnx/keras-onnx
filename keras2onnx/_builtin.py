@@ -37,11 +37,6 @@ def process_begin_end(new_begin, new_end, stride):
 
 
 def on_StridedSlice(ctx, node, name, args):
-    not_supported_attr = []#["ellipsis_mask"]
-    for attr_name in not_supported_attr:
-        attr = node.get_attr(attr_name)
-        if attr is not None and attr.i != 0:
-            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
     begin = node.inputs[1].get_tensor_value()
     end = node.inputs[2].get_tensor_value()
     strides = node.inputs[3].get_tensor_value()
@@ -150,11 +145,6 @@ def on_StridedSlice(ctx, node, name, args):
 
 def on_StridedSlice_9(ctx, node, name, args):
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    not_supported_attr = ["ellipsis_mask"]
-    for attr_name in not_supported_attr:
-        attr = node.get_attr(attr_name)
-        if attr is not None and attr.i != 0:
-            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
     begin = node.inputs[1].get_tensor_value()
     end = node.inputs[2].get_tensor_value()
     strides = node.inputs[3].get_tensor_value()
@@ -167,17 +157,29 @@ def on_StridedSlice_9(ctx, node, name, args):
     new_axis_mask = new_axis_mask.i if new_axis_mask is not None else 0
     shrink_axis_mask = node.get_attr("shrink_axis_mask")
     shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
     new_begin = []
     new_end = []
     axes = []
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
+    ellipsis_gap = 0
     for idx, begin_item in enumerate(begin):
-        end_item = end[idx]
         if strides[idx] != 1:
             raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
-        axes.append(idx)
 
+        if (ellipsis_mask >> idx) & 1:
+            input_shape = ctx.get_shape(node.input[0])
+            utils.make_sure(
+                input_shape is not None,
+                "StridedSlice op {} requires the shape of input".format(node.name)
+            )
+            ellipsis_gap = len(input_shape) - len(begin)
+            continue
+
+        end_item = end[idx]
+        axes.append(idx + ellipsis_gap)
         if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
             new_begin.append(0)
             new_end.append(max_size)
@@ -196,7 +198,7 @@ def on_StridedSlice_9(ctx, node, name, args):
         if mask != 0:
             new_begin.append(begin_item)
             new_end.append(end_item)
-            needs_squeeze.append(idx)
+            needs_squeeze.append(idx + ellipsis_gap)
             continue
 
         if (begin_mask >> idx) & 1 != 0:
@@ -276,14 +278,10 @@ def on_TopKV2(ctx, node, name, args):
     node.type = "TopK"
 
 
+# This is for Pad opset 11 which is now a contrib op, TODO: need onnx schema update for Pad
 def on_Pad(ctx, node, name, args):
-    # TODO: need onnx schema update for Pad
     node.type = "Pad"
     node.domain = 'com.microsoft'
-    # T output = Pad(T input, int32 paddings, @type Tpaddings), CONST model using default value
-    #  or PadV2(T input, int32 paddings, T constant_value, @type Tpaddings), CONST mode - default value specified
-    #  or MirrorPad(T input, int32 paddings, @type Tpaddings, @STRING mode), other mode.
-    # T output = Pad(T data, @STRING mode, @INTS pads, @FLOAT value)
     mode = node.get_attr("mode")
     if mode:
         mode = mode.s.decode("utf-8").lower()

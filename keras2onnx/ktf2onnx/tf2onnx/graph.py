@@ -95,8 +95,6 @@ class Node(object):
         for a in self._attr.values():
             if schema is None or schema.has_attribute(a.name):
                 onnx_attrs[a.name] = a
-            if self.name == "Pad":
-                onnx_attrs[a.name] = a
         return onnx_attrs
 
     @property

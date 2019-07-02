@@ -649,7 +649,6 @@ def convert_DetectionLayer(scope, operator, container):
     container.add_node("Concat",
                        [box_gather, class_idx_cast, score_gather_unsqueeze],
                        concat_var,
-                       #operator.output_full_names[0],
                        op_version=operator.target_opset,
                        name=concat_node.name, **attrs)
     # output shape: [num_selected_indices, 6]
@@ -734,242 +733,26 @@ def generate_image(images, molded_images, windows, results):
     return results_final
 
 if len(sys.argv) > 1 and sys.argv[1] == '-c':
-    model.keras_model.save('mrcnn.h5')
     oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
     onnx.save_model(oml, './mrcnn.onnx')
 else:
     # run with ONNXRuntime
     import onnxruntime
-    print("The python process id is %d, attach the VS as the debugger." % os.getpid())
-
-    from os import walk
-
-    f_list = []
-    mypath = 'E:/test2017/test2017/'
-    for (dirpath, dirnames, filenames) in walk(mypath):
-        f_list.extend(filenames)
-        break
-
-    actual_count = 0
-    total_count = 0
-    correct_count = 0
-    correct_count_box = 0
-    correct_count_mask = 0
-    total_keras_time = 0
-    total_onnx_time = 0
-    skip_count = 0
-    process_generate_image = True
-    enable_skip = True
+    filename = sys.argv[1]
+    image = skimage.io.imread(filename)
+    images = [image]
 
     sess = onnxruntime.InferenceSession('./mrcnn.onnx')
 
-    for filename in f_list:
-        if enable_skip:
-            skip_count = skip_count + 1
-            if skip_count < 26:
-                continue
-        actual_count = actual_count + 1
-        print(filename)
+    # preprocessing
+    molded_images, image_metas, windows = model.mold_inputs(images)
+    anchors = model.get_anchors(molded_images[0].shape)
+    anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
 
-        loading_pass = True
-        try:
-            image = skimage.io.imread(mypath + filename)
-            #image = skimage.io.imread('../data/elephant.jpg')
-            images = [image]
-        except Exception as ex:
-            print("loading image fails: " + filename)
-            loading_pass = False
+    results = \
+        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                        "input_anchors:01": anchors,
+                        "input_image_meta:01": image_metas.astype(np.float32)})
 
-        if not loading_pass:
-            continue
-
-        keras_pass = True
-        try:
-            molded_images, image_metas, windows = model.mold_inputs(images)
-            anchors = model.get_anchors(molded_images[0].shape)
-            anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
-            start = timer()
-            results_k = model.keras_model.predict(
-                [molded_images.astype(np.float32), image_metas.astype(np.float32), anchors])
-            keras_end_time = timer()
-            total_keras_time = total_keras_time + keras_end_time - start
-            print("Total Keras inf time is %fs " % (keras_end_time - start))
-        except Exception as ex:
-            print("the image fails on keras: " + filename)
-            keras_pass = False
-
-        if not keras_pass:
-            continue
-
-
-        print("keras runs good: " + filename)
-        onnx_pass = True
-        try:
-            start_ort = timer()
-            '''
-            from onnx import numpy_helper
-            tensor1 = numpy_helper.from_array(molded_images.astype(np.float32))
-            tensor1.name = 'input_image:01'
-            with open(os.path.join('test_data_set_0', 'input_0.pb'), 'wb') as f:
-                f.write(tensor1.SerializeToString())
-            tensor2 = numpy_helper.from_array(anchors)
-            tensor2.name = 'input_anchors:01'
-            with open(os.path.join('test_data_set_0', 'input_1.pb'), 'wb') as f:
-                f.write(tensor2.SerializeToString())
-            tensor3 = numpy_helper.from_array(image_metas.astype(np.float32))
-            tensor3.name = 'input_image_meta:01'
-            with open(os.path.join('test_data_set_0', 'input_2.pb'), 'wb') as f:
-                f.write(tensor3.SerializeToString())
-            '''
-            results =\
-                sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                                "input_anchors:01": anchors,
-                                "input_image_meta:01": image_metas.astype(np.float32)})
-            '''
-            tensor_output_1 = numpy_helper.from_array(results[0], 'mrcnn_detection/Reshape_1:0')
-            with open(os.path.join('test_data_set_0', 'output_0.pb'), 'wb') as f:
-                f.write(tensor_output_1.SerializeToString())
-            tensor_output_2 = numpy_helper.from_array(results[1], 'mrcnn_class/Reshape_1:0')
-            with open(os.path.join('test_data_set_0', 'output_1.pb'), 'wb') as f:
-                f.write(tensor_output_2.SerializeToString())
-            tensor_output_3 = numpy_helper.from_array(results[2], 'mrcnn_bbox/Reshape:0')
-            with open(os.path.join('test_data_set_0', 'output_2.pb'), 'wb') as f:
-                f.write(tensor_output_3.SerializeToString())
-            tensor_output_4 = numpy_helper.from_array(results[3], 'mrcnn_mask/Reshape_1:0')
-            with open(os.path.join('test_data_set_0', 'output_3.pb'), 'wb') as f:
-                f.write(tensor_output_4.SerializeToString())
-            tensor_output_5 = numpy_helper.from_array(results[4], 'ROI/packed_2:0')
-            with open(os.path.join('test_data_set_0', 'output_4.pb'), 'wb') as f:
-                f.write(tensor_output_5.SerializeToString())
-            tensor_output_6 = numpy_helper.from_array(results[5], 'rpn_class/concat:0')
-            with open(os.path.join('test_data_set_0', 'output_5.pb'), 'wb') as f:
-                f.write(tensor_output_6.SerializeToString())
-            tensor_output_7 = numpy_helper.from_array(results[6], 'rpn_bbox/concat:0')
-            with open(os.path.join('test_data_set_0', 'output_6.pb'), 'wb') as f:
-                f.write(tensor_output_7.SerializeToString())
-            '''
-            onnx_end_time = timer()
-            total_onnx_time = total_onnx_time + onnx_end_time - start
-            print("Total ORT inf time is %fs " % (onnx_end_time - start))
-        except Exception as ex:
-            print("the image fails on onnx: " + filename)
-            onnx_pass = False
-
-        if not onnx_pass:
-            continue
-
-        print("onnxruntime runs good: " + filename)
-
-        rtol = 1.e-2 #1.e-3
-        atol = 1.e-3 #1.e-6
-        # compare_idx = range(len(results))
-        compare_idx = [0, 3]
-        result_match = True
-        box_match = False
-        mask_match = False
-
-        for n_ in compare_idx:
-            expected_list = results_k[n_].flatten()
-            actual_list = results[n_].flatten()
-            if n_ == 0:
-                expected_class_id = expected_list[4::6]
-                actual_class_id = actual_list[4::6]
-                expected_idx_sorted = sorted(range(len(expected_class_id)), key=lambda k: expected_class_id[k], reverse=True)
-                actual_idx_sorted = sorted(range(len(actual_class_id)), key=lambda k: actual_class_id[k], reverse=True)
-                expected_list_copy = np.copy(expected_list)
-                actual_list_copy = np.copy(actual_list)
-                for i_ in range(len(expected_idx_sorted)):
-                    expected_list_copy[6*i_:6*(i_+1)] = expected_list[6*expected_idx_sorted[i_]:6*(expected_idx_sorted[i_]+1)]
-                for i_ in range(len(actual_idx_sorted)):
-                    actual_list_copy[6*i_:6*(i_+1)] = actual_list[6*actual_idx_sorted[i_]:6*(actual_idx_sorted[i_]+1)]
-                expected_list = expected_list_copy
-                actual_list = actual_list_copy
-
-            if n_ == 3:
-                expected_list = np.array([1 if expected > 0.999 else 0 for expected in expected_list])
-                actual_list = np.array([1 if actual > 0.999 else 0 for actual in actual_list])
-
-            diff_list = abs(expected_list - actual_list)
-            count_total = len(expected_list)
-            count_error = 0
-            cur_count = 0
-
-            res = np.allclose(actual_list, expected_list, rtol=rtol, atol=atol)
-            if not res:
-                result_match = False
-
-            if n_ == 0 and res:
-                box_match = True
-                correct_count_box = correct_count_box + 1
-            if n_ == 3:
-                union_list = expected_list + actual_list
-                intersection_list = np.array([1 if union > 1.999 else 0 for union in union_list])
-                count_keras = np.count_nonzero(expected_list)
-                count_onnx = np.count_nonzero(actual_list)
-                count_intersection = np.count_nonzero(intersection_list)
-                count_union = np.count_nonzero(union_list)
-                ratio_str = str(count_intersection / count_union) if count_union > 0 else '1'
-                print("case = "  + ", keras count = " +
-                      str(count_keras) + ", onnx count = " +
-                      str(count_onnx) + ", intersection count = " +
-                      str(count_intersection) + ", union count = " + str(count_union) + ", with ratio = " +  ratio_str,
-                      file=sys.stderr)
-                if count_intersection > 0.99 * count_union or count_union == 0:
-                    mask_match = True
-                    correct_count_mask = correct_count_mask + 1
-
-            count_error_threshold = 20
-            if n_ != 3:
-                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                    if d_ > atol + rtol * abs(a_):
-                        if count_error < count_error_threshold:  # print the first count_error_threshold mismatches
-                            print(
-                                "case = " + ", result mismatch for results_keras = " + str(e_) +
-                                ", results_onnx = " + str(a_) + ", cur_count = " + str(cur_count), file=sys.stderr)
-                        count_error = count_error + 1
-                    cur_count = cur_count + 1
-                print("case = "  + ", " +
-                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
-                      file=sys.stderr)
-
-            if n_ == 3:
-                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                    if d_ > 0:
-                        if count_error < count_error_threshold:  # print the first count_error_threshold mismatches
-                            print(
-                                "case = " + ", result mismatch for results_keras = " + str(e_) +
-                                ", results_onnx = " + str(a_) + ", cur_count = " + str(cur_count), file=sys.stderr)
-                        count_error = count_error + 1
-                    cur_count = cur_count + 1
-                print("case = "  + ", " +
-                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
-                      file=sys.stderr)
-
-        try:
-            results_final_k = generate_image(images, molded_images, windows, results_k)
-            results_final = generate_image(images, molded_images, windows, results)
-        except Exception as ex:
-            print("the image cannot be generated for file:" + filename)
-
-        '''
-        if result_match:
-            correct_count = correct_count + 1
-        elif process_generate_image:
-            try:
-                results_final_k = generate_image(images, molded_images, windows, results_k)
-                results_final = generate_image(images, molded_images, windows, results)
-            except Exception as ex:
-                print("the image cannot be generated for file:" + filename)
-        '''
-        total_count = total_count + 1
-        print("actual_count = " + str(actual_count) + ", total_count = " + str(total_count) + ", correct_count = " + str(correct_count)
-              + ", correct_count_box = " + str(correct_count_box) + ", correct_count_mask = " + str(correct_count_mask) )
-
-        if total_count > 0:
-            print("avg_keras_time = " + str(total_keras_time / total_count) + ", avg_onnx_time = " + str(total_onnx_time / total_count)
-                  + ", ratio = " + str(total_onnx_time / total_keras_time))
-
-        #break
-        if actual_count == 100:
-            break
-
+    # postprocessing
+    results_final = generate_image(images, molded_images, windows, results)

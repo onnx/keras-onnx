@@ -100,11 +100,11 @@ keras_layer_to_operator = {
     _layer.SeparableConv1D: convert_keras_separable_conv1d,
     _layer.SeparableConv2D: convert_keras_separable_conv2d,
 
-    # _layer.Add: convert_keras_merge_layer,
-    # _layer.Multiply: convert_keras_merge_layer,
-    # _layer.Subtract: convert_keras_merge_layer,
-    # _layer.Average: convert_keras_merge_layer,
-    # _layer.Maximum: convert_keras_merge_layer,
+    _layer.Add: convert_keras_merge_layer,
+    _layer.Multiply: convert_keras_merge_layer,
+    _layer.Subtract: convert_keras_merge_layer,
+    _layer.Average: convert_keras_merge_layer,
+    _layer.Maximum: convert_keras_merge_layer,
 
     _layer.Dense: convert_keras_dense,
     _layer.Dot: convert_keras_dot,
