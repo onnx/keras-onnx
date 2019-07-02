@@ -5,7 +5,6 @@ import skimage
 import onnx
 import keras2onnx
 
-from timeit import default_timer as timer
 from mrcnn.config import Config
 from mrcnn import model as modellib
 from mrcnn import visualize
@@ -17,13 +16,6 @@ MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 
 # Path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
-
-# Directory to save logs and model checkpoints, if not provided
-# through the command line argument --logs
-DEFAULT_LOGS_DIR = os.path.join(ROOT_DIR, "logs")
-DEFAULT_DATASET_YEAR = "2014"
-# Directory of images to run detection on
-IMAGE_DIR = os.path.join(ROOT_DIR, "images")
 
 
 class CocoConfig(Config):
@@ -733,7 +725,8 @@ def generate_image(images, molded_images, windows, results):
     return results_final
 
 if len(sys.argv) > 1 and sys.argv[1] == '-c':
-    oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, debug_mode=True, custom_op_conversions=_custom_op_handlers)
+    # use opset 10 or later
+    oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=_custom_op_handlers)
     onnx.save_model(oml, './mrcnn.onnx')
 else:
     # run with ONNXRuntime
