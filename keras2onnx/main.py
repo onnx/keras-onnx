@@ -7,10 +7,10 @@ import os
 import logging
 import tf2onnx
 import tensorflow as tf
-from .proto import keras
+from .proto import keras, is_tf_keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
-from .common import with_variable
+from .common import with_variable, k2o_logger
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, DEFAULT_BATCH_SIZE, tsname_to_node
 from .topology import Topology
@@ -74,6 +74,14 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
     tf2onnx.logging.set_level(logging.DEBUG if debug_mode else logging.INFO)
+
+    if isinstance(model, tf.keras.Model):
+        if not is_tf_keras:
+            k2o_logger().warning("WARNING: This is a tensorflow keras model, but keras standalone converter is used." +
+                                 " Please set environment variable TF_KERAS.")
+    elif is_tf_keras:
+        k2o_logger().warning("WARNING: This is a keras standalone model, but tensorflow.keras converter is used." +
+                             " Please unset environment variable TF_KERAS.")
 
     if name is None:
         name = model.name
