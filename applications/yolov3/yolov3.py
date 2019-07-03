@@ -358,39 +358,28 @@ def convert_model(yolo, target_opset):
 def merge_model(yolo_0, yolo_1, name_output, target_opset):
     yolo_0_graph = yolo_0.graph
     yolo_1_graph = yolo_1.graph
-    from keras2onnx.common import OnnxObjectContainer
     from keras2onnx.proto import helper, onnx_proto
-    container = OnnxObjectContainer(target_opset)
     # Create a graph from its main components
     nodes = []
     nodes.extend(yolo_0_graph.node)
     nodes.extend(yolo_1_graph.node)
+    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[0].name], ['y1:01']))
+    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[1].name], ['y2:01']))
+    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[2].name], ['y3:01']))
+
     model_name = 'yolov3'
     inputs = []
     inputs.extend(yolo_0_graph.input)
     for input_ in yolo_1_graph.input:
         if input_.name == 'image_shape:01':
             inputs.extend([input_])
-    container.inputs = inputs
     outputs = []
     outputs.extend(yolo_1_graph.output)
-    container.outputs = outputs
-    container.initializers.extend(yolo_0_graph.initializer)
-    container.initializers.extend(yolo_1_graph.initializer)
-    value_info = []
-    value_info.extend(yolo_0_graph.value_info)
-    value_info.extend(yolo_1_graph.value_info)
-    container.value_info = value_info
+    initializers = []
+    initializers.extend(yolo_0_graph.initializer)
+    initializers.extend(yolo_1_graph.initializer)
 
-    container.add_node('Identity', 'conv2d_59/BiasAdd:0', 'y1:01')
-    container.add_node('Identity', 'conv2d_67/BiasAdd:0', 'y2:01')
-    container.add_node('Identity', 'conv2d_75/BiasAdd:0', 'y3:01')
-
-    graph = helper.make_graph(nodes + container.nodes, model_name, container.inputs,
-                              container.outputs, container.initializers)
-
-    # Add extra information related to the graph
-    graph.value_info.extend(container.value_info)
+    graph = helper.make_graph(nodes, model_name, inputs, outputs, initializers)
 
     # Create model
     imp = OperatorSetIdProto()
@@ -408,9 +397,10 @@ def merge_model(yolo_0, yolo_1, name_output, target_opset):
 
     onnx.save_model(onnx_model, name_output)
 
+
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Need an image name to detect.")
+        print("Need an image file for object detection.")
         exit(-1)
 
     model_file_name = 'model_data/yolov3.onnx'

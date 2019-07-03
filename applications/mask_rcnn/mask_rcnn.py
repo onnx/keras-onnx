@@ -724,28 +724,34 @@ def generate_image(images, molded_images, windows, results):
                                     class_names, r['scores'])
     return results_final
 
-if len(sys.argv) > 1 and sys.argv[1] == '-c':
-    # use opset 10 or later
-    oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=_custom_op_handlers)
-    onnx.save_model(oml, './mrcnn.onnx')
-else:
-    # run with ONNXRuntime
-    import onnxruntime
-    filename = sys.argv[1]
-    image = skimage.io.imread(filename)
-    images = [image]
 
-    sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Need an image file for object detection.")
+        exit(-1)
 
-    # preprocessing
-    molded_images, image_metas, windows = model.mold_inputs(images)
-    anchors = model.get_anchors(molded_images[0].shape)
-    anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+    if sys.argv[1] == '-c':
+        # use opset 10 or later
+        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=_custom_op_handlers)
+        onnx.save_model(oml, './mrcnn.onnx')
+    else:
+        # run with ONNXRuntime
+        import onnxruntime
+        filename = sys.argv[1]
+        image = skimage.io.imread(filename)
+        images = [image]
 
-    results = \
-        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                        "input_anchors:01": anchors,
-                        "input_image_meta:01": image_metas.astype(np.float32)})
+        sess = onnxruntime.InferenceSession('./mrcnn.onnx')
 
-    # postprocessing
-    results_final = generate_image(images, molded_images, windows, results)
+        # preprocessing
+        molded_images, image_metas, windows = model.mold_inputs(images)
+        anchors = model.get_anchors(molded_images[0].shape)
+        anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+
+        results = \
+            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                            "input_anchors:01": anchors,
+                            "input_image_meta:01": image_metas.astype(np.float32)})
+
+        # postprocessing
+        results_final = generate_image(images, molded_images, windows, results)
