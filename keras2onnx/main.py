@@ -10,7 +10,7 @@ import tensorflow as tf
 from .proto import keras, is_tf_keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
-from .common import with_variable, k2o_logger
+from .common import with_variable
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, DEFAULT_BATCH_SIZE, tsname_to_node
 from .topology import Topology
