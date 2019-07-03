@@ -8,6 +8,7 @@ import keras2onnx
 from mrcnn.config import Config
 from mrcnn import model as modellib
 from mrcnn import visualize
+from mrcnn.utils import download_trained_weights
 
 ROOT_DIR = os.path.abspath("./")
 
@@ -16,6 +17,9 @@ MODEL_DIR = os.path.join(ROOT_DIR, "logs")
 
 # Path to trained weights file
 COCO_MODEL_PATH = os.path.join(ROOT_DIR, "mask_rcnn_coco.h5")
+weights_path = COCO_MODEL_PATH
+if not os.path.exists(weights_path):
+    download_trained_weights(weights_path)
 
 
 class CocoConfig(Config):

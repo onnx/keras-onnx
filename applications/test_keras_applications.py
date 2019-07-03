@@ -36,6 +36,23 @@ class TestKerasApplications(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
+    def print_mismatches(self, case_name, expected_list, actual_list, atol, rtol):
+        diff_list = abs(expected_list - actual_list)
+        count_total = len(expected_list)
+        count_error = 0
+
+        for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+            if d_ > atol + rtol * abs(a_):
+                if count_error < 10:  # print the first 10 mismatches
+                    print(
+                        "case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                        ", actual = " + str(a_), file=sys.stderr)
+                count_error = count_error + 1
+
+        print("case = " + case_name + ", " +
+              str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
+              file=sys.stderr)
+
     def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
         temp_model_file = TestKerasApplications.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
@@ -62,21 +79,7 @@ class TestKerasApplications(unittest.TestCase):
             for n_ in range(len(expected)):
                 expected_list = expected[n_].flatten()
                 actual_list = actual[n_].flatten()
-                diff_list = abs(expected_list - actual_list)
-                count_total = len(expected_list)
-                count_error = 0
-
-                for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                    if d_ > atol + rtol * abs(a_):
-                        if count_error < 10:  # print the first 10 mismatches
-                            print(
-                                "case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                                ", actual = " + str(a_), file=sys.stderr)
-                        count_error = count_error + 1
-
-                print("case = " + case_name + ", " +
-                      str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
-                      file=sys.stderr)
+                self.print_mismatches(self, case_name, expected_list, actual_list, atol, rtol)
 
         return res
 
@@ -128,6 +131,62 @@ class TestKerasApplications(unittest.TestCase):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
         self._test_keras_model(model, atol=5e-3, img_size=299)
+
+    def test_mask_rcnn(self):
+        from mask_rcnn import model
+        from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad, on_CropAndResize, on_GatherNd
+
+        _custom_op_handlers = {
+            'Round': (on_Round, []),
+            'StridedSlice': (on_StridedSlice, []),
+            'TopKV2': (on_TopKV2, []),
+            'Pad': (on_Pad, []),
+            'PadV2': (on_Pad, []),
+            'CropAndResize': (on_CropAndResize, []),
+            'GatherNd': (on_GatherNd, [])
+        }
+
+        onnx_model = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=_custom_op_handlers)
+        import skimage
+        img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
+        image = skimage.io.imread(img_path)
+        images = [image]
+        case_name = 'mask_rcnn'
+
+        temp_model_file = TestKerasApplications.get_temp_file('temp_' + case_name + '.onnx')
+        onnx.save_model(onnx_model, temp_model_file)
+        try:
+            import onnxruntime
+            sess = onnxruntime.InferenceSession(temp_model_file)
+        except ImportError:
+            return True
+
+        # preprocessing
+        molded_images, image_metas, windows = model.mold_inputs(images)
+        anchors = model.get_anchors(molded_images[0].shape)
+        anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+
+        expected = model.keras_model.predict(
+            [molded_images.astype(np.float32), image_metas.astype(np.float32), anchors])
+
+        actual = \
+            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                            "input_anchors:01": anchors,
+                            "input_image_meta:01": image_metas.astype(np.float32)})
+
+        rtol = 1.e-3
+        atol = 1.e-6
+        compare_idx = [0, 3]
+        res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in compare_idx)
+        if res and temp_model_file not in self.model_files:  # still keep the failed case files for the diagnosis.
+            self.model_files.append(temp_model_file)
+        if not res:
+            for n_ in compare_idx:
+                expected_list = expected[n_].flatten()
+                actual_list = actual[n_].flatten()
+                self.print_mismatches(self, case_name, expected_list, actual_list, atol, rtol)
+
+        self.assertTrue(res)
 
     if __name__ == "__main__":
         unittest.main()
