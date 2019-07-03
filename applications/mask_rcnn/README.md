@@ -9,6 +9,8 @@ The conversion supports since opset 10.
 cd <mask_rcnn directory>
 pip install -e .
 cd <keras2onnx directory>/applications/mask_rcnn
-python mask_rcnn.py -c # convert to onnx
-python mask_rcnn.py <image url> # run object detection
+# convert the model to onnx
+python mask_rcnn.py -c
+# run object detection
+python mask_rcnn.py <image url>
 ```
