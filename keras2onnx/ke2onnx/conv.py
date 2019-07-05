@@ -18,23 +18,6 @@ SeparableConv1D = keras.layers.SeparableConv1D if \
     hasattr(keras.layers, 'SeparableConv1D') else None
 
 
-def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation, perm):
-    to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
-    input_size = to_nchw(input_size, perm)[2:]
-    output_shape = to_nchw(output_shape, perm)[2:]
-
-    spatial = len(kernel_shape)
-    total_padding = []
-    pads = [None] * 2 * spatial
-    for i in range(spatial):
-        total_padding[i:] = [stride[i] * (output_shape[i] - 1) +
-                             output_padding[i] + kernel_shape[i] * dilation[i] - input_size[i]]
-        pads[i] = total_padding[i] // 2
-        pads[i + spatial] = total_padding[i] - (total_padding[i] // 2)
-
-    return pads
-
-
 def process_separable_conv_2nd(scope, operator, container, convolution_input_names, n_dims,
                                weight_perm_axes, parameters, auto_pad):
     attrs = {'name': operator.full_name + '1'}
@@ -138,24 +121,10 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     if op.padding == 'valid':
         attrs['auto_pad'] = 'VALID'
     elif op.padding == 'same':
-        if input_shape.count(None) > 1:
-            if is_transpose:
-                attrs['auto_pad'] = 'SAME_LOWER'  # the controversial def in onnx spec.
-            else:
-                attrs['auto_pad'] = 'SAME_UPPER'
+        if is_transpose:
+            attrs['auto_pad'] = 'SAME_LOWER'  # the controversial def in onnx spec.
         else:
-            attrs['auto_pad'] = 'NOTSET'
-            output_padding = [0] * len(op.kernel_size)
-            if hasattr(op, 'output_padding') and op.output_padding is not None:
-                output_padding = op.output_padding
-            attrs['pads'] = _calc_explicit_padding(output_shape if is_transpose else input_shape,
-                                                   input_shape if is_transpose else output_shape,
-                                                   output_padding,
-                                                   op.kernel_size,
-                                                   op.strides,
-                                                   op.dilation_rate,
-                                                   list(range(
-                                                       len(input_shape))) if channels_first else input_perm_axes)
+            attrs['auto_pad'] = 'SAME_UPPER'
     else:
         raise RuntimeError("Unsupported padding type '{}'".format(op.padding))
 
