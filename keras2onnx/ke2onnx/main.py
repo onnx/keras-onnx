@@ -62,7 +62,10 @@ def build_opdict_from_keras(model):
             for node_ in extract_inbound_nodes(l_):
                 shared_layer |= any(
                     ts_.name not in submodel_dict for ts_ in node_.output_tensors)
-            if not shared_layer:  # shared layer will be handled with the sub-model granularity.
+                if shared_layer:
+                    break
+            if not shared_layer:  # shared layer(model) will be processed as a whole.
+                output_dict.update(submodel_dict)
                 continue
 
         for node_ in extract_inbound_nodes(l_):

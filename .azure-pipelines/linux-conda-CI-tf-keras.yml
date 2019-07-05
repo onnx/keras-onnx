@@ -42,8 +42,12 @@ jobs:
       python -m pip install --upgrade pip
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
-      pip install tensorflow
+      pip install tensorflow==1.13.1
       pip install -r requirements.txt
+      git clone https://github.com/microsoft/onnxconverter-common
+      cd onnxconverter-common
+      pip install -e .
+      cd ..
       pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
 
