@@ -25,6 +25,11 @@ jobs:
         ONNX_PATH: onnx==1.4.1
         KERAS: keras
 
+      Python37:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.5.0
+        KERAS: keras
+
     maxParallel: 3
 
   steps:
