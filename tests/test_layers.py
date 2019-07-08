@@ -281,6 +281,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_conv2d_padding_same(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
+        self._conv2_helper(8, 16, (1, 1), (2, 2), (60, 60), padding='same')
 
     @unittest.skipIf(is_tf_keras, "Generic conv implementation only supports NHWC tensor format in tf_keras")
     def test_conv2d_format(self):
