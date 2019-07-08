@@ -14,9 +14,20 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   strategy:
     matrix:
+      # No python 2.x since tf2onnx does not support it
+      Python35:
+        python.version: '3.5'
+        ONNX_PATH: onnx==1.2.3
+        KERAS: keras==2.1.6
+
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.4.1
+        ONNX_PATH: onnx==1.5.0
+        KERAS: keras
+
+      Python37:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.5.0
         KERAS: keras
 
     maxParallel: 3
