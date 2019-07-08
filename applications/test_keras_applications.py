@@ -132,6 +132,46 @@ class TestKerasApplications(unittest.TestCase):
         model = Xception(include_top=True, weights='imagenet')
         self._test_keras_model(model, atol=5e-3, img_size=299)
 
+    def test_yolov3(self):
+        from yolov3 import convert_model, merge_model, detect_img, YOLO
+
+        target_opset = 10
+        model_file_name = 'model_data/yolov3.onnx'
+        [onnxmodel, oxmlfinal] = convert_model(YOLO(), target_opset=target_opset)
+        merge_model(onnxmodel, oxmlfinal, model_file_name, target_opset=target_opset)
+        img_url = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
+        from PIL import Image
+        image = Image.open(img_url)
+        try:
+            import onnxruntime
+            sess = onnxruntime.InferenceSession(model_file_name)
+        except ImportError:
+            return True
+
+        from yolo3.utils import letterbox_image
+        model_image_size = (416, 416)
+        boxed_image = letterbox_image(image, tuple(reversed(model_image_size)))
+        image_data = np.array(boxed_image, dtype='float32')
+        image_data /= 255.
+        image_data = np.transpose(image_data, [2, 0, 1])
+
+        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
+        feed_f = dict(zip(['input_1:01', 'image_shape:01'],
+                          (image_data, np.array([image.size[1], image.size[0]], dtype=np.int32).reshape(1, 2))))
+        all_boxes, all_scores, indices = sess.run(None, input_feed=feed_f)
+        out_boxes, out_scores, out_classes = [], [], []
+        for idx_ in indices:
+            out_classes.append(idx_[1])
+            out_scores.append(all_scores[tuple(idx_)])
+            idx_1 = (idx_[0], idx_[2])
+            out_boxes.append(all_boxes[idx_1])
+
+        output_b = out_boxes[0].astype(np.int32)
+        expected = [14, 32, 426, 620]
+        rtol = 1.e-3
+        atol = 1.e-6
+        assert np.allclose(expected, output_b, rtol=rtol, atol=atol)
+
     def test_mask_rcnn(self):
         from mask_rcnn import model
         from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad, on_CropAndResize, on_GatherNd

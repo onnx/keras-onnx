@@ -27,8 +27,8 @@ def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shap
     total_padding = []
     pads = [None] * 2 * spatial
     for i in range(spatial):
-        total_padding[i:] = [stride[i] * (output_shape[i] - 1) +
-                             output_padding[i] + kernel_shape[i] * dilation[i] - input_size[i]]
+        total_padding[i:] = [stride[i] * output_shape[i] +
+                             output_padding[i] + (kernel_shape[i] - 1) * dilation[i] - input_size[i]]
         pads[i] = total_padding[i] // 2
         pads[i + spatial] = total_padding[i] - (total_padding[i] // 2)
 
