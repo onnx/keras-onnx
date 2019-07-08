@@ -8,6 +8,8 @@ from .funcbook import set_converter
 import sys
 import numpy as np
 import tf2onnx
+from tf2onnx import utils
+from onnx import onnx_pb, helper
 
 
 def default_convert(scope, operator, container):
@@ -35,11 +37,6 @@ def process_begin_end(new_begin, new_end, stride):
 
 
 def on_StridedSlice(ctx, node, name, args):
-    not_supported_attr = ["ellipsis_mask"]
-    for attr_name in not_supported_attr:
-        attr = node.get_attr(attr_name)
-        if attr is not None and attr.i != 0:
-            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
     begin = node.inputs[1].get_tensor_value()
     end = node.inputs[2].get_tensor_value()
     strides = node.inputs[3].get_tensor_value()
@@ -52,15 +49,27 @@ def on_StridedSlice(ctx, node, name, args):
     new_axis_mask = new_axis_mask.i if new_axis_mask is not None else 0
     shrink_axis_mask = node.get_attr("shrink_axis_mask")
     shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
     new_begin = []
     new_end = []
     axes = []
     steps = []
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
+    ellipsis_gap = 0
     for idx, begin_item in enumerate(begin):
+        if (ellipsis_mask >> idx) & 1:
+            input_shape = ctx.get_shape(node.input[0])
+            utils.make_sure(
+                input_shape is not None,
+                "StridedSlice op {} requires the shape of input".format(node.name)
+            )
+            ellipsis_gap = len(input_shape) - len(begin)
+            continue
+
         end_item = end[idx]
-        axes.append(idx)
+        axes.append(idx + ellipsis_gap)
         steps.append(strides[idx])
 
         if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
@@ -75,7 +84,7 @@ def on_StridedSlice(ctx, node, name, args):
         if mask != 0:
             new_begin.append(begin_item)
             new_end.append(end_item)
-            needs_squeeze.append(idx)
+            needs_squeeze.append(idx + ellipsis_gap)
             continue
 
         if (begin_mask >> idx) & 1 != 0:
@@ -136,11 +145,6 @@ def on_StridedSlice(ctx, node, name, args):
 
 def on_StridedSlice_9(ctx, node, name, args):
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    not_supported_attr = ["ellipsis_mask"]
-    for attr_name in not_supported_attr:
-        attr = node.get_attr(attr_name)
-        if attr is not None and attr.i != 0:
-            raise ValueError("StridedSlice: attribute " + attr_name + " not supported")
     begin = node.inputs[1].get_tensor_value()
     end = node.inputs[2].get_tensor_value()
     strides = node.inputs[3].get_tensor_value()
@@ -153,17 +157,29 @@ def on_StridedSlice_9(ctx, node, name, args):
     new_axis_mask = new_axis_mask.i if new_axis_mask is not None else 0
     shrink_axis_mask = node.get_attr("shrink_axis_mask")
     shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
     new_begin = []
     new_end = []
     axes = []
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
+    ellipsis_gap = 0
     for idx, begin_item in enumerate(begin):
-        end_item = end[idx]
         if strides[idx] != 1:
             raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
-        axes.append(idx)
 
+        if (ellipsis_mask >> idx) & 1:
+            input_shape = ctx.get_shape(node.input[0])
+            utils.make_sure(
+                input_shape is not None,
+                "StridedSlice op {} requires the shape of input".format(node.name)
+            )
+            ellipsis_gap = len(input_shape) - len(begin)
+            continue
+
+        end_item = end[idx]
+        axes.append(idx + ellipsis_gap)
         if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
             new_begin.append(0)
             new_end.append(max_size)
@@ -182,7 +198,7 @@ def on_StridedSlice_9(ctx, node, name, args):
         if mask != 0:
             new_begin.append(begin_item)
             new_end.append(end_item)
-            needs_squeeze.append(idx)
+            needs_squeeze.append(idx + ellipsis_gap)
             continue
 
         if (begin_mask >> idx) & 1 != 0:
@@ -235,7 +251,6 @@ def on_StridedSlice_9(ctx, node, name, args):
 
 
 def on_Round(ctx, node, name, args):
-    from onnx import onnx_pb
     const_name = tf2onnx.utils.make_name(node.name)
     const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
     cast_name = tf2onnx.utils.make_name(node.name)
@@ -248,6 +263,83 @@ def on_Round(ctx, node, name, args):
     node.type = "Ceil"
     return [const_node, add_node, node]
 
+
+def on_TopKV2(ctx, node, name, args):
+    # onnx only supports input K as a 1D tesor with dtype int64
+    # while in tf, K is a 0D tensor with dtype int32
+    k_0d = node.input[1]
+    cast = ctx.make_node("Cast", [k_0d], attr={"to": onnx_pb.TensorProto.INT64})
+    k_1d = ctx.make_node("Unsqueeze", cast.output, attr={"axes": [0]})
+    ctx.replace_input(node, k_0d, k_1d.output[0])
+
+    k_0 = node.input[0]
+    cast_0 = ctx.make_node("Cast", [k_0], attr={"to": onnx_pb.TensorProto.FLOAT})
+    ctx.replace_input(node, k_0, cast_0.output[0])
+    node.type = "TopK"
+
+
+# This is for Pad opset 11 which is now a contrib op, TODO: need onnx schema update for Pad
+def on_Pad(ctx, node, name, args):
+    node.type = "Pad"
+    node.domain = 'com.microsoft'
+    mode = node.get_attr("mode")
+    if mode:
+        mode = mode.s.decode("utf-8").lower()
+        node.set_attr("mode", mode)
+    if mode not in [None, "constant", "reflect"]:
+        raise ValueError(mode + " pad mode is not supported")
+
+    origin_dtype = ctx.get_dtype(node.output[0])
+    cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[1])
+    cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
+    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
+    ctx.copy_shape(node.name, cast_node.output[0])
+
+    attrs = {'perm': [1,0]}
+    transpose_node = ctx.make_node("Transpose", [cast_node.output[0]], name=tf2onnx.utils.make_name(node.name), attr=attrs)
+
+    const_name = tf2onnx.utils.make_name(node.name)
+
+    const_array = ctx.make_const(const_name, np.array([-1], dtype=np.int64))
+
+    reshape = ctx.make_node("Reshape", [transpose_node.output[0], const_array.output[0]])
+    ctx.replace_input(node, node.input[1], reshape.output[0])
+
+    if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,
+                            onnx_pb.TensorProto.DOUBLE]:
+        cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
+        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+        ctx.copy_shape(node.name, cast_node.output[0])
+
+        cast_back_node = ctx.insert_new_node_on_output("Cast", node.output[0],
+                                                       name=tf2onnx.utils.make_name(node.name) + "_castback")
+        cast_back_node.set_attr("to", origin_dtype)
+        ctx.set_dtype(cast_back_node.output[0], origin_dtype)
+        ctx.copy_shape(node.name, cast_back_node.output[0])
+
+
+def on_CropAndResize(ctx, node, name, args):
+    node.type = "CropAndResize"
+    node.domain = 'com.microsoft'
+    mode = node.get_attr("method")
+    if mode:
+        mode_value = helper.get_attribute_value(mode)
+        del node.attr['method']
+        node.set_attr("mode", mode_value)
+
+    transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
+    transpose_node.set_attr("perm", [0, 3, 1, 2])
+    ctx.set_dtype(transpose_node.output[0], onnx_pb.TensorProto.INT64)
+
+    transpose_node_2 = ctx.insert_new_node_on_output("Transpose", node.output[0],
+                            name=tf2onnx.utils.make_name(node.name) + "_transpose_final")
+    transpose_node_2.set_attr("perm", [0, 2, 3, 1])
+    ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
+
+def on_GatherNd(ctx, node, name, args):
+    node.type = "GatherND"
+    node.domain = "com.microsoft"
 
 def tf2onnx_builtin_conversion(opset):
     return {

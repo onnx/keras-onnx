@@ -7,7 +7,7 @@ import os
 import logging
 import tf2onnx
 import tensorflow as tf
-from .proto import keras
+from .proto import keras, is_tf_keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
@@ -73,6 +73,11 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
+    tf2onnx.logging.set_level(logging.DEBUG if debug_mode else logging.INFO)
+
+    if isinstance(model, tf.keras.Model) and not is_tf_keras:
+        raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
+                        " Please set environment variable TF_KERAS = 1.")
 
     if name is None:
         name = model.name

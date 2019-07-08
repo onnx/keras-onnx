@@ -122,9 +122,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
 
+    def _test_stridedslice_ellipsis_mask_with_version(self, target_opset):
+        _custom_op_handlers = {
+            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
+        model = keras.models.Sequential()
+        model.add(keras.layers.Lambda(lambda x: x[:, :2, ..., 1:], input_shape=[3, 4, 5, 6, 3]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
+
+        data = np.random.rand(5 * 3 * 4 * 5 * 6 * 3).astype(np.float32).reshape(5, 3, 4, 5, 6, 3)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice_ellipsis_mask', onnx_model, data, expected))
+
     def test_stridedslice(self):
-        self._test_stridedslice_with_version(9)
-        self._test_stridedslice_with_version(10)
+        for opset_ in [9, 10]:
+            self._test_stridedslice_with_version(opset_)
+            self._test_stridedslice_ellipsis_mask_with_version(opset_)
 
     def test_dense(self):
         for bias_value in [True, False]:
@@ -269,6 +281,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_conv2d_padding_same(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
+        self._conv2_helper(8, 16, (1, 1), (2, 2), (60, 60), padding='same')
 
     @unittest.skipIf(is_tf_keras, "Generic conv implementation only supports NHWC tensor format in tf_keras")
     def test_conv2d_format(self):
@@ -752,7 +765,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         sc = np.random.rand(1, C).astype(np.float32)
         expected = keras_model.predict([x, sh, sc])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs_01": x, 'state_h_01': sh, 'state_c_01': sc}, expected))
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs:01": x, 'state_h:01': sh, 'state_c:01': sc}, expected))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
@@ -1035,12 +1048,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_dqn(self):
         from keras.models import load_model
-        keras_model = load_model('dqn.h5')
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        x = np.random.rand(3, 4, 84, 84).astype(np.float32)
-        expected = keras_model.predict(x)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+        import rl
+        from rl.agents.dqn import NAFLayer
 
+        keras_model = load_model('dqn.h5', custom_objects={'NAFLayer': NAFLayer})
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        x = np.random.rand(3, 1, 3).astype(np.float32)
+        y = np.random.rand(3, 1).astype(np.float32)
+        expected = keras_model.predict([x, y])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
 
 
 if __name__ == "__main__":
