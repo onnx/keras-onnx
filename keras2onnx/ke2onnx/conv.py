@@ -18,7 +18,7 @@ SeparableConv1D = keras.layers.SeparableConv1D if \
     hasattr(keras.layers, 'SeparableConv1D') else None
 
 
-def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation, perm):
+def _calc_explicit_padding(input_size, output_shape, is_transpose, output_padding, kernel_shape, stride, dilation, perm):
     to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
     input_size = to_nchw(input_size, perm)[2:]
     output_shape = to_nchw(output_shape, perm)[2:]
@@ -27,8 +27,13 @@ def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shap
     total_padding = []
     pads = [None] * 2 * spatial
     for i in range(spatial):
-        total_padding[i:] = [stride[i] * output_shape[i] +
-                             output_padding[i] + (kernel_shape[i] - 1) * dilation[i] - input_size[i]]
+        # padding is calculated differently for Conv and ConvTranspose
+        if is_transpose:
+            total_padding[i:] = [stride[i] * (output_shape[i] - 1) +
+                                 output_padding[i] + kernel_shape[i] * dilation[i] - input_size[i]]
+        else:
+            total_padding[i:] = [stride[i] * output_shape[i] +
+                                 output_padding[i] + (kernel_shape[i] - 1) * dilation[i] - input_size[i]]
         pads[i] = total_padding[i] // 2
         pads[i + spatial] = total_padding[i] - (total_padding[i] // 2)
 
@@ -150,6 +155,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                 output_padding = op.output_padding
             attrs['pads'] = _calc_explicit_padding(output_shape if is_transpose else input_shape,
                                                    input_shape if is_transpose else output_shape,
+                                                   is_transpose,
                                                    output_padding,
                                                    op.kernel_size,
                                                    op.strides,
