@@ -700,15 +700,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_LSTM(self):
         LSTM = keras.layers.LSTM
         inputs1 = keras.Input(shape=(3, 5))
+        data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
         for use_bias in [True, False]:
-            cls = LSTM(units=2, return_state=True, return_sequences=True, use_bias=use_bias)
-            lstm1, state_h, state_c = cls(inputs1)
-            model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
-            data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
-            onnx_model = keras2onnx.convert_keras(model, model.name)
-
-        expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+            for return_sequences in [True, False]:
+                cls = LSTM(units=2, return_state=True, return_sequences=return_sequences, use_bias=use_bias)
+                lstm1, state_h, state_c = cls(inputs1)
+                model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+                onnx_model = keras2onnx.convert_keras(model, model.name)
+                expected = model.predict(data)
+                self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_LSTM_with_bias(self):
         LSTM = keras.layers.LSTM
@@ -771,42 +771,40 @@ class TestKerasTF2ONNX(unittest.TestCase):
                      "None seq_length LSTM is not supported before opset 9.")
     def test_LSTM_seqlen_none(self):
         lstm_dim = 2
-        inp = keras.layers.Input(batch_shape=(1, None, 1))
-        out = keras.layers.LSTM(lstm_dim, return_sequences=True, stateful=True)(inp)
-        keras_model = keras.Model(inputs=inp, outputs=out)
-
-        onnx_model = keras2onnx.convert_keras(keras_model, target_opset=10)
         data = np.random.rand(1, 5, 1).astype(np.float32)
-        expected = keras_model.predict(data)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+        for return_sequences in [True, False]:
+            inp = keras.layers.Input(batch_shape=(1, None, 1))
+            out = keras.layers.LSTM(lstm_dim, return_sequences=return_sequences, stateful=True)(inp)
+            keras_model = keras.Model(inputs=inp, outputs=out)
+
+            onnx_model = keras2onnx.convert_keras(keras_model, target_opset=10)
+            expected = keras_model.predict(data)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_Bidirectional(self):
+        input_dim = 10
+        sequence_len = 5
+        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
         for return_sequences in [True, False]:
-            input_dim = 10
-            sequence_len = 5
             model = keras.Sequential()
-            model.add(keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=return_sequences),
+            model.add(keras.layers.Bidirectional(keras.layers.LSTM(7, return_sequences=return_sequences),
                       input_shape=(5, 10)))
             model.add(keras.layers.Dense(5))
             model.add(keras.layers.Activation('softmax'))
             model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
 
             onnx_model = keras2onnx.convert_keras(model, 'test')
-            data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
             expected = model.predict(data)
             self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
+        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
         for merge_mode in ['concat', None]:
-            # TODO: case return_sequences=False
-            for return_sequences in [True]:
-                input_dim = 10
-                sequence_len = 5
+            for return_sequences in [True, False]:
                 sub_input1 = keras.layers.Input(shape=(sequence_len, input_dim))
-                sub_mapped1 = keras.layers.Bidirectional(keras.layers.LSTM(10, return_sequences=return_sequences),
+                sub_mapped1 = keras.layers.Bidirectional(keras.layers.LSTM(7, return_sequences=return_sequences),
                                                      input_shape=(5, 10), merge_mode=merge_mode)(sub_input1)
                 keras_model = keras.Model(inputs=sub_input1, outputs=sub_mapped1)
                 onnx_model = keras2onnx.convert_keras(keras_model, 'test_2')
-                data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
                 expected = keras_model.predict(data)
                 self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 

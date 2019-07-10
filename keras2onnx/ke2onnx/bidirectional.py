@@ -149,40 +149,9 @@ def convert_bidirectional(scope, operator, container):
     else:
         lstm_input_names.append('')  # the name of a non-existing optional variable is an empty string
 
-    oopb = OnnxOperatorBuilder(container, scope)
-    input_shape_tensor = oopb.add_node('Shape',
-                                       [operator.input_full_names[0]],
-                                        operator.inputs[0].full_name + '_input_shape_tensor')
-
-    if container.target_opset >= 10:
-        batch_indices_tensor = oopb.add_node('Slice',
-                                             [input_shape_tensor,
-                                              ('_start', oopb.int64, np.array([0], dtype='int64')),
-                                              ('_end', oopb.int64, np.array([1], dtype='int64')),
-                                              ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                              ],
-                                             operator.inputs[0].full_name + '_batch_indices_tensor')
-
-        seq_len_tensor = oopb.add_node('Slice',
-                                      [input_shape_tensor,
-                                       ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                       ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                       ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                       ],
-                                      operator.inputs[0].full_name + '_seq_len_tensor')
-    else:
-        attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
-        batch_indices_tensor = oopb.add_node('Slice',
-                                             [input_shape_tensor],
-                                             operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
-
-        attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
-        seq_len_tensor = oopb.add_node('Slice',
-                                       [input_shape_tensor],
-                                       operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
-
     # sequence_lens, this input is not used when converting Keras Bidirectional.
     lstm_input_names.append('')
+    oopb = OnnxOperatorBuilder(container, scope)
 
     if is_static_shape:
         # need the zero initializer to correct some engine shape inference bug.
@@ -196,13 +165,43 @@ def convert_bidirectional(scope, operator, container):
                                   np.zeros(shape=state_shape).flatten())
         lstm_input_names.append(initial_c_name)
     else:
-        attrs = {'axis': 0}
+        input_shape_tensor = oopb.add_node('Shape',
+                                           [operator.input_full_names[0]],
+                                            operator.inputs[0].full_name + '_input_shape_tensor')
+
+        if container.target_opset >= 10:
+            batch_indices_tensor = oopb.add_node('Slice',
+                                                 [input_shape_tensor,
+                                                  ('_start', oopb.int64, np.array([0], dtype='int64')),
+                                                  ('_end', oopb.int64, np.array([1], dtype='int64')),
+                                                  ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                                  ],
+                                                 operator.inputs[0].full_name + '_batch_indices_tensor')
+
+            seq_len_tensor = oopb.add_node('Slice',
+                                          [input_shape_tensor,
+                                           ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                           ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                           ],
+                                          operator.inputs[0].full_name + '_seq_len_tensor')
+        else:
+            attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
+            batch_indices_tensor = oopb.add_node('Slice',
+                                                 [input_shape_tensor],
+                                                 operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
+
+            attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
+            seq_len_tensor = oopb.add_node('Slice',
+                                           [input_shape_tensor],
+                                           operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
+
         batch_size_tensor = oopb.add_node('Concat',
                                       [('_a', oopb.int64, np.array([2], dtype='int64')),
                                        batch_indices_tensor,
                                        ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
                                        ],
-                                      operator.inputs[0].full_name + '_state_shape_tensor', **attrs)
+                                      operator.inputs[0].full_name + '_state_shape_tensor', axis=0)
 
         state_constant_shape_h = oopb.add_node('ConstantOfShape',
                                                [batch_size_tensor],
@@ -274,27 +273,19 @@ def convert_bidirectional(scope, operator, container):
             lstm_y_name_fixed = scope.get_unique_variable_name(operator.full_name + '_Y_fixed')
             apply_reshape(scope, lstm_y_name, lstm_y_name_fixed, container, desired_shape=[seq_length, 2, -1, hidden_size])
         else:
-            attrs = {'axis': 0}
             shape_tensor = oopb.add_node('Concat',
                                          [seq_len_tensor,
                                           ('_a', oopb.int64, np.array([2], dtype='int64')),
                                           ('_b', oopb.int64, np.array([-1], dtype='int64')),
                                           ('_c', oopb.int64, np.array([hidden_size], dtype='int64'))
                                           ],
-                                         operator.inputs[0].full_name + '_output_seq_shape', **attrs)
+                                         operator.inputs[0].full_name + '_output_seq_shape', axis=0)
             lstm_y_name_fixed = oopb.add_node('Reshape',
                                              [lstm_y_name,
                                               shape_tensor
                                               ],
                                              operator.inputs[0].full_name + '_output_seq_shape_1')
 
-        attrs = {'axis': 0}
-        shape_tensor_2 = oopb.add_node('Concat',
-                                     [('_a', oopb.int64, np.array([-1], dtype='int64')),
-                                       seq_len_tensor,
-                                      ('_b', oopb.int64, np.array([2 * hidden_size], dtype='int64'))
-                                      ],
-                                     operator.inputs[0].full_name + '_output_seq_shape_2', **attrs)
         if merge_concat:
             # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
 
@@ -307,6 +298,13 @@ def convert_bidirectional(scope, operator, container):
                 apply_reshape(scope, transposed_y_name, operator.outputs[0].full_name, container,
                               desired_shape=[-1, seq_length, 2 * hidden_size])
             else:
+                attrs = {'axis': 0}
+                shape_tensor_2 = oopb.add_node('Concat',
+                                               [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                                seq_len_tensor,
+                                                ('_b', oopb.int64, np.array([2 * hidden_size], dtype='int64'))
+                                                ],
+                                               operator.inputs[0].full_name + '_output_seq_shape_2', **attrs)
                 shape_tensor_output = oopb.add_node('Reshape',
                                                   [transposed_y_name,
                                                    shape_tensor_2
@@ -324,15 +322,16 @@ def convert_bidirectional(scope, operator, container):
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
             forward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_forward')
             backward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_backward')
-            apply_split(scope, transposed_y_name, [forward_y_name, backward_y_name], container, axis=2)
+            axis_direction = 2
+            apply_split(scope, transposed_y_name, [forward_y_name, backward_y_name], container, axis=axis_direction)
 
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
             forward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_forward_1')
             backward_y_name_1 = scope.get_unique_variable_name(operator.full_name + '_Y_backward_1')
             container.add_node('Squeeze', forward_y_name, forward_y_name_1,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
             container.add_node('Squeeze', backward_y_name, backward_y_name_1,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
 
             if is_static_shape:
                 apply_reshape(scope, forward_y_name_1, operator.outputs[0].full_name, container,
@@ -384,10 +383,11 @@ def convert_bidirectional(scope, operator, container):
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
             forward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_forward')
             backward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_backward')
-            apply_split(scope, transposed_h_name, [forward_y_name, backward_y_name], container, axis=2)
+            axis_direction = 1
+            apply_split(scope, transposed_h_name, [forward_y_name, backward_y_name], container, axis=axis_direction)
 
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
             container.add_node('Squeeze', forward_y_name, operator.outputs[0].full_name,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
             container.add_node('Squeeze', backward_y_name, operator.outputs[1].full_name,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[2])
+                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
