@@ -7,7 +7,7 @@ import six
 
 from ..proto import keras
 from ..common import with_variable
-from ..common.onnx_ops import apply_identity, apply_reshape
+from ..common.onnx_ops import apply_identity, apply_reshape, apply_concat
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -45,6 +45,14 @@ def convert_keras_reshape(scope, operator, container):
 
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
+
+
+def convert_keras_concat(scope, operator, container):
+    axis = operator.raw_operator.axis
+    if axis < 0:
+        axis += len(operator.raw_operator.output.shape)
+    apply_concat(scope, operator.input_full_names, operator.output_full_names, container,
+                 operator_name=operator.full_name, axis=axis)
 
 
 def convert_keras_training_only_layer(scope, operator, container):
@@ -105,6 +113,7 @@ keras_layer_to_operator = {
     _layer.Subtract: convert_keras_merge_layer,
     _layer.Average: convert_keras_merge_layer,
     _layer.Maximum: convert_keras_merge_layer,
+    _layer.Concatenate: convert_keras_concat,
 
     _layer.Dense: convert_keras_dense,
     _layer.Dot: convert_keras_dot,

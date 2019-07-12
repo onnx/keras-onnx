@@ -30,6 +30,7 @@ def convert_keras_embed(scope, operator, container):
                               [op.input_dim, op.output_shape[-1]], weights)
 
     # Create a Gather operator to extract the latent representation of each index
-    op_type = 'Gather'
-    attrs = {'name': operator.full_name}
-    container.add_node(op_type, [embedding_tensor_name, cast_name], operator.output_full_names, **attrs)
+    container.Gather([embedding_tensor_name, cast_name], operator.output_full_names, name=operator.full_name)
+
+    if operator.input_mask:
+        pass

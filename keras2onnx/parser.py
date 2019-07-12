@@ -6,6 +6,7 @@
 import six
 import tensorflow as tf
 from six.moves import queue
+from collections import Iterable
 from .proto import keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
@@ -126,7 +127,7 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
     i_ = inputs[0]
     iname = i_.name
-    k2o_logger().debug('input: ' + iname)
+    k2o_logger().debug('td_layer input: ' + iname)
     i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
     i0_reshape_name = i_.op.name + '_reshape_0:0'
     i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_))
@@ -140,7 +141,7 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
     o_ = outputs[0]
     oname = o_.name
-    k2o_logger().debug('output: ' + oname)
+    k2o_logger().debug('td_layer output: ' + oname)
     o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
     o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
@@ -169,9 +170,9 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     return operator
 
 
-def _convert_keras_scope(graph, node_list, layer, model, varset):
+def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
-    operator.nodelist = node_list
+    operator.nodelist = None  # explicitly disable the usage of nodelist member in Keras layer converter.
 
     inputs = []
     outputs = []
@@ -181,25 +182,120 @@ def _convert_keras_scope(graph, node_list, layer, model, varset):
             inputs += nb_.input_tensors
             outputs += nb_.output_tensors
             oshapes += nb_.output_shapes
+            assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
+
+    if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
+        prefix = ''
 
     for i_ in inputs:
-        iname = i_.name
-        k2o_logger().debug('input: ' + iname)
+        iname = prefix + i_.name
+        k2o_logger().debug('input : ' + iname)
         i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
         operator.add_input(i0)
 
+    if hasattr(layer, 'input_mask') and layer.input_mask is not None:
+        in_mask = layer.input_mask if isinstance(layer.input_mask, Iterable) else [layer.input_mask]
+        for im_ in [m_ for m_ in in_mask if m_]:
+            mts_name = im_.name  # input mask in a shared model is not supported yet, who need it?
+            k2o_logger().debug('input mask: ' + mts_name)
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(im_))
+            operator.add_input_mask(mts_var)
+
     for n_, o_ in enumerate(outputs):
-        oname = o_.name
+        oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
         o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
         o1.type.shape = ['None' if s_ is None else s_ for s_ in oshapes[n_]]
         operator.add_output(o1)
+
+    if hasattr(layer, 'output_mask') and layer.output_mask is not None:
+        out_mask = layer.output_mask if isinstance(layer.output_mask, Iterable) else [layer.output_mask]
+        for om_ in [m_ for m_ in out_mask if m_]:
+            mts_name = prefix + om_.name
+            k2o_logger().debug('output mask: ' + mts_name)
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(om_))
+            operator.add_output_mask(mts_var)
 
     cvt = get_converter(operator.type)
     if cvt is not None and hasattr(cvt, 'shape_infer'):
         operator.shape_infer = cvt.shape_infer
 
     return operator
+
+
+def _check_layer_converter_availability(sub_model):
+    for l_ in sub_model.layers:
+        if isinstance(l_, keras.Model):
+            exist = _check_layer_converter_availability(l_)
+        else:
+            layer_type = type(l_)
+            exist = layer_type is keras.layers.InputLayer or get_converter(layer_type)
+        if not exist:
+            break
+    else:
+        return True
+
+    return False
+
+
+def _create_model_input_mapping_operators(ts_from, ts_to, prefix, varset):
+    ty_ = _infer_variable_type(ts_from)
+    assert type(_infer_variable_type(ts_to)) is type(ty_)
+    var0 = varset.get_local_variable_or_declare_one(ts_from.name, ty_)
+    var1 = varset.get_local_variable_or_declare_one(prefix + ts_to.name, ty_)
+    op = varset.declare_local_operator('identity', op_name=prefix + ts_to.name)
+    op.add_input(var0)
+    op.add_output(var1)
+    k2o_logger().debug("mapping:  %s -> %s" % (ts_from.name, ts_to.name))
+    return op
+
+
+def _find_kenode_by_output_tensor(inbound_nodes, output_name):
+    def find_ts_name(tensors, name): return next((ts_ for ts_ in tensors if ts_.name.find(name) == 0), None)
+    return next((n_ for n_ in inbound_nodes if find_ts_name(n_.output_tensors, output_name) is not None), None)
+
+
+def _convert_keras_sub_model(sub_model, model, target_kenode, varset, top_kenode=None, upper_prefix=None):
+    ts_inputs = []
+    ts_outputs = []
+    upper_prefix = upper_prefix if upper_prefix else ''
+    prefix = None
+    # mapping input/output nodes for the sub_model.
+    inbound_nodes = extract_inbound_nodes(sub_model)
+    if len(inbound_nodes) > 1:
+        # Assumption: the first node in the inbound node list is always the one used in the keras layers.
+        base_node = inbound_nodes[0]
+        curr_node = target_kenode
+        assert curr_node is not None
+        for idx_, out_ in enumerate(curr_node.output_tensors):
+            base_ts = base_node.output_tensors[idx_]
+            if prefix is None:
+                prefix = out_.name[0:out_.name.find(base_ts.name)]
+            else:
+                assert prefix == out_.name[0:out_.name.find(base_ts.name)]
+            ts_outputs.append(out_)
+        if top_kenode is None:
+            top_kenode = curr_node
+
+        # the input node needs to be mapped to the outmost inbound keras node.
+        for idx_, in_ in enumerate(top_kenode.input_tensors):
+            _create_model_input_mapping_operators(in_, base_node.input_tensors[idx_], upper_prefix+prefix, varset)
+            ts_inputs.append(in_)
+
+    k2o_logger().debug("prefix : %s" % prefix)
+    for nodes_ in sub_model._nodes_by_depth.values():
+        for n_ in nodes_:
+            layer = n_.outbound_layer
+            if isinstance(layer, keras.layers.InputLayer):
+                continue
+            elif isinstance(layer, keras.Model):
+                k2o_logger().debug("Processing a keras sub model - %s" % layer.name)
+                _convert_keras_sub_model(layer, sub_model, n_, varset, top_kenode, upper_prefix + prefix)
+            else:
+                _convert_keras_scope(None, [], layer, sub_model, varset, upper_prefix+prefix)
+
+    k2o_logger().debug("end prefix - %s" % prefix)
+    return ts_inputs, ts_outputs
 
 
 def _convert_general_scope(node_list, varset):
@@ -252,12 +348,6 @@ def _finalize_tf2onnx_op(topo, operator, varset):
                 oop.add_input(iv)
                 oop.add_output(ov)
 
-        # need more tests before this tensorflow graph optimization.
-        # graph_def = tf_optimize({}, outputs, subgraph.as_graph_def(), True)
-        # with tf.Graph().as_default() as sub_tf_graph:
-        #     tf.import_graph_def(graph_def)
-        #     g = tf2onnx_wrap(sub_tf_graph.get_operations(), outputs, varset.target_opset)
-        #     setattr(operator, 'custom_op', g)
         g = tf2onnx_wrap(topo, subgraph, outputs, varset.target_opset)
         assert g
         operator.tf2onnx_graph = g
@@ -355,8 +445,14 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
             for i_ in n_.inputs:
                 if i_ in ts_end or i_.op in visited or i_.op not in inference_nodeset:
                     continue
-                if isinstance(layer, keras.Model) and not i_.name.startswith(layer.name):
-                    continue  # ugly fixing for the shared layer.
+                if isinstance(layer, keras.Model):  # ugly fixing for the shared layer.
+                    if i_.name.startswith(layer.name):
+                        pass
+                    elif i_.name.startswith('^' + layer.name):
+                        pass
+                    else:
+                        continue
+
                 newly.add(i_.op)
 
     return list(visited)
@@ -452,16 +548,30 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
         if node in input_nodes or node in visited:
             continue
 
-        type_k, model_ = (None, None)
+        layer_key_, model_ = (None, None)
         if node.name in keras_node_dict:
-            type_k, model_ = keras_node_dict[node.name]
-            activated_keras_nodes = _create_keras_nodelist(type_k, inference_nodeset, node)
+            layer_key_, model_ = keras_node_dict[node.name]
+            if isinstance(layer_key_, keras.Model) and \
+                    _check_layer_converter_availability(layer_key_):
+                k2o_logger().debug("Processing a keras sub model - %s" % layer_key_.name)
+                kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), node.name)
+                ts_in, ts_out = _convert_keras_sub_model(layer_key_, model_, kenode, varset)
+                for ts_ in ts_in:
+                    if is_placeholder_node(ts_.op):
+                        input_nodes.add(ts_.op)
+                    else:
+                        q_overall.put_nowait(ts_.op)
+
+                visited.update(ts_.op for ts_ in ts_out)
+                continue
+
+            activated_keras_nodes = _create_keras_nodelist(layer_key_, inference_nodeset, node)
         else:
             activated_keras_nodes = _general_nodelist_closure(node, inference_nodeset, keras_nodeset)
         q_subgraph = queue.Queue()
         i_subgraph = set()
         nodes = []
-        for ot_ in (_get_output_nodes(activated_keras_nodes, type_k, node
+        for ot_ in (_get_output_nodes(activated_keras_nodes, layer_key_, node
                                       ) if activated_keras_nodes else [node]):
             if ot_ not in nodes:
                 visited.add(ot_)
@@ -477,14 +587,14 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
             nodes.append(int_node)
             advance_by_input(int_node, activated_keras_nodes, q_subgraph, i_subgraph)
 
-        k2o_logger().debug('Processed a keras layer - (%s: %s)' % (type_k.name, type(type_k)) if
-                           type_k else (nodes[0].name, "Custom_Layer"))
-        if isinstance(type_k, keras.layers.TimeDistributed):
-            _convert_keras_timedistributed(graph, nodes, type_k, model_, varset)
-        elif type_k is None or get_converter(type(type_k)) is None:
+        k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_key_.name, type(layer_key_)) if
+                           layer_key_ else (nodes[0].name, "Custom_Layer"))
+        if isinstance(layer_key_, keras.layers.TimeDistributed):
+            _convert_keras_timedistributed(graph, nodes, layer_key_, model_, varset)
+        elif layer_key_ is None or get_converter(type(layer_key_)) is None:
             _convert_general_scope(nodes, varset)
         else:
-            _convert_keras_scope(graph, nodes, type_k, model_, varset)
+            _convert_keras_scope(graph, nodes, layer_key_, model_, varset)
 
     for nd_ in input_nodes:
         var = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
@@ -499,7 +609,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
 def parse_graph(topo, graph, target_opset, output_names):
     # type: (Topology, tf.Graph, int, []) -> Topology
-    keras_op_table = None
+    keras_op_table = {}
     if topo.raw_model.model is not None:
         keras_op_table = \
             {tsname_to_node(nm_): x for (nm_, x) in

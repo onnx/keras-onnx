@@ -68,22 +68,10 @@ class Topology:
         another function, unordered_operator_iterator.
         """
         self._initialize_graph_status_for_traversing()
-        priorities = {'tensorToProbabilityMap': 2, 'tensorToLabel': 1}
         while not all(operator.is_evaluated for scope in self.scopes for operator in scope.operators.values()):
             is_evaluation_happened = False
-            for operator in sorted(self.unordered_operator_iterator(),
-                                   key=lambda op: priorities[op.type] if op.type in priorities else 0):
-                if all(variable.is_fed for variable in operator.inputs) and not operator.is_evaluated:
-                    # Check if over-writing problem occurs (i.e., multiple operators produce results on one variable).
-                    for variable in operator.outputs:
-                        # Throw an error if this variable has been treated as an output somewhere
-                        if variable.is_fed:
-                            raise RuntimeError('One variable can only be assigned once')
-                        # Mark this variable as filled
-                        variable.is_fed = True
-                        variable.op_from = operator
-                    for variable in operator.inputs:
-                        variable.op_to.append(operator)
+            for operator in self.unordered_operator_iterator():
+                if not operator.is_evaluated:
                     # Make this operator as handled
                     operator.is_evaluated = True
                     is_evaluation_happened = True
@@ -118,6 +106,13 @@ class Topology:
                 unused_variables.discard(variable.full_name)
                 # A operator has an output, so we remove the operator from the unused-operator list.
                 unused_operators.discard(operator.full_name)
+            for variable in [operator.input_mask, operator.output_mask]:
+                if variable is None: continue
+                # A variable is used by an operator, so we remove the variable from the unused-variable list.
+                unused_variables.discard(variable.full_name)
+                # A operator has an output, so we remove the operator from the unused-operator list.
+                unused_operators.discard(operator.full_name)
+
 
         if len(unused_variables) > 0:
             raise RuntimeError('Isolated variables exist: %s' % unused_variables)

@@ -42,10 +42,11 @@ def k2o_logger():  # type: () -> logging.Logger
 def set_logger_level(lvl):
     logger = k2o_logger()
     if logger.level != lvl:
-        ch = logging.StreamHandler()
-        ch.setLevel(lvl)
         logger.setLevel(lvl)
-        logger.addHandler(ch)
+        # if not logger.handlers:
+        #     ch = logging.StreamHandler()
+        #     ch.setLevel(lvl)
+        #     logger.addHandler(ch)
 
 
 def get_producer():
