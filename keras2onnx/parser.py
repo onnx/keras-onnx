@@ -6,7 +6,7 @@
 import six
 import tensorflow as tf
 from six.moves import queue
-from collections import Iterable
+from collections.abc import Iterable
 from .proto import keras
 from .common import k2o_logger
 from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras

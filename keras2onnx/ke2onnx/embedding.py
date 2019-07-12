@@ -31,6 +31,3 @@ def convert_keras_embed(scope, operator, container):
 
     # Create a Gather operator to extract the latent representation of each index
     container.Gather([embedding_tensor_name, cast_name], operator.output_full_names, name=operator.full_name)
-
-    if operator.input_mask:
-        pass
