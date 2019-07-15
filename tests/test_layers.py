@@ -784,7 +784,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_Bidirectional(self):
         input_dim = 10
         sequence_len = 5
-        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
+        op_version = get_opset_number_from_onnx()
+        batch_list = [1, 4] if op_version >= 9 else [1]
+
         for return_sequences in [True, False]:
             model = keras.Sequential()
             model.add(keras.layers.Bidirectional(keras.layers.LSTM(7, return_sequences=return_sequences),
@@ -792,21 +794,23 @@ class TestKerasTF2ONNX(unittest.TestCase):
             model.add(keras.layers.Dense(5))
             model.add(keras.layers.Activation('softmax'))
             model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+            onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=op_version)
+            for batch in batch_list:
+                data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
+                expected = model.predict(data)
+                self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
-            onnx_model = keras2onnx.convert_keras(model, 'test')
-            expected = model.predict(data)
-            self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
-
-        data = np.random.rand(input_dim, sequence_len).astype(np.float32).reshape((1, sequence_len, input_dim))
         for merge_mode in ['concat', None]:
             for return_sequences in [True, False]:
                 sub_input1 = keras.layers.Input(shape=(sequence_len, input_dim))
                 sub_mapped1 = keras.layers.Bidirectional(keras.layers.LSTM(7, return_sequences=return_sequences),
                                                      input_shape=(5, 10), merge_mode=merge_mode)(sub_input1)
                 keras_model = keras.Model(inputs=sub_input1, outputs=sub_mapped1)
-                onnx_model = keras2onnx.convert_keras(keras_model, 'test_2')
-                expected = keras_model.predict(data)
-                self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
+                onnx_model = keras2onnx.convert_keras(keras_model, 'test_2', target_opset=op_version)
+                for batch in batch_list:
+                    data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
+                    expected = keras_model.predict(data)
+                    self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
     def test_Bidirectional_with_bias(self):
         model = keras.Sequential()
@@ -829,9 +833,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.Dense(44))
 
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        x = np.random.rand(1, 50).astype(np.float32)
-        expected = model.predict(x)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+        for batch in [1, 4]:
+            x = np.random.rand(batch, 50).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_seq_dynamic_batch_size(self):
         data_dim = 4  # input_size
