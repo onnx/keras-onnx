@@ -108,8 +108,10 @@ def _get_tensor_safe(graph, name):
     return ts
 
 
-# This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
 def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
+    """
+        This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
+    """
     inputs = []
     ishapes = []
     outputs = []
@@ -172,7 +174,7 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
 
 def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
-    operator.nodelist = None  # explicitly disable the usage of nodelist member in Keras layer converter.
+    operator.nodelist = node_list
 
     inputs = []
     outputs = []
@@ -255,7 +257,7 @@ def _find_kenode_by_output_tensor(inbound_nodes, output_name):
     return next((n_ for n_ in inbound_nodes if find_ts_name(n_.output_tensors, output_name) is not None), None)
 
 
-def _convert_keras_sub_model(sub_model, model, target_kenode, varset, top_kenode=None, upper_prefix=None):
+def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode=None, upper_prefix=None):
     ts_inputs = []
     ts_outputs = []
     upper_prefix = upper_prefix if upper_prefix else ''
@@ -290,9 +292,9 @@ def _convert_keras_sub_model(sub_model, model, target_kenode, varset, top_kenode
                 continue
             elif isinstance(layer, keras.Model):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer.name)
-                _convert_keras_sub_model(layer, sub_model, n_, varset, top_kenode, upper_prefix + prefix)
+                _convert_keras_sub_model(layer, graph, n_, varset, top_kenode, upper_prefix + prefix)
             else:
-                _convert_keras_scope(None, [], layer, sub_model, varset, upper_prefix+prefix)
+                _convert_keras_scope(graph, [], layer, sub_model, varset, upper_prefix+prefix)
 
     k2o_logger().debug("end prefix - %s" % prefix)
     return ts_inputs, ts_outputs
@@ -509,6 +511,15 @@ def _get_output_nodes(node_list, layer, node):
 
 
 def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names):
+    """
+    travel the tensor Graph and build the corresponding intermediate operation objects.
+    :param graph: the tensorflow session graph of the Keras mode.
+    :param keras_node_dict: the mapping of operation node to keras layer output.
+    :param topology: The whole topology of the intermediate objects.
+    :param top_scope: The top varset
+    :param output_names: the output names of the TF graph
+    :return: The whole topology of the intermediate objects.
+    """
     input_nodes = set()
     raw_model_container = topology.raw_model
 
@@ -555,7 +566,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
                     _check_layer_converter_availability(layer_key_):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer_key_.name)
                 kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), node.name)
-                ts_in, ts_out = _convert_keras_sub_model(layer_key_, model_, kenode, varset)
+                ts_in, ts_out = _convert_keras_sub_model(layer_key_, graph, kenode, varset)
                 for ts_ in ts_in:
                     if is_placeholder_node(ts_.op):
                         input_nodes.add(ts_.op)
@@ -609,6 +620,9 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
 def parse_graph(topo, graph, target_opset, output_names):
     # type: (Topology, tf.Graph, int, []) -> Topology
+    """
+    Build the node-layer mapper and parse the whole TF graph of Keras Model.
+    """
     keras_op_table = {}
     if topo.raw_model.model is not None:
         keras_op_table = \

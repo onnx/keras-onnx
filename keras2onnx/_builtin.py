@@ -337,12 +337,18 @@ def on_CropAndResize(ctx, node, name, args):
     transpose_node_2.set_attr("perm", [0, 2, 3, 1])
     ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
 
+
 def on_GatherNd(ctx, node, name, args):
     node.type = "GatherND"
     node.domain = "com.microsoft"
 
+
 def tf2onnx_builtin_conversion(opset):
     return {
         'Round': (on_Round, []),
-        'StridedSlice': (on_StridedSlice_9 if opset >= 9 else on_StridedSlice, [])
+        'StridedSlice': (on_StridedSlice_9 if opset <= 9 else on_StridedSlice, []),
+        'GatherND': (on_GatherNd, []),
+        'CropAndResize': (on_CropAndResize, []),
+        'Pad': (on_Pad, []),
+        'TopK': (on_TopKV2, [])
     }

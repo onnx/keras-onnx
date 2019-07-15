@@ -6,8 +6,16 @@ import onnx
 import keras2onnx
 
 from mrcnn.config import Config
+from mrcnn.model import BatchNorm, DetectionLayer
 from mrcnn import model as modellib
 from mrcnn import visualize
+
+from keras2onnx import set_converter
+from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
+from keras2onnx.proto import onnx_proto
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
+from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
+
 
 ROOT_DIR = os.path.abspath("./")
 
@@ -53,24 +61,9 @@ model = modellib.MaskRCNN(mode="inference", model_dir=MODEL_DIR, config=config)
 model.load_weights(COCO_MODEL_PATH, by_name=True)
 
 
-from keras2onnx._builtin import on_StridedSlice, on_Round, on_TopKV2, on_Pad, on_CropAndResize, on_GatherNd
-from keras2onnx import set_converter
-from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
-from keras2onnx.proto import onnx_proto
-from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
-from mrcnn.model import PyramidROIAlign, BatchNorm, DetectionLayer
-
-
-def create_onnx_node(scope, operator, container, type):
-    # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer, str) -> None
-    container.add_node(type, operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
-
-
 def convert_BatchNorm(scope, operator, container):
     convert_keras_batch_normalization(scope, operator, container)
 
-
-from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
 
 def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpose, score_identity, deltas_transpose, windows_transpose):
     box_squeeze = scope.get_unique_variable_name('box_squeeze')
@@ -420,13 +413,12 @@ def norm_boxes_graph(scope, operator, container, oopb, image_meta):
 
 
 def convert_DetectionLayer(scope, operator, container):
-
-    oopb = OnnxOperatorBuilder(container, scope)
     # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer) -> None
     DETECTION_MAX_INSTANCES = 100
     DETECTION_NMS_THRESHOLD = 0.3
     DETECTION_MIN_CONFIDENCE = 0.7
 
+    oopb = OnnxOperatorBuilder(container, scope)
     box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
     score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
 
@@ -465,8 +457,7 @@ def convert_DetectionLayer(scope, operator, container):
     container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
                               [], [DETECTION_MIN_CONFIDENCE])
 
-
-    nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
+    nms_node = next((nd_ for nd_ in operator.nodelist if nd_.type == 'NonMaxSuppressionV3'), operator.nodelist[0])
     nms_output = scope.get_unique_variable_name(operator.output_full_names[0] + '_nms')
     container.add_node("NonMaxSuppression",
                        [delta_mul_output, score_transpose, max_output_size, iou_threshold, score_threshold],
@@ -636,7 +627,7 @@ def convert_DetectionLayer(scope, operator, container):
     # output shape: [num_selected_indices, 1]
 
     concat_var = scope.get_unique_variable_name(operator.output_full_names[0] + '_concat_var')
-    concat_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'Concat'), operator.node_list[0])
+    concat_node = next((nd_ for nd_ in operator.nodelist if nd_.type == 'Concat'), operator.nodelist[0])
     attrs = {'axis': 1}
     container.add_node("Concat",
                        [box_gather, class_idx_cast, score_gather_unsqueeze],
@@ -676,18 +667,10 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_concat_unsqueeze', **attrs)
     # output shape: [1, num_top_K, 6]
 
+
 set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
-_custom_op_handlers = {
-    'Round': (on_Round, []),
-    'StridedSlice': (on_StridedSlice, []),
-    'TopKV2': (on_TopKV2, []),
-    'Pad': (on_Pad, []),
-    'PadV2': (on_Pad, []),
-    'CropAndResize': (on_CropAndResize, []),
-    'GatherNd': (on_GatherNd, [])
-}
 
 # Run detection
 class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
@@ -705,6 +688,7 @@ class_names = ['BG', 'person', 'bicycle', 'car', 'motorcycle', 'airplane',
                'keyboard', 'cell phone', 'microwave', 'oven', 'toaster',
                'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors',
                'teddy bear', 'hair drier', 'toothbrush']
+
 
 def generate_image(images, molded_images, windows, results):
     results_final = []
@@ -730,28 +714,29 @@ if __name__ == '__main__':
         print("Need an image file for object detection.")
         exit(-1)
 
-    if sys.argv[1] == '-c':
+    model_file_name = './mrcnn.onnx'
+    if not os.path.exists(model_file_name):
         # use opset 10 or later
-        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=_custom_op_handlers)
-        onnx.save_model(oml, './mrcnn.onnx')
-    else:
-        # run with ONNXRuntime
-        import onnxruntime
-        filename = sys.argv[1]
-        image = skimage.io.imread(filename)
-        images = [image]
+        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10)
+        onnx.save_model(oml, model_file_name)
 
-        sess = onnxruntime.InferenceSession('./mrcnn.onnx')
+    # run with ONNXRuntime
+    import onnxruntime
+    filename = sys.argv[1]
+    image = skimage.io.imread(filename)
+    images = [image]
 
-        # preprocessing
-        molded_images, image_metas, windows = model.mold_inputs(images)
-        anchors = model.get_anchors(molded_images[0].shape)
-        anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
+    sess = onnxruntime.InferenceSession(model_file_name)
 
-        results = \
-            sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                            "input_anchors:01": anchors,
-                            "input_image_meta:01": image_metas.astype(np.float32)})
+    # preprocessing
+    molded_images, image_metas, windows = model.mold_inputs(images)
+    anchors = model.get_anchors(molded_images[0].shape)
+    anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
 
-        # postprocessing
-        results_final = generate_image(images, molded_images, windows, results)
+    results = \
+        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
+                        "input_anchors:01": anchors,
+                        "input_image_meta:01": image_metas.astype(np.float32)})
+
+    # postprocessing
+    results_final = generate_image(images, molded_images, windows, results)

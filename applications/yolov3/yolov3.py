@@ -1,10 +1,8 @@
-import colorsys
 import os
 import sys
 import inspect
-
+import colorsys
 import onnx
-from onnx import OperatorSetIdProto
 import numpy as np
 import tensorflow as tf
 import keras
@@ -16,11 +14,11 @@ from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
 from keras2onnx.proto import onnx_proto
-from keras2onnx._builtin import on_StridedSlice, on_Round
 
 import yolo3
-from yolo3.model import yolo_eval, yolo_body, tiny_yolo_body, yolo_boxes_and_scores
+from yolo3.model import yolo_body, tiny_yolo_body, yolo_boxes_and_scores
 from yolo3.utils import letterbox_image
+
 
 class YOLOEvaluationLayer(keras.layers.Layer):
 
@@ -123,9 +121,19 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.model_image_size = (416, 416)  # fixed size or (None, None), hw
-        self.boxes, self.scores, self.classes = self.generate()
         self.session = None
         self.final_model = None
+
+        # Generate colors for drawing bounding boxes.
+        hsv_tuples = [(x / len(self.class_names), 1., 1.)
+                      for x in range(len(self.class_names))]
+        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+        self.colors = list(
+            map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
+                self.colors))
+        np.random.seed(10101)  # Fixed seed for consistent colors across runs.
+        np.random.shuffle(self.colors)  # Shuffle colors to decorrelate adjacent classes.
+        np.random.seed(None)  # Reset seed to default.
         K.set_learning_phase(0)
 
     @staticmethod
@@ -166,57 +174,25 @@ class YOLO(object):
             self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
         else:
             assert self.yolo_model.layers[-1].output_shape[-1] == \
-                   num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
+                num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
 
-        input_image_shape = keras.Input(shape=(2,), dtype='int32', name='image_shape')
-        y1 = keras.Input((None, None, 255), dtype='float32', name='y1')
-        y2 = keras.Input((None, None, 255), dtype='float32', name='y2')
-        y3 = keras.Input((None, None, 255), dtype='float32', name='y3')
+        input_image_shape = keras.Input(shape=(2,))
+        image_input = keras.Input((None, None, 3), dtype='float32')
+        y1, y2, y3 = self.yolo_model(image_input)
 
         boxes, box_scores = \
             YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[y1, y2, y3, input_image_shape])
 
-
         out_boxes, out_scores, out_indices = \
             YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
                 inputs=[boxes, box_scores])
-        self.final_model = keras.Model(inputs=[y1, y2, y3, input_image_shape],
+        self.final_model = keras.Model(inputs=[image_input, input_image_shape],
                                        outputs=[out_boxes, out_scores, out_indices])
 
         self.final_model.save('model_data/final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
-
-    def generate(self):
-        # Load model, or construct model and load weights.
-        num_anchors = len(self.anchors)
-        num_classes = len(self.class_names)
-
-        last_dim = num_anchors / 3 * (num_classes + 5)
-        self.i0 = K.placeholder(shape=(None, None, None, last_dim))
-        self.i1 = K.placeholder(shape=(None, None, None, last_dim))
-        self.i2 = K.placeholder(shape=(None, None, None, last_dim))
-
-        # Generate colors for drawing bounding boxes.
-        hsv_tuples = [(x / len(self.class_names), 1., 1.)
-                      for x in range(len(self.class_names))]
-        self.colors = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
-        self.colors = list(
-            map(lambda x: (int(x[0] * 255), int(x[1] * 255), int(x[2] * 255)),
-                self.colors))
-        np.random.seed(10101)  # Fixed seed for consistent colors across runs.
-        np.random.shuffle(self.colors)  # Shuffle colors to decorrelate adjacent classes.
-        np.random.seed(None)  # Reset seed to default.
-
-        # Generate output tensor targets for filtered bounding boxes.
-        self.input_image_shape = K.placeholder(shape=(2,))
-
-        boxes, scores, classes = yolo_eval([self.i0, self.i1, self.i2], self.anchors,
-                                           len(self.class_names), self.input_image_shape,
-                                           score_threshold=self.score, iou_threshold=self.iou)
-
-        return boxes, scores, classes
 
     def detect_with_onnx(self, image):
         if self.model_image_size != (None, None):
@@ -229,11 +205,10 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
         image_data /= 255.
-        image_data = np.transpose(image_data, [2, 0, 1])
 
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-        feed_f = dict(zip(['input_1:01', 'image_shape:01'],
-                          (image_data, np.array([image.size[1], image.size[0]], dtype=np.int32).reshape(1, 2))))
+        feed_f = dict(zip(['input_2:01', 'input_1_1:01'],
+                          (image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
         all_boxes, all_scores, indices = self.session.run(None, input_feed=feed_f)
 
         out_boxes, out_scores, out_classes = [], [], []
@@ -279,6 +254,7 @@ class YOLO(object):
 
         return image
 
+
 def detect_img(yolo, img_url, model_file_name):
     import onnxruntime
     image = Image.open(img_url)
@@ -288,17 +264,6 @@ def detect_img(yolo, img_url, model_file_name):
     n_ext = img_url.rindex('.')
     score_file = img_url[0:n_ext] + '_score' + img_url[n_ext:]
     r_image.save(score_file, "JPEG")
-
-
-_custom_op_handlers = {
-    'Round': (on_Round, []),
-    'StridedSlice': (on_StridedSlice, [])}
-
-
-def create_onnx_node(scope, operator, container, type):
-    # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer, str) -> None
-
-    container.add_node(type, operator.input_full_names, operator.output_full_names, op_version=operator.target_opset)
 
 
 def convert_NMSLayer(scope, operator, container):
@@ -330,8 +295,8 @@ def convert_NMSLayer(scope, operator, container):
     container.add_initializer(score_threshold, onnx_proto.TensorProto.FLOAT,
                               [], [layer.score_threshold])
 
-    nms_node = next((nd_ for nd_ in operator.node_list if nd_.type == 'NonMaxSuppressionV3'), operator.node_list[0])
     cast_name = scope.get_unique_variable_name('casted')
+    nms_node = next((nd_ for nd_ in operator.nodelist if nd_.type == 'NonMaxSuppressionV3'), operator.nodelist[0])
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
                        cast_name,
@@ -346,56 +311,11 @@ def convert_NMSLayer(scope, operator, container):
 set_converter(YOLONMSLayer, convert_NMSLayer)
 
 
-def convert_model(yolo, target_opset):
+def convert_model(yolo, model_file_name, target_opset):
     yolo.load_model()
-    onnxmodel = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'],
-                              custom_op_conversions=_custom_op_handlers, target_opset=target_opset)
-
-    oxmlfinal = convert_keras(yolo.final_model, custom_op_conversions=_custom_op_handlers, target_opset=target_opset)
-    return [onnxmodel, oxmlfinal]
-
-
-def merge_model(yolo_0, yolo_1, name_output, target_opset):
-    yolo_0_graph = yolo_0.graph
-    yolo_1_graph = yolo_1.graph
-    from keras2onnx.proto import helper, onnx_proto
-    # Create a graph from its main components
-    nodes = []
-    nodes.extend(yolo_0_graph.node)
-    nodes.extend(yolo_1_graph.node)
-    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[0].name], ['y1:01']))
-    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[1].name], ['y2:01']))
-    nodes.append(helper.make_node('Identity', [yolo_0_graph.output[2].name], ['y3:01']))
-
-    model_name = 'yolov3'
-    inputs = []
-    inputs.extend(yolo_0_graph.input)
-    for input_ in yolo_1_graph.input:
-        if input_.name == 'image_shape:01':
-            inputs.extend([input_])
-    outputs = []
-    outputs.extend(yolo_1_graph.output)
-    initializers = []
-    initializers.extend(yolo_0_graph.initializer)
-    initializers.extend(yolo_1_graph.initializer)
-
-    graph = helper.make_graph(nodes, model_name, inputs, outputs, initializers)
-
-    # Create model
-    imp = OperatorSetIdProto()
-    imp.version = target_opset
-    onnx_model = helper.make_model(graph, opset_imports=[imp])
-
-    # Add extra information
-    from keras2onnx.common import utils
-    onnx_model.ir_version = onnx_proto.IR_VERSION
-    onnx_model.producer_name = utils.get_producer()
-    onnx_model.producer_version = utils.get_producer_version()
-    onnx_model.domain = utils.get_domain()
-    onnx_model.model_version = utils.get_model_version()
-    onnx_model.doc_string = ''
-
-    onnx.save_model(onnx_model, name_output)
+    onnxmodel = convert_keras(yolo.final_model, target_opset=target_opset)
+    onnx.save_model(onnxmodel, model_file_name)
+    return onnxmodel
 
 
 if __name__ == '__main__':
@@ -406,8 +326,7 @@ if __name__ == '__main__':
     model_file_name = 'model_data/yolov3.onnx'
     target_opset = 10
 
-    if '-c' in sys.argv:
-        [onnxmodel, oxmlfinal] = convert_model(YOLO(), target_opset=target_opset)
-        merge_model(onnxmodel, oxmlfinal, model_file_name, target_opset=target_opset)
-    else:
-        detect_img(YOLO(), sys.argv[1], model_file_name)
+    if not os.path.exists(model_file_name):
+        onnxmodel = convert_model(YOLO(), model_file_name, target_opset)
+
+    detect_img(YOLO(), sys.argv[1], model_file_name)
