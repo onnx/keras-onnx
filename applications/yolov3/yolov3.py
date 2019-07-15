@@ -296,11 +296,12 @@ def convert_NMSLayer(scope, operator, container):
                               [], [layer.score_threshold])
 
     cast_name = scope.get_unique_variable_name('casted')
+    nms_node = next((nd_ for nd_ in operator.nodelist if nd_.type == 'NonMaxSuppressionV3'), operator.nodelist[0])
     container.add_node("NonMaxSuppression",
                        [box_batch, score_batch, max_output_size, iou_threshold, score_threshold],
                        cast_name,
                        op_version=operator.target_opset,
-                       name='NonMaxSuppressionV3')
+                       name=nms_node.name)
     apply_cast(scope, cast_name, operator.output_full_names[2], container, to=onnx_proto.TensorProto.INT32)
 
     apply_identity(scope, box_batch, operator.output_full_names[0], container)
