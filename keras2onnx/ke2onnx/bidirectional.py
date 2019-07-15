@@ -153,7 +153,7 @@ def convert_bidirectional(scope, operator, container):
     lstm_input_names.append('')
     oopb = OnnxOperatorBuilder(container, scope)
 
-    if is_static_shape:
+    if container.target_opset < 9:
         # need the zero initializer to correct some engine shape inference bug.
         state_shape = (2, 1, hidden_size)
         initial_h_name = scope.get_unique_variable_name(operator.full_name + '_initial_h')
@@ -291,7 +291,7 @@ def convert_bidirectional(scope, operator, container):
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
             transposed_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_transposed')
-            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[0, 2, 1, 3])
+            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[2, 0, 1, 3])
 
             # Change shape (T, N, D, C') to (N, T, D * C') to meet Keras spec
             if is_static_shape:
@@ -317,7 +317,7 @@ def convert_bidirectional(scope, operator, container):
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
             transposed_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_transposed')
-            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[0, 2, 1, 3])
+            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[2, 0, 1, 3])
 
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
             forward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_forward')
