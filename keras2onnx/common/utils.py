@@ -34,6 +34,10 @@ with_variable = functools.partial(FunctionStaticVariable)
 @with_variable('logger')
 def k2o_logger():  # type: () -> logging.Logger
     logger = logging.getLogger('keras2onnx')
+    if not logger.handlers:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.WARNING)
+        logger.addHandler(ch)
     logger.setLevel(logging.WARNING)
     tf.logging.set_verbosity(tf.logging.WARN)
     return logger
@@ -42,10 +46,7 @@ def k2o_logger():  # type: () -> logging.Logger
 def set_logger_level(lvl):
     logger = k2o_logger()
     if logger.level != lvl:
-        ch = logging.StreamHandler()
-        ch.setLevel(lvl)
         logger.setLevel(lvl)
-        logger.addHandler(ch)
 
 
 def get_producer():
