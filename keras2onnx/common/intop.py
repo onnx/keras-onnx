@@ -23,7 +23,9 @@ class Operator:
         self.type = type
         self.raw_operator = raw_operator
         self.inputs = []
+        self.input_mask = None
         self.outputs = []
+        self.output_mask = None
         self.nodelist = None
         self.is_evaluated = None
         self.is_abandoned = False
@@ -59,10 +61,6 @@ class Operator:
         """
         return self.raw_operator
 
-    @property
-    def node_list(self):
-        return self.nodelist
-
     def add_input(self, var):
         if self not in var.op_to:
             var.op_to.append(self)
@@ -72,3 +70,13 @@ class Operator:
         assert var.op_from is None
         var.op_from = self
         self.outputs.append(var)
+
+    def add_input_mask(self, var):
+        if self not in var.op_to:
+            var.op_to.append(self)
+        self.input_mask = var
+
+    def add_output_mask(self, var):
+        if var.op_from is None:
+            var.op_from = self
+        self.output_mask = var

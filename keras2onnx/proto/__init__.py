@@ -4,16 +4,15 @@
 # license information.
 ###############################################################################
 import os
-_tf_keras = os.environ.get('TF_KERAS')
-is_tf_keras = True
-if _tf_keras:
-    from tensorflow.python import keras
-else:
-    try:
-        import keras
-        is_tf_keras = False
-    except ImportError:
-        from tensorflow.python import keras
+import onnx
+# Rather than using ONNX protobuf definition throughout our codebase, we import ONNX protobuf definition here so that
+# we can conduct quick fixes by overwriting ONNX functions without changing any lines elsewhere.
+from onnx import onnx_pb as onnx_proto
+from onnx import helper
+
+
+def get_opset_number_from_onnx():
+    return onnx.defs.onnx_opset_version()
 
 
 def _check_onnx_version():
@@ -24,14 +23,15 @@ def _check_onnx_version():
 
 
 _check_onnx_version()
+is_tf_keras = False
+if os.environ.get('TF_KERAS', '0') != '0':
+    is_tf_keras = True
 
-
-# Rather than using ONNX protobuf definition throughout our codebase, we import ONNX protobuf definition here so that
-# we can conduct quick fixes by overwriting ONNX functions without changing any lines elsewhere.
-import onnx
-from onnx import onnx_pb as onnx_proto
-from onnx import helper
-
-
-def get_opset_number_from_onnx():
-    return onnx.defs.onnx_opset_version()
+if is_tf_keras:
+    from tensorflow.python import keras
+else:
+    try:
+        import keras
+    except ImportError:
+        is_tf_keras = True
+        from tensorflow.python import keras
