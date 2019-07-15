@@ -9,17 +9,20 @@ from tf2onnx.tfonnx import process_tf_graph
 from onnx import numpy_helper
 from .common import k2o_logger
 from .funcbook import set_converter
+from ._builtin import tf2onnx_builtin_conversion
 
 
 def tf2onnx_wrap(topo, graph, outputs, target_opset):
     """
     A wrapper function to invoke the basic node conversion from tf2onnx
     """
+    custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
+    custom_op_handlers.update(topo.custom_op_dict)
     try:
         g = process_tf_graph(graph,
                          continue_on_error=topo.debug_mode,
                          opset=target_opset,
-                         custom_op_handlers=topo.custom_op_dict,
+                         custom_op_handlers=custom_op_handlers,
                          output_names=outputs)
         return g
 
