@@ -153,64 +153,52 @@ def convert_bidirectional(scope, operator, container):
     lstm_input_names.append('')
     oopb = OnnxOperatorBuilder(container, scope)
 
-    if is_static_shape:
-        # need the zero initializer to correct some engine shape inference bug.
-        state_shape = (2, 1, hidden_size)
-        initial_h_name = scope.get_unique_variable_name(operator.full_name + '_initial_h')
-        container.add_initializer(initial_h_name, onnx_proto.TensorProto.FLOAT, state_shape,
-                                  np.zeros(shape=state_shape).flatten())
-        lstm_input_names.append(initial_h_name)
-        initial_c_name = scope.get_unique_variable_name(operator.full_name + '_initial_c')
-        container.add_initializer(initial_c_name, onnx_proto.TensorProto.FLOAT, state_shape,
-                                  np.zeros(shape=state_shape).flatten())
-        lstm_input_names.append(initial_c_name)
-    else:
-        input_shape_tensor = oopb.add_node('Shape',
-                                           [operator.input_full_names[0]],
-                                            operator.inputs[0].full_name + '_input_shape_tensor')
+    input_shape_tensor = oopb.add_node('Shape',
+                                       [operator.input_full_names[0]],
+                                        operator.inputs[0].full_name + '_input_shape_tensor')
 
-        if container.target_opset >= 10:
-            batch_indices_tensor = oopb.add_node('Slice',
-                                                 [input_shape_tensor,
-                                                  ('_start', oopb.int64, np.array([0], dtype='int64')),
-                                                  ('_end', oopb.int64, np.array([1], dtype='int64')),
-                                                  ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                                  ],
-                                                 operator.inputs[0].full_name + '_batch_indices_tensor')
+    if container.target_opset >= 10:
+        batch_indices_tensor = oopb.add_node('Slice',
+                                             [input_shape_tensor,
+                                              ('_start', oopb.int64, np.array([0], dtype='int64')),
+                                              ('_end', oopb.int64, np.array([1], dtype='int64')),
+                                              ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                              ],
+                                             operator.inputs[0].full_name + '_batch_indices_tensor')
 
-            seq_len_tensor = oopb.add_node('Slice',
-                                          [input_shape_tensor,
-                                           ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                           ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                           ],
-                                          operator.inputs[0].full_name + '_seq_len_tensor')
-        else:
-            attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
-            batch_indices_tensor = oopb.add_node('Slice',
-                                                 [input_shape_tensor],
-                                                 operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
-
-            attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
-            seq_len_tensor = oopb.add_node('Slice',
-                                           [input_shape_tensor],
-                                           operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
-
-        batch_size_tensor = oopb.add_node('Concat',
-                                      [('_a', oopb.int64, np.array([2], dtype='int64')),
-                                       batch_indices_tensor,
-                                       ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+        seq_len_tensor = oopb.add_node('Slice',
+                                      [input_shape_tensor,
+                                       ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                       ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                       ('_axes', oopb.int64, np.array([0], dtype='int64'))
                                        ],
-                                      operator.inputs[0].full_name + '_state_shape_tensor', axis=0)
+                                      operator.inputs[0].full_name + '_seq_len_tensor')
+    else:
+        attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
+        batch_indices_tensor = oopb.add_node('Slice',
+                                             [input_shape_tensor],
+                                             operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
 
-        state_constant_shape_h = oopb.add_node('ConstantOfShape',
-                                               [batch_size_tensor],
-                                               operator.inputs[0].full_name + '_state_shape_constant_h')
-        state_constant_shape_c = oopb.add_node('ConstantOfShape',
-                                               [batch_size_tensor],
-                                               operator.inputs[0].full_name + '_state_shape_constant_c')
-        lstm_input_names.append(state_constant_shape_h)
-        lstm_input_names.append(state_constant_shape_c)
+        attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
+        seq_len_tensor = oopb.add_node('Slice',
+                                       [input_shape_tensor],
+                                       operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
+
+    batch_size_tensor = oopb.add_node('Concat',
+                                  [('_a', oopb.int64, np.array([2], dtype='int64')),
+                                   batch_indices_tensor,
+                                   ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                   ],
+                                  operator.inputs[0].full_name + '_state_shape_tensor', axis=0)
+
+    state_constant_shape_h = oopb.add_node('ConstantOfShape',
+                                           [batch_size_tensor],
+                                           operator.inputs[0].full_name + '_state_shape_constant_h')
+    state_constant_shape_c = oopb.add_node('ConstantOfShape',
+                                           [batch_size_tensor],
+                                           operator.inputs[0].full_name + '_state_shape_constant_c')
+    lstm_input_names.append(state_constant_shape_h)
+    lstm_input_names.append(state_constant_shape_c)
 
     # P (optional) : No peep hole in keras.
     lstm_input_names.append('')
@@ -291,7 +279,7 @@ def convert_bidirectional(scope, operator, container):
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
             transposed_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_transposed')
-            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[0, 2, 1, 3])
+            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[2, 0, 1, 3])
 
             # Change shape (T, N, D, C') to (N, T, D * C') to meet Keras spec
             if is_static_shape:
@@ -317,7 +305,7 @@ def convert_bidirectional(scope, operator, container):
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
             transposed_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_transposed')
-            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[0, 2, 1, 3])
+            apply_transpose(scope, lstm_y_name_fixed, transposed_y_name, container, perm=[2, 0, 1, 3])
 
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
             forward_y_name = scope.get_unique_variable_name(operator.full_name + '_Y_forward')
