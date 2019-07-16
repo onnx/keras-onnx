@@ -717,7 +717,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         lstm1, state_h, state_c = cls(inputs1)
         model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
         # Set weights: kernel, recurrent_kernel and bias
-        model.set_weights([[[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4]])
+        model.set_weights((np.array([[1, 2, 3, 4]]), np.array([[5, 6, 7, 8]]), np.array([1, 2, 3, 4])))
         data = np.random.rand(1, 1).astype(np.float32).reshape((1, 1, 1))
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
@@ -817,7 +817,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.Bidirectional(keras.layers.LSTM(1, return_sequences=False),
                   input_shape=(1, 1)))
         # Set weights(kernel, recurrent_kernel, bias) for forward layer followed by the backward layer
-        model.set_weights([[[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4], [[1, 2, 3, 4]], [[5, 6, 7, 8]], [1, 2, 3, 4]])
+        model.set_weights(
+            (np.array([[1, 2, 3, 4]]), np.array([[5, 6, 7, 8]]), np.array([1, 2, 3, 4]),
+             np.array([[1, 2, 3, 4]]), np.array([[5, 6, 7, 8]]), np.array([1, 2, 3, 4])))
         onnx_model = keras2onnx.convert_keras(model, 'test')
         data = np.random.rand(1, 1).astype(np.float32).reshape((1, 1, 1))
         expected = model.predict(data)
@@ -922,6 +924,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive', onnx_model, x, expected))
 
+    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_and_shared_model(self):
         Input = keras.layers.Input
         Dense = keras.layers.Dense
