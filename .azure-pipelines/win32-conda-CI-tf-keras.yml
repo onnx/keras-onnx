@@ -17,6 +17,7 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
+        TENSORFLOW_PATH: tensorflow==1.11.0
 
       Python36:
         python.version: '3.6'
