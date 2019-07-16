@@ -9,7 +9,7 @@ from six.moves import queue
 from collections.abc import Iterable
 from .proto import keras
 from .common import k2o_logger
-from .ke2onnx import extract_inbound_nodes, build_opdict_from_keras
+from .ke2onnx import extract_inbound_nodes, list_input_tensors, list_output_tensors, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
 from .topology import Topology
 from .subgraph import is_placeholder_node, tsname_to_node, create_subgraph
@@ -119,10 +119,10 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     num_relevant_keras_node = 0
     for nb_ in extract_inbound_nodes(layer):
         if _is_relevant_keras_node(model, nb_):
-            inputs += nb_.input_tensors
-            ishapes += nb_.input_shapes
-            outputs += nb_.output_tensors
-            oshapes += nb_.output_shapes
+            inputs += list_input_tensors(nb_)
+            ishapes += nb_.input_shapes if isinstance(nb_.input_shapes[0], Iterable) else [nb_.input_shapes]
+            outputs += list_output_tensors(nb_)
+            oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
             num_relevant_keras_node = num_relevant_keras_node + 1
 
     assert num_relevant_keras_node == 1
@@ -181,9 +181,10 @@ def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
     oshapes = []
     for nb_ in extract_inbound_nodes(layer):
         if _is_relevant_keras_node(model, nb_):
-            inputs += nb_.input_tensors
-            outputs += nb_.output_tensors
-            oshapes += nb_.output_shapes
+            inputs += list_input_tensors(nb_)
+            outputs += list_output_tensors(nb_)
+            oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
+            # This layer will be visited because its output is other layer's input
             assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
 
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
@@ -254,7 +255,7 @@ def _create_model_input_mapping_operators(ts_from, ts_to, prefix, varset):
 
 def _find_kenode_by_output_tensor(inbound_nodes, output_name):
     def find_ts_name(tensors, name): return next((ts_ for ts_ in tensors if ts_.name.find(name) == 0), None)
-    return next((n_ for n_ in inbound_nodes if find_ts_name(n_.output_tensors, output_name) is not None), None)
+    return next((n_ for n_ in inbound_nodes if find_ts_name(list_output_tensors(n_), output_name) is not None), None)
 
 
 def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode=None, upper_prefix=None):
@@ -269,8 +270,8 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
         base_node = inbound_nodes[0]
         curr_node = target_kenode
         assert curr_node is not None
-        for idx_, out_ in enumerate(curr_node.output_tensors):
-            base_ts = base_node.output_tensors[idx_]
+        for idx_, out_ in enumerate(list_output_tensors(curr_node)):
+            base_ts = list_output_tensors(base_node)[idx_]
             if prefix is None:
                 prefix = out_.name[0:out_.name.find(base_ts.name)]
             else:
@@ -280,8 +281,8 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
             top_kenode = curr_node
 
         # the input node needs to be mapped to the outmost inbound keras node.
-        for idx_, in_ in enumerate(top_kenode.input_tensors):
-            _create_model_input_mapping_operators(in_, base_node.input_tensors[idx_], upper_prefix+prefix, varset)
+        for idx_, in_ in enumerate(list_input_tensors(top_kenode)):
+            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix+prefix, varset)
             ts_inputs.append(in_)
 
     k2o_logger().debug("prefix : %s" % prefix)
@@ -432,12 +433,12 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
     ts_end = set()  # the input tensor set of the whole layer/model.
     for node_ in extract_inbound_nodes(layer):
         if out_node is not None and out_node.name not in\
-                [tsname_to_node(ts_.name) for ts_ in node_.output_tensors]:
+                [tsname_to_node(ts_.name) for ts_ in list_output_tensors(node_)]:
             continue  # this layer could be reused several times in the whole graph.
-        if any(ts_.op not in inference_nodeset for ts_ in node_.output_tensors):
+        if any(ts_.op not in inference_nodeset for ts_ in list_output_tensors(node_)):
             continue
-        newly |= set([ts_.op for ts_ in node_.output_tensors])
-        ts_end |= set(node_.input_tensors)
+        newly |= set([ts_.op for ts_ in list_output_tensors(node_)])
+        ts_end |= set(list_input_tensors(node_))
 
     visited = set()
     while newly:
@@ -498,7 +499,7 @@ def _build_keras_nodeset(inference_nodeset, keras_node_dict):
 def _get_output_nodes(node_list, layer, node):
     if layer:
         for nd_ in extract_inbound_nodes(layer):
-            name_set = set(tsname_to_node(ts_.name) for ts_ in nd_.output_tensors)
+            name_set = set(tsname_to_node(ts_.name) for ts_ in list_output_tensors(nd_))
             if node.name in name_set:
                 return set(n_ for n_ in node_list if n_.name in name_set)
     else:

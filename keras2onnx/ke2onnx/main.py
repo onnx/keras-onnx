@@ -39,6 +39,20 @@ def extract_inbound_nodes(layer):
         raise ValueError("Failed to find inbound_nodes and _inbound_nodes when parsing %s" % layer.name)
 
 
+def list_input_tensors(node):
+    """
+    Since Tensorflow 1.4, sometimes the node.input_tensors may not be a list, though the word is plural.
+    """
+    return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
+
+
+def list_output_tensors(node):
+    """
+    Since Tensorflow 1.4, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
+    """
+    return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
+
+
 def convert_keras_reshape(scope, operator, container):
     iop = operator.raw_operator
     target_shape = tuple([-1 if i_ is None else i_ for i_ in iop.output_shape])
@@ -91,7 +105,7 @@ def build_opdict_from_keras(model):
             shared_layer = False
             for node_ in extract_inbound_nodes(l_):
                 shared_layer |= any(
-                    ts_.name not in submodel_dict for ts_ in node_.output_tensors)
+                    ts_.name not in submodel_dict for ts_ in list_output_tensors(node_))
                 if shared_layer:
                     break
             if not shared_layer:  # shared layer(model) will be processed as a whole.
@@ -99,7 +113,7 @@ def build_opdict_from_keras(model):
                 continue
 
         for node_ in extract_inbound_nodes(l_):
-            for ts_ in node_.output_tensors:
+            for ts_ in list_output_tensors(node_):
                 output_dict[ts_.name] = (l_, model)
 
     return output_dict
@@ -172,4 +186,3 @@ keras_layer_to_operator = {
 def static_set_ke2onnx_converters(func_set_converter):
     for ky_, val_ in six.iteritems(keras_layer_to_operator):
         func_set_converter(ky_, val_)
-
