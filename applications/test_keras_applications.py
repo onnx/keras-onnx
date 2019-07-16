@@ -129,5 +129,41 @@ class TestKerasApplications(unittest.TestCase):
         model = Xception(include_top=True, weights='imagenet')
         self._test_keras_model(model, atol=5e-3, img_size=299)
 
+    def test_ACGAN(self):
+        # An ACGAN example from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
+        latent_dim = 100
+        num_classes = 10
+        channels = 1
+        model = keras.models.Sequential()
+        model.add(keras.layers.Dense(128 * 7 * 7, activation="relu", input_dim=latent_dim))
+        model.add(keras.layers.Reshape((7, 7, 128)))
+        model.add(keras.layers.BatchNormalization(momentum=0.8))
+        model.add(keras.layers.UpSampling2D())
+        model.add(keras.layers.Conv2D(128, kernel_size=3, padding="same"))
+        model.add(keras.layers.Activation("relu"))
+        model.add(keras.layers.BatchNormalization(momentum=0.8))
+        model.add(keras.layers.UpSampling2D())
+        model.add(keras.layers.Conv2D(64, kernel_size=3, padding="same"))
+        model.add(keras.layers.Activation("relu"))
+        model.add(keras.layers.BatchNormalization(momentum=0.8))
+        model.add(keras.layers.Conv2D(channels, kernel_size=3, padding='same'))
+        model.add(keras.layers.Activation("tanh"))
+
+        noise = keras.layers.Input(shape=(latent_dim,))
+        label = keras.layers.Input(shape=(1,), dtype='int32')
+        label_embedding = keras.layers.Flatten()(keras.layers.Embedding(num_classes, 100)(label))
+
+        model_input = keras.layers.multiply([noise, label_embedding])
+        img = model(model_input)
+
+        keras_model = keras.models.Model([noise, label], img)
+        x = np.random.rand(1, 100).astype(np.float32)
+        y = np.random.rand(1, 1).astype(np.int32)
+
+        expected = keras_model.predict([x, y])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
+
     if __name__ == "__main__":
         unittest.main()

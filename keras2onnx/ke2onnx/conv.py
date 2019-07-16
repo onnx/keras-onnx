@@ -32,8 +32,9 @@ def _calc_explicit_padding(input_size, output_shape, is_transpose, output_paddin
             total_padding[i:] = [stride[i] * (output_shape[i] - 1) +
                                  output_padding[i] + kernel_shape[i] * dilation[i] - input_size[i]]
         else:
-            total_padding[i:] = [stride[i] * output_shape[i] +
+            total_padding[i:] = [stride[i] * ((input_size[i] - 1) // stride[i]) + 1 +
                                  output_padding[i] + (kernel_shape[i] - 1) * dilation[i] - input_size[i]]
+        total_padding[i] = max(total_padding[i], 0)
         pads[i] = total_padding[i] // 2
         pads[i + spatial] = total_padding[i] - (total_padding[i] // 2)
 

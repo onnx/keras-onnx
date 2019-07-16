@@ -282,6 +282,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_conv2d_padding_same(self):
         self._conv2_helper(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
         self._conv2_helper(8, 16, (1, 1), (2, 2), (60, 60), padding='same')
+        self._conv2_helper(1, 1, (3, 3), (2, 2), (6, 6), padding='same')
+        self._conv2_helper(1, 1, (7, 7), (2, 2), (25, 25), padding='same')
+        self._conv2_helper(1, 1, (5, 7), (3, 5), (25, 25), padding='same')
 
     @unittest.skipIf(is_tf_keras, "Generic conv implementation only supports NHWC tensor format in tf_keras")
     def test_conv2d_format(self):
@@ -328,6 +331,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.array([[[1, 2], [3, 4], [5, 6]]]).astype(np.float32)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('flatten', onnx_model, data, expected))
+
+    def test_flatten2(self):
+        C = 3
+        H = 5
+        W = 7
+        for data_format in ['channels_first', 'channels_last']:
+            model = keras.Sequential()
+            model.add(keras.layers.Conv2D(64, (3, 3),
+                             input_shape=(C, H, W), padding='same', ))
+            model.add(keras.layers.Flatten(data_format=data_format))
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            x = np.random.rand(4, C, H, W).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_reshape(self):
         model = keras.Sequential()
@@ -1038,29 +1055,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
-
-    def test_seq2seq(self):
-        import seq2seq
-        from seq2seq.models import SimpleSeq2Seq
-
-        model = SimpleSeq2Seq(input_dim=5, hidden_dim=10, output_length=8, output_dim=8)
-        model.compile(loss='mse', optimizer='rmsprop')
-        model.save('seq2seq.h5')
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-
-    def test_dqn2(self):
-        from keras.models import load_model
-        keras_model = load_model('acgan.h5')
-        x = np.random.rand(1, 100).astype(np.float32)
-        y = np.random.rand(1, 1).astype(np.int32)
-
-        expected = keras_model.predict([x, y])
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        import onnx
-        onnx.save_model(onnx_model, 'gan.onnx')
-        input()
-
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
 
 
 if __name__ == "__main__":
