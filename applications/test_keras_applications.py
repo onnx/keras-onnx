@@ -129,8 +129,8 @@ class TestKerasApplications(unittest.TestCase):
         model = Xception(include_top=True, weights='imagenet')
         self._test_keras_model(model, atol=5e-3, img_size=299)
 
-    # An ACGAN example from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
-    def test_ACGan(self):
+    def test_ACGAN(self):
+        # An ACGAN example from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
         latent_dim = 100
         num_classes = 10
         channels = 1
