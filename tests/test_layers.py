@@ -710,6 +710,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(data)
                 self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
+    @unittest.skipIf(is_tf_keras, reason="Weigths is wrong" )
     def test_LSTM_with_bias(self):
         LSTM = keras.layers.LSTM
         inputs1 = keras.Input(shape=(1, 1))
@@ -812,6 +813,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                     expected = keras_model.predict(data)
                     self.assertTrue(self.run_onnx_runtime('bidirectional', onnx_model, data, expected))
 
+    @unittest.skipIf(is_tf_keras, reason="Weigths is wrong")
     def test_Bidirectional_with_bias(self):
         model = keras.Sequential()
         model.add(keras.layers.Bidirectional(keras.layers.LSTM(1, return_sequences=False),
