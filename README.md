@@ -84,6 +84,7 @@ sess = onnxruntime.InferenceSession(temp_model_file)
 
 We converted successfully for all the keras application models such as:
 Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201, NASNetMobile, and NASNetLarge.
+In addition, we have verified other pretrained models [here](https://github.com/onnx/keras-onnx/blob/master/pretrained.md)
 Try the following models and convert them to onnx using the code above.
 
 ```
