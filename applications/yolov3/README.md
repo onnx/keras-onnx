@@ -6,8 +6,6 @@ We have converted yolov3 model successfully and uploaded to the model zoo <https
 # Convert
 ```
 export PYTHONPATH=$(the keras-yolo3 path)
-# convert the model to onnx
-python yolov3.py -c
-# run object detection
+# run object detection, convert the model to onnx first if the onnx model does not exist
 python yolov3.py <image url>
 ```
