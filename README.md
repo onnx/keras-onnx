@@ -95,6 +95,9 @@ We converted successfully for all the keras application models, and several othe
 | NASNetMobile, NASNetLarge | Computer Vision |
 | [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
 | [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
+| [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
+| [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
+| [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
 
 The following models need customed conversion, see the instruction column.
 
