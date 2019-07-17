@@ -36,6 +36,8 @@ class OnnxObjectContainer(object):
         self.node_domain_version_pair_sets = set()
         # The targeted ONNX version. All produced operators should be supported by the targeted ONNX version.
         self.target_opset = target_opset
+        # ONNX node name list
+        self.node_names = {}
         self.bind_all_ops()
 
     def bind_all_ops(self):
@@ -234,6 +236,14 @@ class OnnxObjectContainer(object):
         for k, v in attrs.items():
             if v is None:
                 raise ValueError('Failed to create ONNX node. Undefined attribute pair (%s, %s) found' % (k, v))
+
+        if 'name' in attrs.keys():
+            if attrs['name'] in self.node_names:
+                cur_count = self.node_names[attrs['name']] + 1
+                self.node_names.update({attrs['name']: cur_count})
+                attrs['name'] = attrs['name'] + "_" + str(cur_count)
+            else:
+                self.node_names.update({attrs['name']: 0})
 
         node = helper.make_node(op_type, inputs, outputs, **attrs)
         node.domain = op_domain

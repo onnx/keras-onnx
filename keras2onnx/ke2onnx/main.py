@@ -77,20 +77,17 @@ def convert_keras_flatten(scope, operator, container):
             target_shape = target_shape * val
     target_shape = (-1, target_shape)
     shape_len = len(iop.input_shape)
-    input_name_sector = operator.input_full_names[0].split('/')
-    op_prefix = input_name_sector[0] + '/' if len(input_name_sector) > 1 else ''
-    op_name = op_prefix + operator.raw_operator.name
     if iop.data_format == 'channels_last' or shape_len < 3:
         apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                      operator_name=op_name, desired_shape=target_shape)
+                      operator_name=operator.raw_operator.name, desired_shape=target_shape)
     else:
         perm = list(range(2, shape_len))
         perm = [0] + perm + [1]
         input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
         apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container,
-                      operator_name=op_name+"_transpose", perm=perm)
+                      operator_name=operator.raw_operator.name+"_transpose", perm=perm)
         apply_reshape(scope, input_tensor_name, operator.outputs[0].full_name, container,
-                      operator_name=op_name, desired_shape=target_shape)
+                      operator_name=operator.raw_operator.name, desired_shape=target_shape)
 
 
 
