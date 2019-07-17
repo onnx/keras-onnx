@@ -130,7 +130,7 @@ class TestKerasApplications(unittest.TestCase):
         self._test_keras_model(model, atol=5e-3, img_size=299)
 
     def test_ACGAN(self):
-        # An ACGAN example from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
+        # An ACGAN generator from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
         latent_dim = 100
         num_classes = 10
         channels = 1
@@ -163,6 +163,33 @@ class TestKerasApplications(unittest.TestCase):
         expected = keras_model.predict([x, y])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
+
+    def test_BIGAN(self):
+        # A BIGAN discriminator model from https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py
+        latent_dim = 100
+        img_shape = (28, 28, 1)
+        z = keras.layers.Input(shape=(latent_dim, ))
+        img = keras.layers.Input(shape=img_shape)
+        d_in = keras.layers.concatenate([z, keras.layers.Flatten()(img)])
+
+        model = keras.layers.Dense(1024)(d_in)
+        model = keras.layers.LeakyReLU(alpha=0.2)(model)
+        model = keras.layers.Dropout(0.5)(model)
+        model = keras.layers.Dense(1024)(model)
+        model = keras.layers.LeakyReLU(alpha=0.2)(model)
+        model = keras.layers.Dropout(0.5)(model)
+        model = keras.layers.Dense(1024)(model)
+        model = keras.layers.LeakyReLU(alpha=0.2)(model)
+        model = keras.layers.Dropout(0.5)(model)
+        validity = keras.layers.Dense(1, activation="sigmoid")(model)
+
+        keras_model = keras.models.Model([z, img], validity)
+        x = np.random.rand(5, 100).astype(np.float32)
+        y = np.random.rand(5, 28, 28, 1).astype(np.float32)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+
+        expected = keras_model.predict([x, y])
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
 
     if __name__ == "__main__":
