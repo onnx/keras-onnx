@@ -82,50 +82,27 @@ onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
 
-We converted successfully for all the keras application models such as:
-Xception, VGG16, VGG19, ResNet50, InceptionV3, InceptionResNetV2, MobileNet, MobileNetV2, DenseNet121, DenseNet169, DenseNet201, NASNetMobile, and NASNetLarge.
-Try the following models and convert them to onnx using the code above.
+We converted successfully for all the keras application models, and several other pretrained models. See below:
 
-```
-from keras.applications.xception import Xception
-model = Xception(include_top=True, weights='imagenet')
+|  Model Name        | Category |
+|----------|-------|
+| Xception | Computer Vision |
+| VGG16, VGG19 | Computer Vision |
+| ResNet50 | Computer Vision |
+| InceptionV3, InceptionResNetV2 | Computer Vision |
+| MobileNet, MobileNetV2 | Computer Vision |
+| DenseNet121, DenseNet169, DenseNet201 | Computer Vision |
+| NASNetMobile, NASNetLarge | Computer Vision |
+| [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
+| [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
 
-from keras.applications.vgg16 import VGG16
-model = VGG16(include_top=True, weights='imagenet')
+The following models need customed conversion, see the instruction column.
 
-from keras.applications.vgg19 import VGG19
-model = VGG19(include_top=True, weights='imagenet')
+|  Model Name        | Category | Instruction |
+|----------|-------|-------|
+| [YOLOv3](https://github.com/qqwweee/keras-yolo3) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/yolov3)|
+| [Mask RCNN](https://github.com/matterport/Mask_RCNN) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/mask_rcnn)|
 
-from keras.applications.resnet50 import ResNet50
-model = ResNet50(include_top=True, weights='imagenet')
-
-from keras.applications.inception_v3 import InceptionV3
-model = InceptionV3(include_top=True, weights='imagenet')
-
-from keras.applications.inception_resnet_v2 import InceptionResNetV2
-model = InceptionResNetV2(include_top=True, weights='imagenet')
-
-from keras.applications import mobilenet
-model = mobilenet.MobileNet(weights='imagenet')
-
-from keras.applications import mobilenet_v2
-model = mobilenet_v2.MobileNetV2(weights='imagenet')
-
-from keras.applications.densenet import DenseNet121
-model = DenseNet121(include_top=True, weights='imagenet')
-
-from keras.applications.densenet import DenseNet169
-model = DenseNet169(include_top=True, weights='imagenet')
-
-from keras.applications.densenet import DenseNet201
-model = DenseNet201(include_top=True, weights='imagenet')
-
-from keras.applications.nasnet import NASNetMobile
-model = NASNetMobile(include_top=True, weights='imagenet')
-
-from keras.applications.nasnet import NASNetLarge
-model = NASNetLarge(include_top=True, weights='imagenet')
-```
 
 ## Contribute
 We welcome contributions in the form of feedback, ideas, or code.
