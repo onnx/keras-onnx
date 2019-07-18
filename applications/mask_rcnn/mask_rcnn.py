@@ -668,6 +668,90 @@ def convert_DetectionLayer(scope, operator, container):
     # output shape: [1, num_top_K, 6]
 
 
+###############################################################################
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for
+# license information.
+###############################################################################
+import numpy as np
+import tf2onnx
+from onnx import onnx_pb, helper
+
+
+# This is for Pad opset 11 which is now a contrib op, TODO: need onnx schema update for Pad
+def on_Pad(ctx, node, name, args):
+    node.type = "Pad"
+    node.domain = 'com.microsoft'
+    mode = node.get_attr("mode")
+    if mode:
+        mode = mode.s.decode("utf-8").lower()
+        node.set_attr("mode", mode)
+    if mode not in [None, "constant", "reflect"]:
+        raise ValueError(mode + " pad mode is not supported")
+
+    origin_dtype = ctx.get_dtype(node.output[0])
+    cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[1])
+    cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
+    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
+    ctx.copy_shape(node.name, cast_node.output[0])
+
+    attrs = {'perm': [1, 0]}
+    transpose_node = ctx.make_node("Transpose", [cast_node.output[0]], name=tf2onnx.utils.make_name(node.name),
+                                   attr=attrs)
+
+    const_name = tf2onnx.utils.make_name(node.name)
+
+    const_array = ctx.make_const(const_name, np.array([-1], dtype=np.int64))
+
+    reshape = ctx.make_node("Reshape", [transpose_node.output[0], const_array.output[0]])
+    ctx.replace_input(node, node.input[1], reshape.output[0])
+
+    if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,
+                            onnx_pb.TensorProto.DOUBLE]:
+        cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
+        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
+        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+        ctx.copy_shape(node.name, cast_node.output[0])
+
+        cast_back_node = ctx.insert_new_node_on_output("Cast", node.output[0],
+                                                       name=tf2onnx.utils.make_name(node.name) + "_castback")
+        cast_back_node.set_attr("to", origin_dtype)
+        ctx.set_dtype(cast_back_node.output[0], origin_dtype)
+        ctx.copy_shape(node.name, cast_back_node.output[0])
+
+
+def on_CropAndResize(ctx, node, name, args):
+    node.type = "CropAndResize"
+    node.domain = 'com.microsoft'
+    mode = node.get_attr("method")
+    if mode:
+        mode_value = helper.get_attribute_value(mode)
+        del node.attr['method']
+        node.set_attr("mode", mode_value)
+
+    transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
+    transpose_node.set_attr("perm", [0, 3, 1, 2])
+    ctx.set_dtype(transpose_node.output[0], onnx_pb.TensorProto.INT64)
+
+    transpose_node_2 = ctx.insert_new_node_on_output("Transpose", node.output[0],
+                                                     name=tf2onnx.utils.make_name(node.name) + "_transpose_final")
+    transpose_node_2.set_attr("perm", [0, 2, 3, 1])
+    ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
+
+
+def on_GatherNd(ctx, node, name, args):
+    node.type = "GatherND"
+    node.domain = "com.microsoft"
+
+
+tf2onnx_contrib_op_conversion = {
+        'GatherNd': (on_GatherNd, []),
+        'CropAndResize': (on_CropAndResize, []),
+        'Pad': (on_Pad, []),
+        'PadV2': (on_Pad, [])
+    }
+
+
 set_converter(DetectionLayer, convert_DetectionLayer)
 set_converter(BatchNorm, convert_BatchNorm)
 
@@ -717,7 +801,7 @@ if __name__ == '__main__':
     model_file_name = './mrcnn.onnx'
     if not os.path.exists(model_file_name):
         # use opset 10 or later
-        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10)
+        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
         onnx.save_model(oml, model_file_name)
 
     # run with ONNXRuntime
