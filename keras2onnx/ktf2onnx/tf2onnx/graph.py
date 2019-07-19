@@ -18,7 +18,7 @@ import numpy as np
 from distutils.version import StrictVersion
 from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, TensorProto, version
 from tf2onnx import utils, __version__
-from tf2onnx.utils import port_name, find_opset
+from tf2onnx.utils import make_name, port_name, find_opset
 from tf2onnx import optimizer
 from tf2onnx.schemas import get_schema, infer_onnx_shape_dtype
 from tf2onnx import constants
@@ -146,6 +146,11 @@ class Node(object):
 
     def is_graph_input(self):
         return self.type in ["Placeholder", "PlaceholderWithDefault", "PlaceholderV2"]
+
+    def is_graph_input_default_const(self):
+        return self.is_const() and any(
+            out.is_graph_input() for out in self.graph.find_output_consumers(self.output[0])
+        )
 
     def __str__(self):
         return str(self._op)
@@ -579,6 +584,23 @@ class Graph(object):
         self._dtypes = remained_dtypes
         self._output_shapes = remained_shapes
 
+    def is_empty_input(self, name):
+        # in ONNX, operation may have optional input and an empty string may be used
+        # in the place of an actual argument's name to indicate a missing argument
+        return name == utils.ONNX_EMPTY_INPUT
+
+    def check_integrity(self):
+        """
+        Check graph integrity. Every node's input needs to associate with a node.
+        Return broken outputs.
+        """
+        broken_outputs = set()
+        for node in self.get_nodes():
+            for inp in node.input:
+                if self.get_node_by_output(inp) is None and not self.is_empty_input(inp):
+                    broken_outputs.add(inp)
+        return list(broken_outputs)
+
     def update_node_shape_dtype(self, node, override=False):
         """Try the best to infer shapes and dtypes for outputs of the node,
         by default, we respect TF shapes and dtypes.
@@ -595,11 +617,12 @@ class Graph(object):
         initializers = []
         for i, inp in enumerate(node.inputs):
             if inp is None:
-                if logger.isEnabledFor(logging.INFO):
-                    logger.warning(
-                        "[%s] infer a inexistent node: [%s], please check the code",
-                        node.name, node.input[i]
-                    )
+                if not self.is_empty_input(node.input[i]):
+                    if logger.isEnabledFor(logging.INFO):
+                        logger.warning(
+                            "[%s] infer a inexistent node: [%s], please check the code",
+                            node.name, node.input[i]
+                        )
                 continue
             if inp.is_const():
                 t = inp.get_attr("value")
@@ -697,6 +720,20 @@ class Graph(object):
         new_node = self.make_node("Placeholder", [], outputs=[name], dtypes=[dtype], shapes=[shape])
         self._order_sensitive_inputs.append(new_node)
 
+    def add_graph_input_with_default(self, name, default_const, dtype=None, shape=None):
+        """Add placeholderwithdefault."""
+        if dtype is None:
+            dtype = self.get_dtype(name)
+
+        if shape is None:
+            shape = self.get_shape(name)
+
+        default_const_name = port_name(make_name("{}_default".format(name)))
+        default_const.output = [default_const_name]
+        new_node = self.make_node("PlaceholderWithDefault", [default_const_name], outputs=[name],
+                                  dtypes=[dtype], shapes=[shape])
+        self._order_sensitive_inputs.append(new_node)
+
     def add_graph_output(self, name, dtype=None, shape=None):
         """Add node output as graph's output."""
         utils.make_sure(name in self._output_to_node_name, "output %s not exist in the graph", name)
@@ -751,6 +788,8 @@ class Graph(object):
         """Set new shape of node."""
         if isinstance(val, np.ndarray):
             val = val.tolist()
+        if isinstance(val, tuple):
+            val = list(val)
         node = self.get_node_by_output(name, search_in_parent_graphs=True)
         utils.make_sure(node is not None, "cannot find node by output id %s", name)
         node.graph._output_shapes[name] = val
@@ -1169,6 +1208,16 @@ class Graph(object):
                     body_graph.delete_unused_nodes(body_graph.outputs)
         self.reset_nodes(related_nodes)
 
+    def safe_remove_nodes(self, to_delete):
+        """Delete nodes in `to_delete` without third-party node consuming it."""
+        delete_set = set(to_delete)
+        for n in delete_set:
+            out_consumers = set()
+            for out in n.output:
+                out_consumers |= set(self.find_output_consumers(out))
+            if out_consumers.issubset(delete_set):
+                self.remove_node(n.name)
+
 
 class GraphUtil(object):
     """Utilities for Graph manipulation."""
@@ -1334,3 +1383,5 @@ class GraphUtil(object):
             dtype = dtypes[name]
             if name not in const_node_names:
                 g.add_graph_input(name, dtype, shape)
+            else:
+                g.add_graph_input_with_default(name, g.get_node_by_name(name), dtype, shape)
