@@ -282,5 +282,5 @@ def tf2onnx_builtin_conversion(opset):
     return {
         'Round': (on_Round, []),
         'StridedSlice': (on_StridedSlice_9 if opset <= 9 else on_StridedSlice, []),
-        'TopK': (on_TopKV2, [])
+        'TopKV2': (on_TopKV2, [])
     }
