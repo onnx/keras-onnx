@@ -9,6 +9,7 @@ import onnx
 import unittest
 import keras2onnx
 import numpy as np
+import onnxconverter_common
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx
 from distutils.version import StrictVersion
 
@@ -467,6 +468,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_selu(self):
         self.activationlayer_helper('selu')
         self.activationlayer_helper(keras.activations.selu)
+
+        model = keras.models.Sequential()
+        if StrictVersion(onnxconverter_common.__version__) >= StrictVersion("1.5.1"):
+            SIZE = 10
+            NB_CLASS = 5
+            model.add(keras.layers.Conv2D(32, strides=(2, 2), kernel_size=3, input_shape=(SIZE, SIZE, 1)))
+            model.add(keras.layers.Flatten())
+            model.add(keras.layers.Dense(32, activation='selu'))
+            model.add(keras.layers.Dense(NB_CLASS, activation='softmax'))
+            model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+            data = np.random.rand(5, SIZE, SIZE, 1).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_softsign(self):
         self.activationlayer_helper('softsign')
