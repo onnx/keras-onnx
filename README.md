@@ -52,7 +52,7 @@ import keras2onnx
 import onnxruntime
 
 # image preprocessing
-img_path = 'elephant.jpg'   # make sure the image is in img_path
+img_path = 'street.jpg'   # make sure the image is in img_path
 img_size = 224
 img = image.load_img(img_path, target_size=(img_size, img_size))
 x = image.img_to_array(img)
