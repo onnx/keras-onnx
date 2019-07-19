@@ -15,6 +15,8 @@ from keras2onnx.ke2onnx.batch_norm import convert_keras_batch_normalization
 from keras2onnx.proto import onnx_proto
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
 from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
+import tf2onnx
+from onnx import onnx_pb, helper
 
 
 ROOT_DIR = os.path.abspath("./")
@@ -666,16 +668,6 @@ def convert_DetectionLayer(scope, operator, container):
                        op_version=operator.target_opset,
                        name=nms_node.name + '_concat_unsqueeze', **attrs)
     # output shape: [1, num_top_K, 6]
-
-
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
-import numpy as np
-import tf2onnx
-from onnx import onnx_pb, helper
 
 
 # This is for Pad opset 11 which is now a contrib op, TODO: need onnx schema update for Pad
