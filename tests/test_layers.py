@@ -1049,7 +1049,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         preprocess_input = keras.applications.resnet50.preprocess_input
         image = keras.preprocessing.image
 
-        img_path = os.path.join(os.path.dirname(__file__), 'data', 'elephant.jpg')
+        img_path = os.path.join(os.path.dirname(__file__), 'data', 'street.jpg')
         try:
             img = image.load_img(img_path, target_size=(img_size, img_size))
             x = image.img_to_array(img)
