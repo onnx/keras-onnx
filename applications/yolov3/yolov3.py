@@ -177,7 +177,7 @@ class YOLO(object):
                 num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
                 'Mismatch between model and given anchor and class sizes'
 
-        input_image_shape = keras.Input(shape=(2,))
+        input_image_shape = keras.Input(shape=(2,), name='image_shape')
         image_input = keras.Input((None, None, 3), dtype='float32')
         y1, y2, y3 = self.yolo_model(image_input)
 
@@ -205,9 +205,10 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
         image_data /= 255.
+        image_data = np.transpose(image_data, [2, 0, 1])
 
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
-        feed_f = dict(zip(['input_2:01', 'input_1_1:01'],
+        feed_f = dict(zip(['input_1', 'image_shape'],
                           (image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
         all_boxes, all_scores, indices = self.session.run(None, input_feed=feed_f)
 
@@ -313,7 +314,7 @@ set_converter(YOLONMSLayer, convert_NMSLayer)
 
 def convert_model(yolo, model_file_name, target_opset):
     yolo.load_model()
-    onnxmodel = convert_keras(yolo.final_model, target_opset=target_opset)
+    onnxmodel = convert_keras(yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'])
     onnx.save_model(onnxmodel, model_file_name)
     return onnxmodel
 

@@ -810,9 +810,9 @@ if __name__ == '__main__':
     anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
 
     results = \
-        sess.run(None, {"input_image:01": molded_images.astype(np.float32),
-                        "input_anchors:01": anchors,
-                        "input_image_meta:01": image_metas.astype(np.float32)})
+        sess.run(None, {"input_image": molded_images.astype(np.float32),
+                        "input_anchors": anchors,
+                        "input_image_meta": image_metas.astype(np.float32)})
 
     # postprocessing
     results_final = generate_image(images, molded_images, windows, results)
