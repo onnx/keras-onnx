@@ -633,10 +633,16 @@ def parse_graph(topo, graph, target_opset, output_names):
     for idx_, ts_ in enumerate(topo.raw_model.model.inputs):
         op = top_level.declare_local_operator('identity')
         var_type = _infer_variable_type(topo.raw_model.model.inputs[idx_])
-        var0 = top_level.get_local_variable_or_declare_one(topo.raw_model.model.input_names[idx_], var_type)
+        if hasattr(topo.raw_model.model, 'input_names'):
+            str_value = topo.raw_model.model.input_names[idx_]
+        elif topo.raw_model.model.inputs[idx_].name.endswith(':0'):
+            str_value = topo.raw_model.model.inputs[idx_].name[:-2]
+        else:
+            str_value = topo.raw_model.model.inputs[idx_].name
+        var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
         var1 = top_level.get_local_variable_or_declare_one(topo.raw_model.model.inputs[idx_].name, var_type)
         op.add_input(var0)
         op.add_output(var1)
-        topo.raw_model.add_input_name(topo.raw_model.model.input_names[idx_])
+        topo.raw_model.add_input_name(str_value)
 
     return _parse_graph_scope(graph, keras_op_table, topo, top_level, output_names)
