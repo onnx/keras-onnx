@@ -610,7 +610,6 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
 
     for nd_ in input_nodes:
         var = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
-        raw_model_container.add_input_name(var.name)
         _create_link_node(var, top_scope, varset, True)
 
     _finalize_const_graph(topology, top_scope, varset)
@@ -631,4 +630,19 @@ def parse_graph(topo, graph, target_opset, output_names):
              six.iteritems(build_opdict_from_keras(topo.raw_model.model))}
 
     top_level = topo.declare_scope('__root')
+    for idx_, ts_ in enumerate(topo.raw_model.model.inputs):
+        op = top_level.declare_local_operator('identity')
+        var_type = _infer_variable_type(topo.raw_model.model.inputs[idx_])
+        if hasattr(topo.raw_model.model, 'input_names'):
+            str_value = topo.raw_model.model.input_names[idx_]
+        elif topo.raw_model.model.inputs[idx_].name.endswith(':0'):
+            str_value = topo.raw_model.model.inputs[idx_].name[:-2]
+        else:
+            str_value = topo.raw_model.model.inputs[idx_].name
+        var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
+        var1 = top_level.get_local_variable_or_declare_one(topo.raw_model.model.inputs[idx_].name, var_type)
+        op.add_input(var0)
+        op.add_output(var1)
+        topo.raw_model.add_input_name(str_value)
+
     return _parse_graph_scope(graph, keras_op_table, topo, top_level, output_names)
