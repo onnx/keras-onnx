@@ -18,7 +18,7 @@ class Topology:
         Initialize a Topology object, which is an intermediate representation of a computational graph.
 
         :param model: RawModelContainer object or one of its derived classes. It contains the original model.
-        :param default_batch_size: batch_size prepend to scalar and array types from CoreML. It's usually 1 or 'None'.
+        :param default_batch_size: batch_size prepend to scalar and array types
         :param initial_types: A list providing some types for some root variables. Each element is a tuple of a variable
         name and a type defined in data_types.py.
         :param target_opset: the onnx model targeted opset number.

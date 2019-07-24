@@ -2,4 +2,4 @@ numpy
 protobuf
 requests
 onnx
-onnxconverter-common>=1.5.0
+onnxconverter-common>=1.5.1
