@@ -725,7 +725,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             data = np.array([0.1, 0.2, 0.3]).astype(np.float32).reshape((1, 3, 1))
             init_state = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
-            init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 1, 2))
+            init_state_onnx = np.array([0.4, 0.5]).astype(np.float32).reshape((1, 2))
             expected = model.predict([data, init_state])
             self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected))
 
