@@ -12,7 +12,7 @@ from .proto import helper, onnx_proto
 
 class Topology:
 
-    def __init__(self, model, default_batch_size, target_opset=None, custom_op_dict=None,
+    def __init__(self, model, target_opset=None, custom_op_dict=None,
                  reserved_variable_names=None, reserved_operator_names=None):
         """
         Initialize a Topology object, which is an intermediate representation of a computational graph.
@@ -30,7 +30,6 @@ class Topology:
         self.scope_names = set()
         self.variable_name_set = reserved_variable_names if reserved_variable_names is not None else set()
         self.operator_name_set = reserved_operator_names if reserved_operator_names is not None else set()
-        self.default_batch_size = default_batch_size
         self.target_opset = target_opset
         self.debug_mode = False
         self.custom_op_dict = {} if custom_op_dict is None else custom_op_dict
@@ -38,7 +37,7 @@ class Topology:
         # This attribute is used in optimizing the graph structure. If root_names is not empty, only the variables
         # specified will be treated as the roots (i.e., set is_fed to True in the beginning of a graph evaluation) of
         # the graph. Specifying all root variables in this list and leaving it empty are equivalent. This attribute
-        # directly affects _initialize_graph_status_for_traversing function and indirectly affects _infer_all_shapes and
+        # directly affects initialize_graph_status_for_traversing function and indirectly affects _infer_all_shapes and
         # _prune functions.
         self.root_names = list()
 
@@ -67,7 +66,7 @@ class Topology:
         If you want to simply go though all operators without considering their topological structure, please use
         another function, unordered_operator_iterator.
         """
-        self._initialize_graph_status_for_traversing()
+        self.initialize_graph_status_for_traversing()
         while not all(operator.is_evaluated for scope in self.scopes for operator in scope.operators.values()):
             is_evaluation_happened = False
             for operator in self.unordered_operator_iterator():
@@ -120,7 +119,7 @@ class Topology:
         # if len(unused_operators) > 0:
         #     raise RuntimeError('Isolated operators exist: %s' % unused_operators)
 
-    def _initialize_graph_status_for_traversing(self):
+    def initialize_graph_status_for_traversing(self):
         """
         Initialize the status of all variables and operators for traversing the underline graph
         """
@@ -171,7 +170,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     :param channel_first_inputs: A list of channel first input.
     :return: a ONNX ModelProto
     """
-    topology._initialize_graph_status_for_traversing()
+    topology.initialize_graph_status_for_traversing()
 
     container = OnnxObjectContainer(target_opset)
 

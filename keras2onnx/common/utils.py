@@ -49,6 +49,11 @@ def set_logger_level(lvl):
         logger.setLevel(lvl)
 
 
+@with_variable('batch_size')
+def get_default_batch_size():
+    return 'N'
+
+
 def get_producer():
     """
     Internal helper function to return the producer
