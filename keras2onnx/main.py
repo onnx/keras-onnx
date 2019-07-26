@@ -12,7 +12,7 @@ from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .common import with_variable
 from .ke2onnx import static_set_ke2onnx_converters
-from .parser import parse_graph, DEFAULT_BATCH_SIZE, tsname_to_node
+from .parser import parse_graph, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
 from ._builtin import set_converter, tf2onnx_builtin_conversion
@@ -94,7 +94,6 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
         get_tensorboard_writer().add_graph(sess.graph)
     raw_model_container = KerasTfModelContainer(sess.graph, model)
     topology = Topology(raw_model_container,
-                        default_batch_size=DEFAULT_BATCH_SIZE,
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
@@ -165,7 +164,7 @@ def convert_tensorflow(frozen_graph_def,
 
     custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
     if custom_op_conversions:
-        custom_op_handlers += custom_op_conversions
+        custom_op_handlers.update(custom_op_conversions)
     with tf.Session(graph=tf_graph):
         g = tf2onnx.tfonnx.process_tf_graph(tf_graph,
                                             continue_on_error=debug_mode,

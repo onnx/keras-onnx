@@ -166,7 +166,8 @@ class OnnxObjectContainer(object):
         for op_ in oplist:
             setattr(self, op_, functools.partial(self.add_node, op_))
 
-    def _make_value_info(self, variable):
+    @staticmethod
+    def _make_value_info(variable):
         value_info = helper.ValueInfoProto()
         value_info.name = variable.full_name
         value_info.type.CopyFrom(variable.type.to_onnx_type())
