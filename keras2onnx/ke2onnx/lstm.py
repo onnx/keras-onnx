@@ -158,22 +158,6 @@ def convert_keras_lstm(scope, operator, container):
     container.add_node(lstm__type, lstm_input_names, lstm_output_names, op_version=op_version, **lstm_attrs)
 
     oopb = OnnxOperatorBuilder(container, scope)
-    input_shape_tensor = oopb.add_node('Shape',
-                                       [operator.input_full_names[0]],
-                                        operator.inputs[0].full_name + '_input_shape_tensor')
-
-    if container.target_opset >= 10:
-        seq_len_tensor = oopb.add_node('Slice',
-                                      [input_shape_tensor,
-                                       ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                       ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                       ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                       ],
-                                      operator.inputs[0].full_name + '_seq_len_tensor')
-    else:
-        seq_len_tensor = oopb.add_node('Slice',
-                                       [input_shape_tensor],
-                                       operator.inputs[0].full_name + '_seq_len_tensor', starts=[1], ends=[2], axes=[0])
 
     # Create output-adjusting operators
     if output_seq:
@@ -184,6 +168,24 @@ def convert_keras_lstm(scope, operator, container):
             apply_reshape(scope, lstm_y_name_transposed, operator.outputs[0].full_name, container,
                           desired_shape=[-1, seq_length, hidden_size])
         else:
+            input_shape_tensor = oopb.add_node('Shape',
+                                               [operator.input_full_names[0]],
+                                               operator.inputs[0].full_name + '_input_shape_tensor')
+
+            if container.target_opset >= 10:
+                seq_len_tensor = oopb.add_node('Slice',
+                                               [input_shape_tensor,
+                                                ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                                ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                                ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                                ],
+                                               operator.inputs[0].full_name + '_seq_len_tensor')
+            else:
+                seq_len_tensor = oopb.add_node('Slice',
+                                               [input_shape_tensor],
+                                               operator.inputs[0].full_name + '_seq_len_tensor', starts=[1], ends=[2],
+                                               axes=[0])
+
             shape_tensor = oopb.add_node('Concat',
                                          [('_a', oopb.int64, np.array([-1], dtype='int64')),
                                           seq_len_tensor,
