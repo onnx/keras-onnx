@@ -430,4 +430,3 @@ def convert_keras_dot(scope, operator, container):
         convert_keras_dot_224(scope, operator, container)
     else:
         convert_keras_dot_post_224(scope, operator, container)
-
