@@ -588,7 +588,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         layer = keras.layers.Dot(axes=-1, normalize=l2Normalize)(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
+        model.save('dot.h5')
         onnx_model = keras2onnx.convert_keras(model, model.name)
+        import onnx
+        onnx.save_model(onnx_model, 'dot.onnx')
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -598,19 +601,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._dot_helper(True, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
 
     def test_dot2(self):
-        input_1_shapes = [[32, 20, 1], [2, 3, 5], [2, 3, 5], [4, 3, 5], [2, 7], [2, 3, 4, 12, 3]]
-        input_2_shapes = [[32, 30, 20], [2, 3, 5], [2, 3, 5], [4, 5], [2, 7, 5], [2, 3, 4, 15, 3]]
-        axes_list = [[1, 2], 1, 2, [2, 1], [1, 1], 4]
+        input_1_shapes = [[32, 20, 1], [2, 3, 5], [2, 3, 5], [4, 3, 5], [2, 7], [2, 3, 4, 12, 3], [1, 3]]
+        input_2_shapes = [[32, 30, 20], [2, 3, 5], [2, 3, 5], [4, 5], [2, 7, 5], [2, 3, 4, 15, 3], [1, 3]]
+        axes_list = [[1, 2], 1, 2, [2, 1], [1, 1], 4, 1]
         for i_ in range(len(input_1_shapes)):
-            drop2_embed_title = keras.layers.Input(batch_shape=tuple(input_1_shapes[i_]), name='input1')
-            att_weight = keras.layers.Input(batch_shape=tuple(input_2_shapes[i_]), name='input2')
-            doc_vec1 = keras.layers.dot([drop2_embed_title, att_weight], axes=axes_list[i_])
-            model = keras.models.Model(inputs=[drop2_embed_title, att_weight], outputs=doc_vec1)
-            data1 = np.random.rand(*input_1_shapes[i_]).astype(np.float32)
-            data2 = np.random.rand(*input_2_shapes[i_]).astype(np.float32)
-            expected = model.predict([data1, data2])
-            onnx_model = keras2onnx.convert_keras(model, model.name)
-            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data1, data2], expected))
+            for normalize in [True, False]:
+                drop2_embed_title = keras.layers.Input(batch_shape=tuple(input_1_shapes[i_]), name='input1')
+                att_weight = keras.layers.Input(batch_shape=tuple(input_2_shapes[i_]), name='input2')
+                doc_vec1 = keras.layers.dot([drop2_embed_title, att_weight], axes=axes_list[i_], normalize=normalize)
+                model = keras.models.Model(inputs=[drop2_embed_title, att_weight], outputs=doc_vec1)
+                data1 = np.random.rand(*input_1_shapes[i_]).astype(np.float32)
+                data2 = np.random.rand(*input_2_shapes[i_]).astype(np.float32)
+                expected = model.predict([data1, data2])
+                onnx_model = keras2onnx.convert_keras(model, model.name)
+                self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [data1, data2], expected))
 
         drop2_embed_title = keras.layers.Input(batch_shape=(None, 7), name='input1')
         att_weight = keras.layers.Input(batch_shape=(None, 7, 5), name='input2')

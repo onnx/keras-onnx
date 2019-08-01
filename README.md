@@ -26,7 +26,35 @@ If you want to override this behaviour, please specify the environment variable 
 # Usage
 Before running the converter, please notice that tensorflow has to be installed in your python environment,
 you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
-## Validate pre-trained Keras application models
+
+# Validated pre-trained Keras models
+We converted successfully for all the keras application models, and several other pretrained models. See below:
+
+|  Model Name        | Category | Notes |
+|----------|-------|------|
+| Xception | Computer Vision |
+| VGG16, VGG19 | Computer Vision |
+| ResNet50 | Computer Vision |
+| InceptionV3, InceptionResNetV2 | Computer Vision |
+| MobileNet, MobileNetV2 | Computer Vision |
+| DenseNet121, DenseNet169, DenseNet201 | Computer Vision |
+| NASNetMobile, NASNetLarge | Computer Vision |
+| [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
+| [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
+| [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
+| [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
+| [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
+| [keras-team examples](https://github.com/keras-team/keras/blob/master/examples/) | | reuters_mlp.py, imdb_lstm.py |
+
+The following models need customed conversion, see the instruction column.
+
+|  Model Name        | Category | Instruction |
+|----------|-------|-------|
+| [YOLOv3](https://github.com/qqwweee/keras-yolo3) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/yolov3)|
+| [Mask RCNN](https://github.com/matterport/Mask_RCNN) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/mask_rcnn)|
+
+
+## Scripts
 It will be useful to convert the models from Keras to ONNX from a python script.
 You can use the following API:
 ```
@@ -81,31 +109,6 @@ temp_model_file = 'model.onnx'
 onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
-
-We converted successfully for all the keras application models, and several other pretrained models. See below:
-
-|  Model Name        | Category |
-|----------|-------|
-| Xception | Computer Vision |
-| VGG16, VGG19 | Computer Vision |
-| ResNet50 | Computer Vision |
-| InceptionV3, InceptionResNetV2 | Computer Vision |
-| MobileNet, MobileNetV2 | Computer Vision |
-| DenseNet121, DenseNet169, DenseNet201 | Computer Vision |
-| NASNetMobile, NASNetLarge | Computer Vision |
-| [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
-| [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
-| [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
-| [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
-| [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
-
-The following models need customed conversion, see the instruction column.
-
-|  Model Name        | Category | Instruction |
-|----------|-------|-------|
-| [YOLOv3](https://github.com/qqwweee/keras-yolo3) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/yolov3)|
-| [Mask RCNN](https://github.com/matterport/Mask_RCNN) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/mask_rcnn)|
-
 
 ## Contribute
 We welcome contributions in the form of feedback, ideas, or code.

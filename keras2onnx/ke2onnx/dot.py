@@ -4,10 +4,11 @@
 # license information.
 ###############################################################################
 import numbers
-import collections
 import numpy as np
+from ..proto import keras
 from ..common.onnx_ops import apply_normalization, OnnxOperatorBuilder
 from ..common import cvtfunc
+from distutils.version import StrictVersion
 
 
 # There is a breaking logic change for keras tensorflow_backend batch_dot after keras 2.2.4
@@ -15,17 +16,19 @@ from ..common import cvtfunc
 # For keras 2.2.4 and before, the output shape is (2, 3, 4, 12, 15)
 # After that, the output shape is (2, 3, 4, 12, 3, 4, 15)
 # See https://github.com/keras-team/keras/blob/master/keras/backend/tensorflow_backend.py for details.
-def _calculate_keras_dot_224_output_shapes(operator):
-    op = operator.raw_operator
-    if isinstance(op.output.shape, collections.Iterable):
-        operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
-                                              for i in op.output.shape)
-    else:
-        operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None for i in op.output.shape)
+def _calculate_keras_dot_output_shapes(operator):
+    if StrictVersion(keras.__version__.split('-')[0]) <= StrictVersion("2.2.4"):
+        op = operator.raw_operator
+        shape = []
+        for i in op.output.shape:
+            if isinstance(i.value, numbers.Integral):
+                shape.append(i.value)
+            else:
+                shape.append(None)
+        operator.outputs[0].type.shape = shape
 
 
-def _preprocessing(scope, operator, container):
-    op = operator.raw_operator
+def _preprocessing(op):
     if len(op.input_shape) > 2:
         raise RuntimeError('Unsupported number of input = %s > 2' % len(op.input_shape))
     x_shape = op.input_shape[0]
@@ -38,22 +41,12 @@ def _preprocessing(scope, operator, container):
     if x_batch_size != y_batch_size:
         raise RuntimeError('Can not do batch_dot on inputs with different batch sizes.' + str(x_shape) + ' and ' + str(y_shape))
 
-    normalized_input_names = []
-    if op.normalize:
-        for tensor_name in operator.input_full_names:
-            normalized_tensor_name = scope.get_unique_variable_name(tensor_name)
-            apply_normalization(scope, tensor_name, normalized_tensor_name, container)
-            normalized_input_names.append(normalized_tensor_name)
-    else:
-        normalized_input_names = operator.input_full_names
-
-    return normalized_input_names, x_ndim, y_ndim, x_shape, y_shape
+    return x_ndim, y_ndim, x_shape, y_shape
 
 
-@cvtfunc(shape_infer=_calculate_keras_dot_224_output_shapes)
 def convert_keras_dot_224(scope, operator, container):
     op = operator.raw_operator
-    normalized_input_names, x_ndim, y_ndim, _, _ = _preprocessing(scope, operator, container)
+    x_ndim, y_ndim, _, _ = _preprocessing(op)
     oopb = OnnxOperatorBuilder(container, scope)
 
     axes = op.axes
@@ -66,6 +59,16 @@ def convert_keras_dot_224(scope, operator, container):
         raise ValueError('Multiple target dimensions are not supported. ' +
                          'Expected: None, int, (int, int), ' +
                          'Provided: ' + str(axes))
+
+    normalized_input_names = []
+    if op.normalize:
+        for i_, tensor_name in enumerate(operator.input_full_names):
+            normalized_tensor_name = scope.get_unique_variable_name(tensor_name)
+            apply_normalization(scope, tensor_name, normalized_tensor_name, container, axis=axes[i_])
+            normalized_input_names.append(normalized_tensor_name)
+    else:
+        normalized_input_names = operator.input_full_names
+
     if x_ndim > y_ndim:
         diff = x_ndim - y_ndim
         y_shape_node = oopb.add_node('Shape',
@@ -79,7 +82,7 @@ def convert_keras_dot_224(scope, operator, container):
         y_reshape = oopb.add_node('Reshape',
                                 [normalized_input_names[1], y_shape_concat],
                                 operator.inputs[0].full_name + '_y_reshape')
-        x_reshape = operator.inputs[0].full_name
+        x_reshape = normalized_input_names[0]
     elif y_ndim > x_ndim:
         diff = y_ndim - x_ndim
         x_shape_node = oopb.add_node('Shape',
@@ -93,11 +96,11 @@ def convert_keras_dot_224(scope, operator, container):
         x_reshape = oopb.add_node('Reshape',
                                   [normalized_input_names[0], x_shape_concat],
                                   operator.inputs[0].full_name + '_x_reshape')
-        y_reshape = operator.inputs[1].full_name
+        y_reshape = normalized_input_names[1]
     else:
         diff = 0
-        x_reshape = operator.inputs[0].full_name
-        y_reshape = operator.inputs[1].full_name
+        x_reshape = normalized_input_names[0]
+        y_reshape = normalized_input_names[1]
 
     max_ndim = max([x_ndim, y_ndim])
     if x_ndim == 2 and y_ndim == 2:
@@ -108,7 +111,7 @@ def convert_keras_dot_224(scope, operator, container):
             out = oopb.add_node('ReduceSum',
                                [result_mul],
                                operator.inputs[0].full_name + '_out',
-                                axes=[0])
+                                axes=[axes[0]])
         else:
             x_transpose = oopb.add_node('Transpose',
                                        [x_reshape],
@@ -120,7 +123,7 @@ def convert_keras_dot_224(scope, operator, container):
             out = oopb.add_node('ReduceSum',
                                 [result_mul],
                                 operator.inputs[0].full_name + '_out',
-                                axes=[1])
+                                axes=[axes[1]])
     else:
         if axes is not None:
             adj_x = None if axes[0] == max_ndim - 1 else True
@@ -176,9 +179,9 @@ def convert_keras_dot_224(scope, operator, container):
                        name=scope.get_unique_operator_name('Identity'))
 
 
-def convert_keras_dot(scope, operator, container):
+def convert_keras_dot_post_224(scope, operator, container):
     op = operator.raw_operator
-    normalized_input_names, x_ndim, y_ndim, x_shape, y_shape = _preprocessing(scope, operator, container)
+    x_ndim, y_ndim, x_shape, y_shape = _preprocessing(op)
     oopb = OnnxOperatorBuilder(container, scope)
 
     orig_x_ndim = x_ndim
@@ -192,6 +195,16 @@ def convert_keras_dot(scope, operator, container):
     else:
         axes = op.axes
     a0, a1 = axes
+
+    normalized_input_names = []
+    if op.normalize:
+        for i_, tensor_name in enumerate(operator.input_full_names):
+            normalized_tensor_name = scope.get_unique_variable_name(tensor_name)
+            apply_normalization(scope, tensor_name, normalized_tensor_name, container, axis=axes[i_])
+            normalized_input_names.append(normalized_tensor_name)
+    else:
+        normalized_input_names = operator.input_full_names
+
     if x_shape[a0] != y_shape[a1]:
         raise RuntimeError('Dimension incompatibility: %s != %s' % (x_shape[axes[0]], y_shape[axes[1]]))
 
@@ -409,3 +422,12 @@ def convert_keras_dot(scope, operator, container):
     else:
         container.add_node('Identity', output_reshape, operator.output_full_names,
                            name=scope.get_unique_operator_name('Identity'))
+
+
+@cvtfunc(shape_infer=_calculate_keras_dot_output_shapes)
+def convert_keras_dot(scope, operator, container):
+    if StrictVersion(keras.__version__.split('-')[0]) <= StrictVersion("2.2.4"):
+        convert_keras_dot_224(scope, operator, container)
+    else:
+        convert_keras_dot_post_224(scope, operator, container)
+
