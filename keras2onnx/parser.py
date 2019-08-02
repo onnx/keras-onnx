@@ -119,10 +119,8 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     i0_reshape_name = i_.op.name + '_reshape_0:0'
     i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_))
     i0_reshape_shape = (-1,) + ishapes[0][2:]
-    ishapes0 = [-1 if s_ is None else s_ for s_ in ishapes[0]]
-    model_reshape_0 = keras.layers.Reshape(i0_reshape_shape, input_shape=ishapes0)
-    operator_reshape_0 = varset.declare_local_operator('reshape_timedistributed', raw_model=model_reshape_0,
-                                                       op_name=layer.name + '_reshape_0')
+    operator_reshape_0 = varset.declare_local_operator('reshape_timedistributed',
+                                                       op_name=layer.name + '_reshape_0', target_shape=i0_reshape_shape)
     operator_reshape_0.add_input(i0)
     operator_reshape_0.add_output(i0_reshape)
 
@@ -132,9 +130,8 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
     o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
-    model_reshape_1 = keras.layers.Reshape(oshapes1, input_shape=oshapes1)
-    operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed', raw_model=model_reshape_1,
-                                                       op_name=layer.name + '_reshape_1')
+    operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed',
+                                                       op_name=layer.name + '_reshape_1', target_shape=oshapes1)
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
     o1_reshape = varset.declare_local_variable(o1_reshape_name, _infer_variable_type(o_))
@@ -145,16 +142,23 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     setattr(inner_layer, '_output_shape', o1_reshape_shape)
     setattr(layer, 'layer', inner_layer)
 
-    operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
-    operator.nodelist = node_list
-    operator.add_input(i0_reshape)
-    operator.add_output(o1_reshape)
-
-    cvt = get_converter(type(layer.layer))
-    if cvt is not None and hasattr(cvt, 'shape_infer'):
-        operator.shape_infer = cvt.shape_infer
-
-    return operator
+    if isinstance(layer.layer, keras.Model):
+        kenode = extract_inbound_nodes(layer.layer)[0]
+        intop = varset.declare_local_operator('identity')
+        intop.add_input(i0_reshape)
+        intop.add_output(varset.get_local_variable_or_declare_one(list_input_tensors(kenode)[0].name))
+        _convert_keras_sub_model(layer.layer, graph, kenode, varset)
+        intop = varset.declare_local_operator('identity')
+        intop.add_input(varset.get_local_variable_or_declare_one(list_output_tensors(kenode)[0].name))
+        intop.add_output(o1_reshape)
+    else:
+        operator = varset.declare_local_operator(type(layer.layer), raw_model=layer.layer, op_name=layer.name)
+        operator.nodelist = node_list
+        operator.add_input(i0_reshape)
+        operator.add_output(o1_reshape)
+        cvt = get_converter(type(layer.layer))
+        if cvt is not None and hasattr(cvt, 'shape_infer'):
+            operator.shape_infer = cvt.shape_infer
 
 
 def _adjust_input_batch_size(var_type):
@@ -254,17 +258,17 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
     ts_inputs = []
     ts_outputs = []
     upper_prefix = upper_prefix if upper_prefix else ''
-    prefix = None
+    prefix = ''
     # mapping input/output nodes for the sub_model.
     inbound_nodes = extract_inbound_nodes(sub_model)
-    if len(inbound_nodes) > 1:
+    if len(inbound_nodes) > 1 and inbound_nodes[0] is not target_kenode:
         # Assumption: the first node in the inbound node list is always the one used in the keras layers.
         base_node = inbound_nodes[0]
         curr_node = target_kenode
         assert curr_node is not None
         for idx_, out_ in enumerate(list_output_tensors(curr_node)):
             base_ts = list_output_tensors(base_node)[idx_]
-            if prefix is None:
+            if not prefix:
                 prefix = out_.name[0:out_.name.find(base_ts.name)]
             else:
                 assert prefix == out_.name[0:out_.name.find(base_ts.name)]

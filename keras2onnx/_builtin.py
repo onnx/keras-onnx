@@ -3,13 +3,13 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common.onnx_ops import apply_identity, apply_reshape
-from .funcbook import set_converter
 import sys
 import numpy as np
 import tf2onnx
-from tf2onnx import utils
-from onnx import onnx_pb, helper
+
+from .common.onnx_ops import apply_identity, apply_reshape
+from .funcbook import set_converter
+from .proto import onnx_proto
 
 
 def default_convert(scope, operator, container):
@@ -17,10 +17,9 @@ def default_convert(scope, operator, container):
 
 
 def convert_reshape_timedistributed(scope, operator, container):
-    iop = operator.raw_operator
-    target_shape = iop.target_shape
+    target_shape = operator.get_attr('target_shape')
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                  operator_name=operator.raw_operator.name, desired_shape=target_shape)
+                  operator_name=operator.full_name, desired_shape=target_shape)
 
 
 set_converter('identity', default_convert)
@@ -61,7 +60,7 @@ def on_StridedSlice(ctx, node, name, args):
     for idx, begin_item in enumerate(begin):
         if (ellipsis_mask >> idx) & 1:
             input_shape = ctx.get_shape(node.input[0])
-            utils.make_sure(
+            tf2onnx.utils.make_sure(
                 input_shape is not None,
                 "StridedSlice op {} requires the shape of input".format(node.name)
             )
@@ -171,7 +170,7 @@ def on_StridedSlice_9(ctx, node, name, args):
 
         if (ellipsis_mask >> idx) & 1:
             input_shape = ctx.get_shape(node.input[0])
-            utils.make_sure(
+            tf2onnx.utils.make_sure(
                 input_shape is not None,
                 "StridedSlice op {} requires the shape of input".format(node.name)
             )
@@ -255,8 +254,8 @@ def on_Round(ctx, node, name, args):
     const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
     cast_name = tf2onnx.utils.make_name(node.name)
     cast_node = ctx.insert_new_node_on_output("Cast", const_node.output[0], cast_name)
-    cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
-    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
+    cast_node.set_attr("to", onnx_proto.TensorProto.FLOAT)
+    ctx.set_dtype(cast_node.output[0], onnx_proto.TensorProto.FLOAT)
     add_output_name = tf2onnx.utils.make_name(node.name) + ':0'
     add_node = ctx.make_node("Add", [node.input[0], cast_node.output[0]], shapes=[node.output_shapes[0]], dtypes=[node.output_dtypes], outputs=[add_output_name])
     node.input[0] = add_output_name
@@ -268,12 +267,12 @@ def on_TopKV2(ctx, node, name, args):
     # onnx only supports input K as a 1D tesor with dtype int64
     # while in tf, K is a 0D tensor with dtype int32
     k_0d = node.input[1]
-    cast = ctx.make_node("Cast", [k_0d], attr={"to": onnx_pb.TensorProto.INT64})
+    cast = ctx.make_node("Cast", [k_0d], attr={"to": onnx_proto.TensorProto.INT64})
     k_1d = ctx.make_node("Unsqueeze", cast.output, attr={"axes": [0]})
     ctx.replace_input(node, k_0d, k_1d.output[0])
 
     k_0 = node.input[0]
-    cast_0 = ctx.make_node("Cast", [k_0], attr={"to": onnx_pb.TensorProto.FLOAT})
+    cast_0 = ctx.make_node("Cast", [k_0], attr={"to": onnx_proto.TensorProto.FLOAT})
     ctx.replace_input(node, k_0, cast_0.output[0])
     node.type = "TopK"
 

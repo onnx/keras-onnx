@@ -11,12 +11,13 @@ activation_get = keras.activations.get
 
 
 def convert_keras_dense(scope, operator, container):
-    parameters = operator.raw_operator.get_weights()
+    op = operator.raw_operator
+    parameters = op.get_weights()
 
     # Allocate weight matrix
-    weight_name = scope.get_unique_variable_name('W')
     weight = parameters[0]
-    container.add_initializer(weight_name, onnx_proto.TensorProto.FLOAT, weight.shape, weight.flatten())
+    weight_name = container.add_initializer_by_name(scope, op.weights[0].name, onnx_proto.TensorProto.FLOAT,
+                                                    weight.shape, weight.flatten())
 
     # Do a numpy matmul. If the input is 2-D, it will be a standard matrix multiplication. Otherwise, it follows Numpy's
     # matmul behavior.
@@ -26,9 +27,14 @@ def convert_keras_dense(scope, operator, container):
                        name=operator.full_name, op_version=op_version)
 
     # Allocate bias vector
-    bias = parameters[1] if len(parameters) > 1 else np.zeros((weight.shape[1],), dtype=np.float32)
-    bias_name = scope.get_unique_variable_name('B')
-    container.add_initializer(bias_name, onnx_proto.TensorProto.FLOAT, bias.shape, bias.flatten())
+    if len(parameters) > 1:
+        bias = np.zeros((weight.shape[1],), dtype=np.float32)
+        bias_name = scope.get_unique_variable_name('B')
+        container.add_initializer(bias_name, onnx_proto.TensorProto.FLOAT, bias.shape, bias.flatten())
+    else:
+        bias = parameters[1]
+        bias_name = container.add_initializer_by_name(scope, op.weights[1].name, onnx_proto.TensorProto.FLOAT,
+                                                      bias.shape, bias.flatten())
 
     # Add bias
     biased_tensor_name = scope.get_unique_variable_name('biased_tensor_name')
