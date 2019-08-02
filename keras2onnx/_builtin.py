@@ -278,9 +278,36 @@ def on_TopKV2(ctx, node, name, args):
     node.type = "TopK"
 
 
+def on_AllAny(ctx, node, name, args):
+        # T output = All(T x, list(int) reduce_indices, @bool keepdims)
+        # T output = Any(T x, list(int) reduce_indices, @bool keepdims)
+        reduce_dim = node.inputs[1].get_tensor_value()
+
+        # for Any, the reduce_indices can be scalar as observed.
+        if np.isscalar(reduce_dim):
+            reduce_dim = [reduce_dim]
+
+        # It is fine to have nagative reduce_dim.
+        cast = ctx.make_node(op_type="Cast", inputs=[node.input[0]], attr={"to": onnx_pb.TensorProto.FLOAT})
+        keepdims = helper.get_attribute_value(node.get_attr("keep_dims"))
+        op_type = "ReduceMin" if node.type == "All" else "ReduceSum"
+        reduce_node = ctx.make_node(op_type=op_type, inputs=cast.output,
+                                    attr={"axes": reduce_dim, "keepdims": keepdims})
+
+        zero_node = ctx.make_const(utils.make_name("zero_reduce"), np.array(0, dtype=np.float32))
+
+        shapes = node.output_shapes
+        dtypes = node.output_dtypes
+        ctx.remove_node(node.name)
+        ctx.make_node(op_type="Greater", inputs=[reduce_node.output[0], zero_node.output[0]],
+                      name=node.name, outputs=node.output, shapes=shapes, dtypes=dtypes)
+
+
 def tf2onnx_builtin_conversion(opset):
     return {
         'Round': (on_Round, []),
         'StridedSlice': (on_StridedSlice_9 if opset <= 9 else on_StridedSlice, []),
-        'TopKV2': (on_TopKV2, [])
+        'TopKV2': (on_TopKV2, []),
+        'All': (on_AllAny, []),
+        'Any': (on_AllAny, []),
     }

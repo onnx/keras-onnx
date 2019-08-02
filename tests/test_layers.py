@@ -139,6 +139,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self._test_stridedslice_with_version(opset_)
             self._test_stridedslice_ellipsis_mask_with_version(opset_)
 
+    def test_any_all(self):
+        for l_ in [keras.backend.any, keras.backend.all]:
+            for axis in [1, -1]:
+                keras_model = keras.models.Sequential()
+                keras_model.add(keras.layers.Lambda(lambda x: l_(x, axis=axis), input_shape=[3, 5]))
+                onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+                x = np.random.rand(2, 3, 5).astype(np.float32)
+                expected = keras_model.predict(x)
+                self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
     def test_dense(self):
         for bias_value in [True, False]:
             model = keras.Sequential()
