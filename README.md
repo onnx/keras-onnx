@@ -44,7 +44,7 @@ We converted successfully for all the keras application models, and several othe
 | [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
 | [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
 | [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
-| [keras-team examples](https://github.com/keras-team/keras/blob/master/examples/) | | reuters_mlp.py, imdb_lstm.py |
+| [keras-team examples](https://github.com/keras-team/keras/blob/master/examples/) | Text and Sequence | addition_rnn, babi_rnn, imdb_bidirectional_lstm, imdb_cnn_lstm, imdb_lstm, lstm_text_generation, reuters_mlp |
 
 The following models need customed conversion, see the instruction column.
 

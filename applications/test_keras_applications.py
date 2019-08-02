@@ -192,5 +192,25 @@ class TestKerasApplications(unittest.TestCase):
         expected = keras_model.predict([x, y])
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
 
+    def test_addition_rnn(self):
+        # An implementation of sequence to sequence learning for performing addition
+        # from https://github.com/keras-team/keras/blob/master/examples/addition_rnn.py
+        DIGITS = 3
+        MAXLEN = DIGITS + 1 + DIGITS
+        HIDDEN_SIZE = 128
+        BATCH_SIZE = 128
+        CHARS_LENGTH = 12
+
+        for RNN in [keras.layers.LSTM, keras.layers.GRU, keras.layers.SimpleRNN]:
+            model = keras.models.Sequential()
+            model.add(RNN(HIDDEN_SIZE, input_shape=(MAXLEN, CHARS_LENGTH)))
+            model.add(keras.layers.RepeatVector(DIGITS + 1))
+            model.add(RNN(HIDDEN_SIZE, return_sequences=True))
+            model.add(keras.layers.TimeDistributed(keras.layers.Dense(CHARS_LENGTH, activation='softmax')))
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            x = np.random.rand(BATCH_SIZE, MAXLEN, CHARS_LENGTH).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
     if __name__ == "__main__":
         unittest.main()
