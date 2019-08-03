@@ -27,7 +27,7 @@ def convert_keras_dense(scope, operator, container):
                        name=operator.full_name, op_version=op_version)
 
     # Allocate bias vector
-    if len(parameters) > 1:
+    if len(parameters) == 1:
         bias = np.zeros((weight.shape[1],), dtype=np.float32)
         bias_name = scope.get_unique_variable_name('B')
         container.add_initializer(bias_name, onnx_proto.TensorProto.FLOAT, bias.shape, bias.flatten())
