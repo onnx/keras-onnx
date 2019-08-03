@@ -598,10 +598,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         layer = keras.layers.Dot(axes=-1, normalize=l2Normalize)(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
-        model.save('dot.h5')
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        import onnx
-        onnx.save_model(onnx_model, 'dot.onnx')
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
