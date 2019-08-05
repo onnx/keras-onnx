@@ -9,7 +9,7 @@ from six.moves import queue
 from collections.abc import Iterable
 from .proto import keras
 from .common import k2o_logger, get_default_batch_size
-from .ke2onnx import extract_inbound_nodes, list_input_tensors, list_output_tensors, build_opdict_from_keras
+from .ke2onnx import extract_inbound_nodes, list_input_tensors, list_output_tensors, list_input_shapes, list_output_shapes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
 from .topology import Topology
 from .subgraph import is_placeholder_node, tsname_to_node, create_subgraph
@@ -105,9 +105,9 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
     for nb_ in extract_inbound_nodes(layer):
         if _is_relevant_keras_node(model, nb_):
             inputs += list_input_tensors(nb_)
-            ishapes += nb_.input_shapes if isinstance(nb_.input_shapes[0], Iterable) else [nb_.input_shapes]
+            ishapes += list_input_shapes(nb_)
             outputs += list_output_tensors(nb_)
-            oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
+            oshapes += list_output_shapes(nb_)
             num_relevant_keras_node = num_relevant_keras_node + 1
 
     assert num_relevant_keras_node == 1
@@ -180,7 +180,7 @@ def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
                 (node_list and node_list[0] in [ts_.op for ts_ in list_output_tensors(nb_)]):
                     inputs += list_input_tensors(nb_)
                     outputs += list_output_tensors(nb_)
-                    oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
+                    oshapes += list_output_shapes(nb_)
                     operator.inbound_node = nb_
 
     # This layer will be visited because its output is other layer's input
