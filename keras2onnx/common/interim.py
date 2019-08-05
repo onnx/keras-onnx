@@ -205,6 +205,20 @@ class OnnxObjectContainer(object):
         tensor = helper.make_tensor(name, onnx_type, shape, content)
         self.initializers.append(tensor)
 
+    def add_initializer_by_name(self, scope, original_name, onnx_type, shape, content):
+        if original_name not in scope.variable_name_mapping:
+            onnx_name = scope.get_unique_variable_name(original_name)
+            scope.variable_name_mapping[original_name] = [onnx_name]
+
+            if any(d is None for d in shape):
+                raise ValueError('Shape of initializer cannot contain None')
+            tensor = helper.make_tensor(onnx_name, onnx_type, shape, content)
+            self.initializers.append(tensor)
+        else:
+            onnx_name = scope.get_onnx_variable_name(original_name)
+            assert next(ts_ for ts_ in self.initializers if ts_.name == onnx_name)
+        return onnx_name
+
     def add_initializer_from_tensor(self, tensor):
         self.initializers.append(tensor)
 
@@ -369,13 +383,14 @@ class InterimContext:
                 self.variable_name_mapping[raw_name] = [onnx_name]
             return variable
 
-    def declare_local_operator(self, type, raw_model=None, op_name=None):
+    def declare_local_operator(self, type, raw_model=None, op_name=None, **attrs):
         """
         This function is used to declare new local operator.
         """
         onnx_name = self.get_unique_operator_name(str(type) if op_name is None else op_name)
         operator = Operator(onnx_name, self.name, type, raw_model, self.target_opset)
         self.operators[onnx_name] = operator
+        operator.update_attrs(**attrs)
         return operator
 
     def delete_local_operator(self, onnx_name):

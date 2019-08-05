@@ -24,10 +24,9 @@ def convert_keras_embed(scope, operator, container):
 
     # Prepare the weight matrix (i.e., the vectors of all input indices) as an initializer so that the following main
     # operator can access it.
-    embedding_tensor_name = scope.get_unique_variable_name('W')
-    weights = np.array(op.get_weights()[0].T).reshape(op.output_shape[-1], op.input_dim).transpose().flatten().tolist()
-    container.add_initializer(embedding_tensor_name, onnx_proto.TensorProto.FLOAT,
-                              [op.input_dim, op.output_shape[-1]], weights)
-
+    op_output_shape_last_dim = operator.inbound_node.output_shapes[0][-1]
+    weights = np.array(op.get_weights()[0].T).reshape(op_output_shape_last_dim, op.input_dim).transpose().flatten().tolist()
+    embedding_tensor_name = container.add_initializer_by_name(scope, op.weights[0].name, onnx_proto.TensorProto.FLOAT,
+                                                              [op.input_dim, op_output_shape_last_dim], weights)
     # Create a Gather operator to extract the latent representation of each index
     container.Gather([embedding_tensor_name, cast_name], operator.output_full_names, name=operator.full_name)

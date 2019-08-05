@@ -139,6 +139,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self._test_stridedslice_with_version(opset_)
             self._test_stridedslice_ellipsis_mask_with_version(opset_)
 
+    def test_any_all(self):
+        for l_ in [keras.backend.any, keras.backend.all]:
+            for axis in [1, -1]:
+                keras_model = keras.models.Sequential()
+                keras_model.add(keras.layers.Lambda(lambda x: l_(x, axis=axis), input_shape=[3, 5]))
+                onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+                x = np.random.rand(2, 3, 5).astype(np.float32)
+                expected = keras_model.predict(x)
+                self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
     def test_dense(self):
         for bias_value in [True, False]:
             model = keras.Sequential()
@@ -588,10 +598,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         layer = keras.layers.Dot(axes=-1, normalize=l2Normalize)(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
-        model.save('dot.h5')
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        import onnx
-        onnx.save_model(onnx_model, 'dot.onnx')
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -956,6 +963,33 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
+    def test_shared_embed(self):
+        max_cont_length = 5
+        max_ques_length = 7
+        word_dict_len = 10
+        word_dim = 6
+        h_word_mat = 'aa'
+        # Input Embedding Layer
+        contw_input_ = keras.layers.Input((max_cont_length,))  # [bs, c_len]
+        quesw_input_ = keras.layers.Input((max_ques_length,))  # [bs, q_len]
+
+        # embedding word
+        WordEmbedding = keras.layers.Embedding(word_dict_len, word_dim, trainable=False,
+                                  name="word_embedding_" + h_word_mat)
+        xw_cont = WordEmbedding(contw_input_)  # [bs, c_len, word_dim]
+        xw_ques = WordEmbedding(quesw_input_)  # [bs, c_len, word_dim]
+
+        outputs = [xw_cont, xw_ques]
+
+        keras_model = keras.models.Model(inputs=[contw_input_, quesw_input_],
+                      outputs=outputs)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        batch_size = 3
+        x = np.random.rand(batch_size, max_cont_length).astype(np.float32)
+        y = np.random.rand(batch_size, max_ques_length).astype(np.float32)
+        expected = keras_model.predict([x, y])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
+
     @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_model(self):
         Input = keras.layers.Input
@@ -1102,36 +1136,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
-
-    def test_one(self):
-        from keras import backend as K
-        from keras.layers import Input, Dropout, Embedding, Layer
-        from keras.models import Model
-
-        max_cont_length = 5
-        max_ques_length = 7
-        char_limit = 12
-        word_dict_len = 10
-        word_dim = 6
-        h_word_mat = 'aa'
-        # Input Embedding Layer
-        contw_input_ = Input((max_cont_length,))  # [bs, c_len]
-        quesw_input_ = Input((max_ques_length,))  # [bs, q_len]
-
-        # embedding word
-        WordEmbedding = Embedding(word_dict_len, word_dim, trainable=False,
-                                  name="word_embedding_" + h_word_mat)
-        # xw_cont = Dropout(0.)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
-        # xw_ques = Dropout(0.)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
-        xw_cont = WordEmbedding(contw_input_)  # [bs, c_len, word_dim]
-        xw_ques = WordEmbedding(quesw_input_)  # [bs, c_len, word_dim]
-
-        outputs = [xw_cont, xw_ques]
-
-        model = Model(inputs=[contw_input_, quesw_input_],
-                      outputs=outputs)
-        model.save('one.h5')
-        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=10, debug_mode=True)
 
 
 if __name__ == "__main__":

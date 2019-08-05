@@ -9,7 +9,6 @@ class Operator:
     """
     The intermediate object to store the information for the final ONNX operator generation.
     """
-
     def __init__(self, onnx_name, scope, type, raw_operator, target_opset):
         """
         :param onnx_name: A unique ID, which is a string
@@ -22,16 +21,17 @@ class Operator:
         self.scope = scope
         self.type = type
         self.raw_operator = raw_operator
+        self.inbound_node = None
         self.inputs = []
         self.input_mask = None
         self.outputs = []
         self.output_mask = None
         self.nodelist = None
         self.is_evaluated = None
-        self.is_abandoned = False
         self.target_opset = target_opset
         self.shape_infer = None
         self.tf2onnx_graph = None
+        self.attrs = {}
 
     @property
     def full_name(self):
@@ -80,3 +80,12 @@ class Operator:
         if var.op_from is None:
             var.op_from = self
         self.output_mask = var
+
+    def update_attrs(self, **attrs):
+        self.attrs.update(attrs)
+
+    def get_attr(self, key):
+        return self.attrs.get(key, None)
+
+    def get_input_shapes(self):
+        return self.attrs.get('input_shapes', None)
