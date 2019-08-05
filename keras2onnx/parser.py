@@ -172,11 +172,14 @@ def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
     oshapes = []
     for nb_ in extract_inbound_nodes(layer):
         if _is_relevant_keras_node(model, nb_):
-            inputs += list_input_tensors(nb_)
-            outputs += list_output_tensors(nb_)
-            oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
-            # This layer will be visited because its output is other layer's input
-            assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
+            if node_list and node_list[0] in [ts_.op for ts_ in list_output_tensors(nb_)]:
+                inputs += list_input_tensors(nb_)
+                outputs += list_output_tensors(nb_)
+                oshapes += nb_.output_shapes if isinstance(nb_.output_shapes[0], Iterable) else [nb_.output_shapes]
+
+    # This layer will be visited because its output is other layer's input
+    # The output only need be in one of the layer inbound nodes
+    assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
 
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
         prefix = ''

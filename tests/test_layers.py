@@ -1103,6 +1103,36 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
 
+    def test_one(self):
+        from keras import backend as K
+        from keras.layers import Input, Dropout, Embedding, Layer
+        from keras.models import Model
+
+        max_cont_length = 5
+        max_ques_length = 7
+        char_limit = 12
+        word_dict_len = 10
+        word_dim = 6
+        h_word_mat = 'aa'
+        # Input Embedding Layer
+        contw_input_ = Input((max_cont_length,))  # [bs, c_len]
+        quesw_input_ = Input((max_ques_length,))  # [bs, q_len]
+
+        # embedding word
+        WordEmbedding = Embedding(word_dict_len, word_dim, trainable=False,
+                                  name="word_embedding_" + h_word_mat)
+        # xw_cont = Dropout(0.)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
+        # xw_ques = Dropout(0.)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
+        xw_cont = WordEmbedding(contw_input_)  # [bs, c_len, word_dim]
+        xw_ques = WordEmbedding(quesw_input_)  # [bs, c_len, word_dim]
+
+        outputs = [xw_cont, xw_ques]
+
+        model = Model(inputs=[contw_input_, quesw_input_],
+                      outputs=outputs)
+        model.save('one.h5')
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=10, debug_mode=True)
+
 
 if __name__ == "__main__":
     unittest.main()
