@@ -9,7 +9,6 @@ from ..proto import keras
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
 
-
 activation_get = keras.activations.get
 SeparableConv2D = keras.layers.SeparableConv2D
 DepthwiseConv2D = keras.layers.DepthwiseConv2D if \
@@ -18,7 +17,8 @@ SeparableConv1D = keras.layers.SeparableConv1D if \
     hasattr(keras.layers, 'SeparableConv1D') else None
 
 
-def _calc_explicit_padding(input_size, output_shape, is_transpose, output_padding, kernel_shape, stride, dilation, perm):
+def _calc_explicit_padding(input_size, output_shape, is_transpose, output_padding, kernel_shape, stride, dilation,
+                           perm):
     to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
     input_size = to_nchw(input_size, perm)[2:]
     output_shape = to_nchw(output_shape, perm)[2:]
@@ -122,15 +122,13 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
         weight_params = weight_params.transpose(weight_perm_axes)
         group = 1
 
-    weight_tensor_name = scope.get_unique_variable_name('W')
-    container.add_initializer(weight_tensor_name, onnx_proto.TensorProto.FLOAT,
-                              weight_params.shape, weight_params.flatten())
+    weight_tensor_name = container.add_initializer_by_name(scope, op.weights[0].name, onnx_proto.TensorProto.FLOAT,
+                                                           weight_params.shape, weight_params.flatten())
     convolution_input_names.append(weight_tensor_name)
 
     if len(parameters) == 2 and not is_separable_conv:
-        bias_tensor_name = scope.get_unique_variable_name('B')
-        container.add_initializer(bias_tensor_name, onnx_proto.TensorProto.FLOAT,
-                                  parameters[1].shape, parameters[1].flatten())
+        bias_tensor_name = container.add_initializer_by_name(scope, op.weights[1].name, onnx_proto.TensorProto.FLOAT,
+                                                             parameters[1].shape, parameters[1].flatten())
         convolution_input_names.append(bias_tensor_name)
 
     attrs['dilations'] = list(op.dilation_rate)
@@ -190,8 +188,6 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
         apply_softmax(scope, transpose_output_name, operator.outputs[0].full_name, container, axis=-1)
     else:
         apply_activation_function(scope, transpose_output_name, operator.outputs[0].full_name, container)
-
-
 
 
 def get_converter_config(dims, is_conv_transpose):

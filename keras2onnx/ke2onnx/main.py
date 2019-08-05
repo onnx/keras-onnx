@@ -90,7 +90,6 @@ def convert_keras_flatten(scope, operator, container):
                       operator_name=operator.raw_operator.name, desired_shape=target_shape)
 
 
-
 def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
