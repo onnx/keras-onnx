@@ -4,6 +4,7 @@
 # license information.
 ###############################################################################
 import six
+from collections import Iterable
 
 from ..proto import keras
 from ..common import with_variable
@@ -57,14 +58,14 @@ def list_input_shapes(node):
     """
     Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
     """
-    return [node.input_shapes] if hasattr(node.input_shapes, 'dtype') else node.input_shapes
+    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
 
 
 def list_output_shapes(node):
     """
     Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
     """
-    return [node.output_shapes] if hasattr(node.output_shapes, 'dtype') else node.output_shapes
+    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
 
 
 def convert_keras_reshape(scope, operator, container):
