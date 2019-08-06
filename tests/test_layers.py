@@ -16,13 +16,13 @@ from distutils.version import StrictVersion
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
+keras_version = keras.__version__.split('-')[0]
 
 
 class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
-        self.keras_version = keras.__version__.split('-')[0]
 
     def tearDown(self):
         for fl in self.model_files:
@@ -569,7 +569,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
-            if StrictVersion(self.keras_version) >= StrictVersion("2.2.3"):
+            if StrictVersion(keras_version) >= StrictVersion("2.2.3"):
                 layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                 self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
@@ -1052,6 +1052,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
 
+    @unittest.skipIf(StrictVersion(keras_version) < StrictVersion("2.2.4"),
+                     "Low keras version is not supported.")
     def test_shared_model_2(self):
         KM = keras.models
         KL = keras.layers
