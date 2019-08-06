@@ -21,7 +21,6 @@ class Operator:
         self.scope = scope
         self.type = type
         self.raw_operator = raw_operator
-        self.inbound_node = None
         self.inputs = []
         self.input_mask = None
         self.outputs = []

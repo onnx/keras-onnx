@@ -181,7 +181,6 @@ def _convert_keras_scope(graph, node_list, layer, model, varset, prefix=None):
                     inputs += list_input_tensors(nb_)
                     outputs += list_output_tensors(nb_)
                     oshapes += list_output_shapes(nb_)
-                    operator.inbound_node = nb_
 
     # This layer will be visited because its output is other layer's input
     # The output only need be in one of the layer inbound nodes
