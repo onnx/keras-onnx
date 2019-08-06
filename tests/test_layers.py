@@ -963,6 +963,31 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(self.run_onnx_runtime('separable_convolution_2', onnx_model, x, expected))
 
+    def test_shared_embed(self):
+        max_cont_length = 5
+        max_ques_length = 7
+        word_dict_len = 10
+        word_dim = 6
+        h_word_mat = 'aa'
+        # Input Embedding Layer
+        contw_input_ = keras.layers.Input((max_cont_length,))  # [bs, c_len]
+        quesw_input_ = keras.layers.Input((max_ques_length,))  # [bs, q_len]
+
+        # embedding word
+        WordEmbedding = keras.layers.Embedding(word_dict_len, word_dim, trainable=False,
+                                  name="word_embedding_" + h_word_mat)
+        xw_cont = keras.layers.Dropout(0.)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
+        xw_ques = keras.layers.Dropout(0.)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
+
+        keras_model = keras.models.Model(inputs=[contw_input_, quesw_input_],
+                      outputs=[xw_cont, xw_ques])
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        batch_size = 3
+        x = np.random.rand(batch_size, max_cont_length).astype(np.float32)
+        y = np.random.rand(batch_size, max_ques_length).astype(np.float32)
+        expected = keras_model.predict([x, y])
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
+
     @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_model(self):
         Input = keras.layers.Input

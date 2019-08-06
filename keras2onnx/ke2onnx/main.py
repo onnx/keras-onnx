@@ -4,6 +4,7 @@
 # license information.
 ###############################################################################
 import six
+from collections import Iterable
 
 from ..proto import keras
 from ..common import with_variable
@@ -41,16 +42,30 @@ def extract_inbound_nodes(layer):
 
 def list_input_tensors(node):
     """
-    Since Tensorflow 1.4, sometimes the node.input_tensors may not be a list, though the word is plural.
+    Since Tensorflow 1.14, sometimes the node.input_tensors may not be a list, though the word is plural.
     """
     return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
 
 
 def list_output_tensors(node):
     """
-    Since Tensorflow 1.4, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
+    Since Tensorflow 1.14, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
     """
     return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
+
+
+def list_input_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
+    """
+    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
+
+
+def list_output_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
+    """
+    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
 
 
 def convert_keras_reshape(scope, operator, container):
