@@ -1135,6 +1135,64 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
         self._test_keras_model(model)
 
+    def test_two(self):
+        from keras import backend as K
+        K.set_learning_phase(0)
+        from keras.layers import Input, Dropout, Embedding, Layer, Conv2D, MaxPooling2D, Dense, Concatenate
+        from keras.models import Model, Sequential
+
+        class IdentityLayer(Layer):
+
+            def __init__(self, **kwargs):
+                super(IdentityLayer, self).__init__(**kwargs)
+
+            def build(self, input_shape):
+                super(IdentityLayer, self).build(input_shape)
+
+            def call(self, inputs, training=None):
+                return inputs
+
+            def compute_output_shape(self, input_shape):
+                return input_shape
+
+        input_shape = [700, 420, 1]
+        num_classes = 10
+
+        image_input = Input(shape=input_shape, name='image_input')
+
+        model = Sequential()  # 28, 28, 1
+        model.add(Conv2D(32, kernel_size=(3, 3), activation='relu',
+                         input_shape=input_shape, padding='valid'))  # 28, 28, 1
+        model.add(Conv2D(64, (3, 3), activation='relu', padding='valid'))  # 28, 28, 1
+        model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid"))  # 14, 14, 1
+        model.add(Dropout(0.25))
+        model.add(Conv2D(128, kernel_size=(12, 12), strides=(14, 14), padding="valid", activation='relu'))
+        model.add(Dropout(0.5))
+
+        features = model(image_input)
+
+        outputs = []
+        for _ in range(3):
+            output1 = Dense(num_classes, activation="softmax")(
+                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+            output2 = Dense(1, activation="sigmoid")(
+                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+            output3 = Dense(2, activation="tanh")(
+                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+            output4 = Dense(2, activation="tanh")(
+                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+            outputs += [output1, output2, output3, output4]
+
+        output = Concatenate(name="output")(outputs)
+        output = IdentityLayer()(output)
+        model = Model(image_input, output)
+        name = "ok"
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=7, debug_mode=True)
+        _model_name_onnx = name + ".onnx"
+        with open(_model_name_onnx, "wb") as f:
+            f.write(onnx_model.SerializeToString())
+        print("Model saved to ONNX at", _model_name_onnx)
+
 
 if __name__ == "__main__":
     unittest.main()

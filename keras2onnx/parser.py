@@ -367,6 +367,8 @@ def _infer_graph_shape(topology, top_level, varset):
     while not var_queue.empty():
         var = var_queue.get_nowait()
         k2o_logger().debug("var: " + var.full_name)
+        if var.full_name == 'TFNodes/output/concat:0':
+            aa = 1
         for oop in var.op_to:
             if oop in visited:
                 continue
