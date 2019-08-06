@@ -988,8 +988,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict([x, y])
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected))
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_model(self):
+        keras.backend.set_learning_phase(0)
         Input = keras.layers.Input
         Dense = keras.layers.Dense
         Add = keras.layers.Add
@@ -1017,8 +1017,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive', onnx_model, x, expected))
 
-    @unittest.skipIf(is_tf_keras, "tf_keras not supported")
     def test_recursive_and_shared_model(self):
+        keras.backend.set_learning_phase(0)
         Input = keras.layers.Input
         Dense = keras.layers.Dense
         Add = keras.layers.Add
@@ -1051,6 +1051,37 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = [x, 2 * x]
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
+
+    def test_shared_model_2(self):
+        KM = keras.models
+        KL = keras.layers
+        K = keras.backend
+        K.set_learning_phase(0)
+        def _conv_layer(input, filters, kernel_size, strides=1, dilation_rate=1):
+            padding = 'same' if strides == 1 else 'valid'
+            if strides > 1:
+                input = KL.ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(input)
+            x = KL.Conv2D(filters=filters, kernel_size=kernel_size, strides=strides,
+                          padding=padding, use_bias=False, dilation_rate=dilation_rate)(input)
+            ch_axis = 1 if K.image_data_format() == 'channels_first' else -1
+            x = KL.BatchNormalization(axis=ch_axis)(x)
+            return KL.ReLU()(x)
+
+        def _model():
+            input = KL.Input(shape=(3, 320, 320), name='input_1')
+            x = _conv_layer(input, 16, 3)
+            return KM.Model(inputs=input, outputs=x, name='backbone')
+
+        input = KL.Input(shape=(3, 320, 320), name='input')
+        backbone = _model()
+        x = backbone(input)
+        x = _conv_layer(x, 16, 3)
+        model = KM.Model(inputs=[input], outputs=[x])
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.rand(2, 3, 320, 320).astype(np.float32)
+        expected = model.predict(x)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
 
     def test_timedistributed(self):
         keras_model = keras.Sequential()
