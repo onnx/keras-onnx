@@ -1055,6 +1055,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
     @unittest.skipIf(StrictVersion(keras_version) < StrictVersion("2.2.4"),
                      "Low keras version is not supported.")
     def test_shared_model_2(self):
+        try:
+            import tensorflow as tf
+            if StrictVersion(tf.__version__) < StrictVersion("1.14.0"):
+                return
+        except ImportError:
+            pass
         KM = keras.models
         KL = keras.layers
         K = keras.backend
