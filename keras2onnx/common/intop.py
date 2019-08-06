@@ -88,3 +88,9 @@ class Operator:
 
     def get_input_shapes(self):
         return self.attrs.get('input_shapes', None)
+
+    def get_output_shape(self):
+        output_shape = self.outputs[0].type.shape
+        if output_shape is None:
+            output_shape = self.raw_operator.output_shape
+        return output_shape
