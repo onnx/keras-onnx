@@ -1065,6 +1065,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         KL = keras.layers
         K = keras.backend
         K.set_learning_phase(0)
+
         def _conv_layer(input, filters, kernel_size, strides=1, dilation_rate=1):
             padding = 'same' if strides == 1 else 'valid'
             if strides > 1:
