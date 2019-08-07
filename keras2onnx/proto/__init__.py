@@ -5,6 +5,8 @@
 ###############################################################################
 import os
 import onnx
+from distutils.version import StrictVersion
+
 # Rather than using ONNX protobuf definition throughout our codebase, we import ONNX protobuf definition here so that
 # we can conduct quick fixes by overwriting ONNX functions without changing any lines elsewhere.
 from onnx import onnx_pb as onnx_proto
@@ -13,7 +15,6 @@ from onnx import helper
 
 def get_opset_number_from_onnx():
     return onnx.defs.onnx_opset_version()
-
 
 def _check_onnx_version():
     import pkg_resources
@@ -35,3 +36,11 @@ else:
     except ImportError:
         is_tf_keras = True
         from tensorflow.python import keras
+
+
+def is_keras_older_than(version_str):
+    return StrictVersion(keras.__version__.split('-')[0]) < StrictVersion(version_str)
+
+
+def is_keras_later_than(version_str):
+    return StrictVersion(keras.__version__.split('-')[0]) > StrictVersion(version_str)

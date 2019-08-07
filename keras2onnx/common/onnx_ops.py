@@ -3,6 +3,8 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import functools
+import onnxconverter_common
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 from onnxconverter_common.onnx_ops import *  # noqa:
 
@@ -20,11 +22,19 @@ class OnnxOperatorBuilder:
         self.float = onnx_proto.TensorProto.FLOAT
         self.double = onnx_proto.TensorProto.DOUBLE
 
+        apply_operations = onnxconverter_common.onnx_ops.__dict__
+        for k_, m_ in apply_operations.items():
+            if k_.startswith("apply_") and callable(m_):
+                setattr(self, k_, functools.partial(self.apply_op, m_))
+
     def _process_inputs(self, inputs, name):
+        if not isinstance(inputs, (list, tuple)):
+            inputs = [inputs]
         ox_inputs = []
         for i_ in inputs:
-            ox_n = self._scope.get_unique_variable_name(name + '_i')
+            ox_n = i_
             if isinstance(i_, np.ndarray):
+                ox_n = self._scope.get_unique_variable_name(name + '_i')
                 self._container.add_initializer(
                     ox_n,
                     NP_TYPE_TO_TENSOR_TYPE[i_.dtype],
@@ -40,7 +50,7 @@ class OnnxOperatorBuilder:
                     i_[2].flatten()
                 )
             elif isinstance(i_, str):
-                ox_n = i_
+                pass
             else:
                 raise RuntimeError('Unknown type for ONNX initializer: {}'.format(type(i_)))
             ox_inputs.append(ox_n)
@@ -57,3 +67,9 @@ class OnnxOperatorBuilder:
 
     def add_node(self, op_type, inputs, name, op_domain='', op_version=None, **attrs):
         return self.add_node_all(op_type, inputs, name, 1, op_domain, op_version, **attrs)[0]
+
+    def apply_op(self, apply_func, inputs, name, outputs_num=1, **attrs):
+        outputs = [self._scope.get_unique_variable_name(name + str(i_)) for i_ in range(outputs_num)]
+        ox_inputs = self._process_inputs(inputs, name)
+        apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)
+        return outputs
