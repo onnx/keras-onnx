@@ -9,14 +9,11 @@ import onnx
 import unittest
 import keras2onnx
 import numpy as np
-import onnxconverter_common
-from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx
-from distutils.version import StrictVersion
+from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
-keras_version = keras.__version__.split('-')[0]
 
 
 class TestKerasTF2ONNX(unittest.TestCase):
@@ -480,20 +477,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_selu(self):
         self.activationlayer_helper('selu')
         self.activationlayer_helper(keras.activations.selu)
-
-        if StrictVersion(onnxconverter_common.__version__) >= StrictVersion("1.5.1"):
-            SIZE = 10
-            NB_CLASS = 5
-            model = keras.models.Sequential()
-            model.add(keras.layers.Conv2D(32, strides=(2, 2), kernel_size=3, input_shape=(SIZE, SIZE, 1)))
-            model.add(keras.layers.Flatten())
-            model.add(keras.layers.Dense(32, activation='selu'))
-            model.add(keras.layers.Dense(NB_CLASS, activation='softmax'))
-            model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-            data = np.random.rand(5, SIZE, SIZE, 1).astype(np.float32)
-            onnx_model = keras2onnx.convert_keras(model, model.name)
-            expected = model.predict(data)
-            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+        SIZE = 10
+        NB_CLASS = 5
+        model = keras.models.Sequential()
+        model.add(keras.layers.Conv2D(32, strides=(2, 2), kernel_size=3, input_shape=(SIZE, SIZE, 1)))
+        model.add(keras.layers.Flatten())
+        model.add(keras.layers.Dense(32, activation='selu'))
+        model.add(keras.layers.Dense(NB_CLASS, activation='softmax'))
+        model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+        data = np.random.rand(5, SIZE, SIZE, 1).astype(np.float32)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        expected = model.predict(data)
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
 
     def test_softsign(self):
         self.activationlayer_helper('softsign')
@@ -571,7 +566,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for size in [2, (2, 3)]:
             layer = keras.layers.UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
-            if StrictVersion(keras_version) >= StrictVersion("2.2.3"):
+            if not is_keras_older_than("2.2.3"):
                 layer = keras.layers.UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                 self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
@@ -1054,15 +1049,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(self.run_onnx_runtime('recursive_and_shared', onnx_model, x, expected))
 
-    @unittest.skipIf(StrictVersion(keras_version) < StrictVersion("2.2.4"),
+    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
                      "Low keras version is not supported.")
     def test_shared_model_2(self):
-        try:
-            import tensorflow as tf
-            if StrictVersion(tf.__version__) < StrictVersion("1.14.0"):
-                return
-        except ImportError:
-            pass
         KM = keras.models
         KL = keras.layers
         K = keras.backend
@@ -1170,7 +1159,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = mobilenet.MobileNet(weights='imagenet')
         self._test_keras_model(model)
 
-    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
