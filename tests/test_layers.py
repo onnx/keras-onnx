@@ -1152,26 +1152,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         except FileNotFoundError:
             self.assertTrue(False, 'The image data does not exist.')
 
-    def test_MobileNet(self):
-        mobilenet = keras.applications.mobilenet
-        model = mobilenet.MobileNet(weights='imagenet')
-        self._test_keras_model(model)
-
-    @unittest.skipIf(is_keras_older_than("2.2.3"),
-                     "There is no mobilenet_v2 module before keras 2.2.3.")
-    def test_MobileNetV2(self):
-        mobilenet_v2 = keras.applications.mobilenet_v2
-        model = mobilenet_v2.MobileNetV2(weights='imagenet')
-        self._test_keras_model(model)
-
-    def test_two(self):
+    def test_sub_model(self):
         from keras import backend as K
-        K.set_learning_phase(0)
-        from keras.layers import Input, Dropout, Embedding, Layer, Conv2D, MaxPooling2D, Dense, Concatenate
-        from keras.models import Model, Sequential
+        Input = keras.layers.Input
+        Dropout = keras.layers.Dropout
+        Layer = keras.layers.Layer
+        Conv2D = keras.layers.Conv2D
+        MaxPooling2D = keras.layers.MaxPooling2D
+        Dense = keras.layers.Dense
+        Concatenate = keras.layers.Concatenate
+        Model = keras.models.Model
+        Sequential = keras.models.Sequential
 
         class IdentityLayer(Layer):
-
             def __init__(self, **kwargs):
                 super(IdentityLayer, self).__init__(**kwargs)
 
@@ -1187,40 +1180,54 @@ class TestKerasTF2ONNX(unittest.TestCase):
         input_shape = [700, 420, 1]
         num_classes = 10
 
-        image_input = Input(shape=input_shape, name='image_input')
+        for learning in [True, False]:
+            if learning:
+                K.set_learning_phase(0)
 
-        model = Sequential()  # 28, 28, 1
-        model.add(Conv2D(32, kernel_size=(3, 3), activation='relu',
-                         input_shape=input_shape, padding='valid'))  # 28, 28, 1
-        model.add(Conv2D(64, (3, 3), activation='relu', padding='valid'))  # 28, 28, 1
-        model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid"))  # 14, 14, 1
-        model.add(Dropout(0.25))
-        model.add(Conv2D(128, kernel_size=(12, 12), strides=(14, 14), padding="valid", activation='relu'))
-        model.add(Dropout(0.5))
+            image_input = Input(shape=input_shape, name='image_input')
 
-        features = model(image_input)
+            model = Sequential()  # 28, 28, 1
+            model.add(Conv2D(32, kernel_size=(3, 3), activation='relu',
+                             input_shape=input_shape, padding='valid'))  # 28, 28, 1
+            model.add(Conv2D(64, (3, 3), activation='relu', padding='valid'))  # 28, 28, 1
+            model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2), padding="valid"))  # 14, 14, 1
+            model.add(Dropout(0.25))
+            model.add(Conv2D(128, kernel_size=(12, 12), strides=(14, 14), padding="valid", activation='relu'))
+            model.add(Dropout(0.5))
 
-        outputs = []
-        for _ in range(3):
-            output1 = Dense(num_classes, activation="softmax")(
-                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
-            output2 = Dense(1, activation="sigmoid")(
-                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
-            output3 = Dense(2, activation="tanh")(
-                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
-            output4 = Dense(2, activation="tanh")(
-                Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
-            outputs += [output1, output2, output3, output4]
+            features = model(image_input)
 
-        output = Concatenate(name="output")(outputs)
-        output = IdentityLayer()(output)
-        model = Model(image_input, output)
-        name = "ok"
-        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=7, debug_mode=True)
-        _model_name_onnx = name + ".onnx"
-        with open(_model_name_onnx, "wb") as f:
-            f.write(onnx_model.SerializeToString())
-        print("Model saved to ONNX at", _model_name_onnx)
+            outputs = []
+            for _ in range(3):
+                output1 = Dense(num_classes, activation="softmax")(
+                    Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+                output2 = Dense(1, activation="sigmoid")(
+                    Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+                output3 = Dense(2, activation="tanh")(
+                    Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+                output4 = Dense(2, activation="tanh")(
+                    Dense(64, activation="relu")(Dense(128, activation="relu")(features)))
+                outputs += [output1, output2, output3, output4]
+
+            output = Concatenate(name="output")(outputs)
+            output = IdentityLayer()(output)
+            model = Model(image_input, output)
+            onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=7, debug_mode=True)
+            x = np.random.rand(2, 700, 420, 1).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected))
+
+    def test_MobileNet(self):
+        mobilenet = keras.applications.mobilenet
+        model = mobilenet.MobileNet(weights='imagenet')
+        self._test_keras_model(model)
+
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
+                     "There is no mobilenet_v2 module before keras 2.2.3.")
+    def test_MobileNetV2(self):
+        mobilenet_v2 = keras.applications.mobilenet_v2
+        model = mobilenet_v2.MobileNetV2(weights='imagenet')
+        self._test_keras_model(model)
 
 
 if __name__ == "__main__":
