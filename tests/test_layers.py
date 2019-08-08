@@ -38,7 +38,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
             os.mkdir(tmp_path)
         return os.path.join(tmp_path, name)
 
-    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
+    def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6, enable_checker=True):
+        if enable_checker:
+            onnx.checker.check_model(onnx_model)  # just check, not necessary for onnxruntime
         temp_model_file = TestKerasTF2ONNX.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
@@ -439,7 +441,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_pooling_global(self):
         self._pooling_test_helper(keras.layers.GlobalAveragePooling2D, (4, 6, 2))
 
-    def activationlayer_helper(self, layer, data_for_advanced_layer=None, op_version=None):
+    def activationlayer_helper(self, layer, data_for_advanced_layer=None, op_version=None, enable_checker=True):
         if op_version is None:
             op_version = get_opset_number_from_onnx()
         if data_for_advanced_layer is None:
@@ -453,7 +455,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=op_version)
 
         expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+        self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, enable_checker=enable_checker))
 
     def test_tanh(self):
         self.activationlayer_helper('tanh')
@@ -517,7 +519,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_ThresholdedRelu(self):
         data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
-        self.activationlayer_helper(layer, data, op_version=8)
+        self.activationlayer_helper(layer, data, op_version=8, enable_checker=False) # ThresholderReLU was an experiment op
         layer = keras.layers.advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
