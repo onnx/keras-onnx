@@ -37,6 +37,7 @@ class TestKerasApplications(unittest.TestCase):
         return os.path.join(tmp_path, name)
 
     def run_onnx_runtime(self, case_name, onnx_model, data, expected, rtol=1.e-3, atol=1.e-6):
+        onnx.checker.check_model(onnx_model) # just check, not necessary for onnxruntime
         temp_model_file = TestKerasApplications.get_temp_file('temp_' + case_name + '.onnx')
         onnx.save_model(onnx_model, temp_model_file)
         try:
