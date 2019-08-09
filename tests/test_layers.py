@@ -9,7 +9,7 @@ import onnx
 import unittest
 import keras2onnx
 import numpy as np
-from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than
+from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
 
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -386,7 +386,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def _pooling_test_helper(self, layer, ishape, data_format='channels_last'):
         model = keras.Sequential()
-        if sys.version_info >= (3, 6):
+        if is_keras_later_than('2.1.6'):
             nlayer = layer(data_format=data_format, input_shape=ishape) if \
                 (layer.__name__.startswith("Global")) else layer(2, data_format=data_format, input_shape=ishape)
         else:
@@ -404,7 +404,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_pooling_1d(self):
         self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6))
         self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6))
-        if sys.version_info >= (3, 6):
+        if is_keras_later_than('2.1.6'):
             self._pooling_test_helper(keras.layers.AveragePooling1D, (4, 6), 'channels_first')
             self._pooling_test_helper(keras.layers.MaxPool1D, (4, 6), 'channels_first')
 
@@ -541,7 +541,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.models.Model(input, out)
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = np.random.uniform(-0.5, 0.5, size=(1,) + ishape).astype(np.float32)
+        data = np.random.uniform(0, 1, size=(1,) + ishape).astype(np.float32)
 
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
@@ -552,7 +552,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._misc_conv_helper(layer, ishape)
 
     def test_upsample(self):
-        if sys.version_info >= (3, 6):
+        if is_keras_later_than('2.1.6'):
             ishape = (20, 5)
             layer = keras.layers.UpSampling1D(size=2)
             self._misc_conv_helper(layer, ishape)
