@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from ..common.onnx_ops import apply_reshape, apply_cast
+from ..common.onnx_ops import apply_reshape, apply_cast, OnnxOperatorBuilder
 from ..proto import onnx_proto
 
 import numpy as np
@@ -11,8 +11,13 @@ import numpy as np
 
 def convert_keras_embed(scope, operator, container):
     op = operator.raw_operator  # Keras Embedding layer object
-    if hasattr(op, 'mask_zero') and op.mask_zero == True:
-        raise NotImplementedError("Embedding layer mask_zero attribute cannot be converted")
+    #  if mask_zero specified, the output_mask tensor needed by calculated
+    if hasattr(op, 'mask_zero') and op.mask_zero is True:
+        oopb = OnnxOperatorBuilder(container, scope)
+        # output_mask = K.not_equal(inputs, 0)
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
+                                  operator.full_name + 'mask')
+        container.add_node('Not', equal_out, [operator.output_mask], name=operator.full_name + 'mask_not')
 
     # Reshape the indexes we want to embed to 1-D tensor. Otherwise, Gather's output may get wrong shape, which is the
     # same as our CoreML Embedding converter.
@@ -25,7 +30,8 @@ def convert_keras_embed(scope, operator, container):
     # Prepare the weight matrix (i.e., the vectors of all input indices) as an initializer so that the following main
     # operator can access it.
     op_output_shape_last_dim = operator.get_output_shape()[-1]
-    weights = np.array(op.get_weights()[0].T).reshape(op_output_shape_last_dim, op.input_dim).transpose().flatten().tolist()
+    weights = np.array(op.get_weights()[0].T).reshape(op_output_shape_last_dim,
+                                                      op.input_dim).transpose().flatten().tolist()
     embedding_tensor_name = container.add_initializer_by_name(scope, op.weights[0].name, onnx_proto.TensorProto.FLOAT,
                                                               [op.input_dim, op_output_shape_last_dim], weights)
     # Create a Gather operator to extract the latent representation of each index

@@ -22,9 +22,9 @@ class Operator:
         self.type = type
         self.raw_operator = raw_operator
         self.inputs = []
-        self.input_mask = None
+        self.input_masks = []
         self.outputs = []
-        self.output_mask = None
+        self.output_masks = []
         self.nodelist = None
         self.is_evaluated = None
         self.target_opset = target_opset
@@ -73,12 +73,12 @@ class Operator:
     def add_input_mask(self, var):
         if self not in var.op_to:
             var.op_to.append(self)
-        self.input_mask = var
+        self.input_masks.append(var)
 
     def add_output_mask(self, var):
         if var.op_from is None:
             var.op_from = self
-        self.output_mask = var
+        self.output_masks.append(var)
 
     def update_attrs(self, **attrs):
         self.attrs.update(attrs)

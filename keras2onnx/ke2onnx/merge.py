@@ -1,7 +1,7 @@
+import numpy as np
 from ..proto import keras
-from ..common.onnx_ops import apply_add, apply_mul, apply_sub
-from ..common.onnx_ops import apply_mean, apply_max
-
+from ..common.onnx_ops import apply_add, apply_mul, apply_sub, apply_identity
+from ..common.onnx_ops import apply_mean, apply_max, OnnxOperatorBuilder
 
 _merge_layer_handlers = {keras.layers.Add: apply_add, keras.layers.Multiply: apply_mul,
                          keras.layers.Subtract: apply_sub, keras.layers.Average: apply_mean,
@@ -36,3 +36,17 @@ def convert_keras_merge_layer(scope, operator, container):
             # Keep accumulate changes through iterations using buffer tensors
             intermediate_tensor_name = scope.get_unique_variable_name('intermediate_tensor')
         apply_merge_operation(scope, [left_tensor_name, right_tensor_name], intermediate_tensor_name, container)
+
+    if operator.output_masks:
+        #    masks = [array_ops.expand_dims(m, axis=0) for m in mask if m is not None]
+        #    return K.all(K.concatenate(masks, axis=0), axis=0, keepdims=False)
+        oopb = OnnxOperatorBuilder(container, scope)
+        expanded = []
+        for idx_, i_ in enumerate(operator.input_masks):
+            expanded.append(oopb.add_node('Unsqueeze', i_.full_name, i_.full_name + '_i' + str(idx_), axes=[0]))
+
+        concat = oopb.apply_concat(expanded, name=operator.full_name + '_concat')
+        reduced = oopb.add_node('ReduceSum', concat, name=operator.full_name + '_reduced')
+        greater = oopb.add_node('Greater', [reduced, np.array([0], dtype=np.float32)],
+                                name=operator.full_name + '_greater')
+        apply_identity(scope, [greater], [operator.output_masks[0].full_name], container)

@@ -105,13 +105,12 @@ class Topology:
                 unused_variables.discard(variable.full_name)
                 # A operator has an output, so we remove the operator from the unused-operator list.
                 unused_operators.discard(operator.full_name)
-            for variable in [operator.input_mask, operator.output_mask]:
+            for variable in operator.input_masks + operator.output_masks:
                 if variable is None: continue
                 # A variable is used by an operator, so we remove the variable from the unused-variable list.
                 unused_variables.discard(variable.full_name)
                 # A operator has an output, so we remove the operator from the unused-operator list.
                 unused_operators.discard(operator.full_name)
-
 
         if len(unused_variables) > 0:
             raise RuntimeError('Isolated variables exist: %s' % unused_variables)

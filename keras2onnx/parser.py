@@ -6,10 +6,10 @@
 import six
 import tensorflow as tf
 from six.moves import queue
-from collections.abc import Iterable
 from .proto import keras
 from .common import k2o_logger, get_default_batch_size
-from .ke2onnx import extract_inbound_nodes, list_input_tensors, list_output_tensors, list_input_shapes, list_output_shapes, build_opdict_from_keras
+from .ke2onnx import extract_inbound_nodes, list_input_tensors, list_output_tensors, list_input_shapes, \
+    list_output_shapes, build_opdict_from_keras
 from .common.data_types import Int32TensorType, Int64TensorType, FloatTensorType, DoubleTensorType, BooleanTensorType
 from .topology import Topology
 from .subgraph import is_placeholder_node, tsname_to_node, create_subgraph
@@ -18,11 +18,8 @@ from .wrapper import tf2onnx_wrap, TFNODES
 
 
 def _infer_variable_type(tensor):
-    if tensor.shape == tf.TensorShape(None):
-        tensor_shape = []
-    elif tensor.shape == tf.TensorShape([]):
-        tensor_shape = []
-    else:
+    tensor_shape = []
+    if tensor.shape not in (tf.TensorShape(None), tf.TensorShape([])):
         tensor_shape = [d.value for d in tensor.shape]
 
     # Determine the tensor's element type
@@ -56,6 +53,8 @@ def _locate_inputs_by_node(node_list, varset):
 
         for i_ in n_.inputs:
             op = i_.op
+            if op.name[0] == '^':
+                continue
             if (not is_placeholder_node(op)) and op in node_list:
                 continue
 
@@ -93,7 +92,7 @@ def _is_relevant_keras_node(model, node):
     return False
 
 
-def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
+def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
     """
         This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
     """
@@ -147,7 +146,7 @@ def _convert_keras_timedistributed(graph, node_list, layer, model, varset):
         intop = varset.declare_local_operator('identity')
         intop.add_input(i0_reshape)
         intop.add_output(varset.get_local_variable_or_declare_one(list_input_tensors(kenode)[0].name))
-        _convert_keras_sub_model(layer.layer, graph, kenode, varset)
+        _on_parsing_model_layer(layer.layer, graph, kenode, varset)
         intop = varset.declare_local_operator('identity')
         intop.add_input(varset.get_local_variable_or_declare_one(list_output_tensors(kenode)[0].name))
         intop.add_output(o1_reshape)
@@ -167,7 +166,7 @@ def _adjust_input_batch_size(var_type):
     return var_type
 
 
-def _convert_keras_scope(graph, node_list, layer, kenode, model, varset, prefix=None):
+def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
@@ -189,9 +188,9 @@ def _convert_keras_scope(graph, node_list, layer, kenode, model, varset, prefix=
         operator.add_input(i0)
 
     if hasattr(layer, 'input_mask') and layer.input_mask is not None:
-        in_mask = layer.input_mask if isinstance(layer.input_mask, Iterable) else [layer.input_mask]
-        for im_ in [m_ for m_ in in_mask if m_]:
-            mts_name = im_.name  # input mask in a shared model is not supported yet, who need it?
+        in_mask = layer.input_mask if isinstance(layer.input_mask, (list, tuple)) else [layer.input_mask]
+        for im_ in [m_ for m_ in in_mask if m_ is not None]:
+            mts_name = im_.name  # input mask in a shared model is not supported yet, why is it needed?
             k2o_logger().debug('input mask: ' + mts_name)
             mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(im_))
             operator.add_input_mask(mts_var)
@@ -204,8 +203,8 @@ def _convert_keras_scope(graph, node_list, layer, kenode, model, varset, prefix=
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
-        out_mask = layer.output_mask if isinstance(layer.output_mask, Iterable) else [layer.output_mask]
-        for om_ in [m_ for m_ in out_mask if m_]:
+        out_mask = layer.output_mask if isinstance(layer.output_mask, (list, tuple)) else [layer.output_mask]
+        for om_ in [m_ for m_ in out_mask if m_ is not None]:
             mts_name = prefix + om_.name
             k2o_logger().debug('output mask: ' + mts_name)
             mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(om_))
@@ -247,10 +246,11 @@ def _create_model_input_mapping_operators(ts_from, ts_to, prefix, varset):
 
 def _find_kenode_by_output_tensor(inbound_nodes, output_name):
     def find_ts_name(tensors, name): return next((ts_ for ts_ in tensors if ts_.name.find(name) == 0), None)
+
     return next((n_ for n_ in inbound_nodes if find_ts_name(list_output_tensors(n_), output_name) is not None), None)
 
 
-def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode=None, upper_prefix=None):
+def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=None, upper_prefix=None):
     ts_inputs = []
     ts_outputs = []
     upper_prefix = upper_prefix if upper_prefix else ''
@@ -283,7 +283,8 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
 
         # the input node needs to be mapped to the outmost inbound keras node.
         for idx_, in_ in enumerate(list_input_tensors(top_kenode)):
-            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix+prefix, varset)
+            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix + prefix,
+                                                  varset)
             ts_inputs.append(in_)
 
     k2o_logger().debug("prefix : %s" % prefix)
@@ -295,15 +296,15 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
                 continue
             elif isinstance(layer, keras.Model):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer.name)
-                _convert_keras_sub_model(layer, graph, n_, varset, top_kenode, upper_prefix + prefix)
+                _on_parsing_model_layer(layer, graph, n_, varset, top_kenode, upper_prefix + prefix)
             else:
-                _convert_keras_scope(graph, [], layer, n_, sub_model, varset, upper_prefix+prefix)
+                _on_parsing_keras_layer(graph, [], layer, n_, sub_model, varset, upper_prefix + prefix)
 
     k2o_logger().debug("end prefix - %s" % prefix)
     return ts_inputs, ts_outputs
 
 
-def _convert_general_scope(node_list, varset):
+def _on_parsing_tf_subgraph(node_list, varset):
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
     operator.nodelist = node_list
 
@@ -344,7 +345,8 @@ def _finalize_tf2onnx_op(topo, operator, varset):
     with subgraph.as_default():
         for n0_ in nodes:
             for i_, n_ in enumerate(n0_.outputs):
-                idf_ = tf.identity(subgraph.get_tensor_by_name(operator.full_name + '/' + n_.name), operator.full_name + '_identity')
+                idf_ = tf.identity(subgraph.get_tensor_by_name(operator.full_name + '/' + n_.name),
+                                   operator.full_name + '_identity')
                 outputs.append(idf_.name)
                 iv = varset.get_local_variable_or_declare_one(idf_.name, _infer_variable_type(n_))
                 ov = varset.get_local_variable_or_declare_one(nodes[n0_][i_], _infer_variable_type(n_))
@@ -434,7 +436,7 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
     newly = set()
     ts_end = set()  # the input tensor set of the whole layer/model.
     for node_ in extract_inbound_nodes(layer):
-        if out_node is not None and out_node.name not in\
+        if out_node is not None and out_node.name not in \
                 [tsname_to_node(ts_.name) for ts_ in list_output_tensors(node_)]:
             continue  # this layer could be reused several times in the whole graph.
         if any(ts_.op not in inference_nodeset for ts_ in list_output_tensors(node_)):
@@ -467,7 +469,8 @@ def _general_nodelist_closure(node, nodeset, keras_nodeset):
     nodes = set()
     visited = set()
 
-    def is_stop_node(nd): return is_placeholder_node(nd) or nd in keras_nodeset
+    def is_stop_node(nd):
+        return is_placeholder_node(nd) or nd in keras_nodeset
 
     node_added = [node]
     updated = True
@@ -569,7 +572,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
                     _check_layer_converter_availability(layer_key_):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer_key_.name)
                 kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), node.name)
-                ts_in, ts_out = _convert_keras_sub_model(layer_key_, graph, kenode, varset)
+                ts_in, ts_out = _on_parsing_model_layer(layer_key_, graph, kenode, varset)
                 for ts_ in ts_in:
                     if is_placeholder_node(ts_.op):
                         input_nodes.add(ts_.op)
@@ -604,12 +607,12 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_key_.name, type(layer_key_)) if
                            layer_key_ else (nodes[0].name, "Custom_Layer"))
         if isinstance(layer_key_, keras.layers.TimeDistributed):
-            _convert_keras_timedistributed(graph, nodes, layer_key_, model_, varset)
+            _on_parsing_time_distributed_layer(graph, nodes, layer_key_, model_, varset)
         elif layer_key_ is None or get_converter(type(layer_key_)) is None:
-            _convert_general_scope(nodes, varset)
+            _on_parsing_tf_subgraph(nodes, varset)
         else:
             kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), nodes[0].name)
-            _convert_keras_scope(graph, nodes, layer_key_, kenode, model_, varset)
+            _on_parsing_keras_layer(graph, nodes, layer_key_, kenode, model_, varset)
 
     for nd_ in input_nodes:
         var_ts = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
