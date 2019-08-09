@@ -257,17 +257,26 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
     prefix = ''
     # mapping input/output nodes for the sub_model.
     inbound_nodes = extract_inbound_nodes(sub_model)
+    name_set = []
+    sub_model_node_idx = 0
+    for nodes_ in sub_model._nodes_by_depth.values():
+        for n_ in nodes_:
+            for ts_ in n_.output_tensors:
+                name_set.append(ts_.name)
+
     if len(inbound_nodes) > 1 and inbound_nodes[0] is not target_kenode:
         # Assumption: the first node in the inbound node list is always the one used in the keras layers.
         base_node = inbound_nodes[0]
         curr_node = target_kenode
         assert curr_node is not None
         for idx_, out_ in enumerate(list_output_tensors(curr_node)):
-            base_ts = list_output_tensors(base_node)[idx_]
-            if not prefix:
-                prefix = out_.name[0:out_.name.find(base_ts.name)]
-            else:
-                assert prefix == out_.name[0:out_.name.find(base_ts.name)]
+            max_loc = 0
+            for i_, ts_name in enumerate(name_set):
+                loc = out_.name.find(ts_name)
+                if loc != -1 and loc > max_loc:
+                    max_loc = loc
+                    sub_model_node_idx = i_
+            prefix = out_.name[0:max_loc]
             ts_outputs.append(out_)
         if top_kenode is None:
             top_kenode = curr_node
@@ -278,7 +287,8 @@ def _convert_keras_sub_model(sub_model, graph, target_kenode, varset, top_kenode
             ts_inputs.append(in_)
 
     k2o_logger().debug("prefix : %s" % prefix)
-    for nodes_ in sub_model._nodes_by_depth.values():
+    for i_ in range(sub_model_node_idx, len(sub_model._nodes_by_depth)):
+        nodes_ = sub_model._nodes_by_depth[i_]
         for n_ in nodes_:
             layer = n_.outbound_layer
             if isinstance(layer, keras.layers.InputLayer):
