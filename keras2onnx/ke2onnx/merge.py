@@ -38,6 +38,7 @@ def convert_keras_merge_layer(scope, operator, container):
         apply_merge_operation(scope, [left_tensor_name, right_tensor_name], intermediate_tensor_name, container)
 
     if operator.output_masks:
+        # Keras merge layer compute mask
         #    masks = [array_ops.expand_dims(m, axis=0) for m in mask if m is not None]
         #    return K.all(K.concatenate(masks, axis=0), axis=0, keepdims=False)
         oopb = OnnxOperatorBuilder(container, scope)
@@ -46,7 +47,7 @@ def convert_keras_merge_layer(scope, operator, container):
             expanded.append(oopb.add_node('Unsqueeze', i_.full_name, i_.full_name + '_i' + str(idx_), axes=[0]))
 
         concat = oopb.apply_concat(expanded, name=operator.full_name + '_concat')
-        reduced = oopb.add_node('ReduceSum', concat, name=operator.full_name + '_reduced')
-        greater = oopb.add_node('Greater', [reduced, np.array([0], dtype=np.float32)],
-                                name=operator.full_name + '_greater')
-        apply_identity(scope, [greater], [operator.output_masks[0].full_name], container)
+        reduced = oopb.add_node('ReduceSum', concat, name=operator.full_name + '_reduced', op_version=1)
+        oopb.add_node_with_output('Greater', [reduced, np.array([0], dtype=np.float32)],
+                                  [operator.output_masks[0].full_name], name=operator.full_name + '_greater',
+                                  op_version=7)

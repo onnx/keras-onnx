@@ -14,6 +14,7 @@ def convert_keras_embed(scope, operator, container):
     #  if mask_zero specified, the output_mask tensor needed by calculated
     if hasattr(op, 'mask_zero') and op.mask_zero is True:
         oopb = OnnxOperatorBuilder(container, scope)
+        # Keras embed layer compute mask
         # output_mask = K.not_equal(inputs, 0)
         equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
                                   operator.full_name + 'mask')
