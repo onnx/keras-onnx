@@ -109,32 +109,40 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(self.run_onnx_runtime('onnx_lambda', onnx_model, data, expected))
 
     def _test_stridedslice_with_version(self, target_opset):
-        _custom_op_handlers = {
-            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
-        model = keras.models.Sequential()
-        import tensorflow as tf
-        model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, 1:, tf.newaxis, :2, tf.newaxis, 3], input_shape=[2, 3, 4, 5]))
-        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
+        for v1 in [-1, 1]:
+            for v2 in [-1, 2]:
+                model = keras.models.Sequential()
+                import tensorflow as tf
+                model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, v1:, tf.newaxis, :v2, tf.newaxis, 3], input_shape=[2, 3, 4, 5]))
+                onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
 
-        data = np.random.rand(6 * 2 * 3 * 4 * 5).astype(np.float32).reshape(6, 2, 3, 4, 5)
-        expected = model.predict(data)
-        self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
+                data = np.random.rand(6 * 2 * 3 * 4 * 5).astype(np.float32).reshape(6, 2, 3, 4, 5)
+                expected = model.predict(data)
+                self.assertTrue(self.run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected))
 
     def _test_stridedslice_ellipsis_mask_with_version(self, target_opset):
-        _custom_op_handlers = {
-            'StridedSlice': (keras2onnx._builtin.on_StridedSlice if target_opset > 9 else keras2onnx._builtin.on_StridedSlice_9, [])}
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x[:, :2, ..., 1:], input_shape=[3, 4, 5, 6, 3]))
-        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset, custom_op_conversions=_custom_op_handlers)
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
 
         data = np.random.rand(5 * 3 * 4 * 5 * 6 * 3).astype(np.float32).reshape(5, 3, 4, 5, 6, 3)
         expected = model.predict(data)
         self.assertTrue(self.run_onnx_runtime('onnx_stridedslice_ellipsis_mask', onnx_model, data, expected))
 
+    def _test_stridedslice_shrink_mask_with_version(self, target_opset):
+        for shrink_value in [-1, 2]:
+            model = keras.models.Sequential()
+            model.add(keras.layers.Lambda(lambda x: x[:, shrink_value, :], input_shape=[3, 4, 5]))
+            onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
+            data = np.random.rand(2 * 3 * 4 * 5).astype(np.float32).reshape(2, 3, 4, 5)
+            expected = model.predict(data)
+            self.assertTrue(self.run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected))
+
     def test_stridedslice(self):
         for opset_ in [9, 10]:
             self._test_stridedslice_with_version(opset_)
             self._test_stridedslice_ellipsis_mask_with_version(opset_)
+            self._test_stridedslice_shrink_mask_with_version(opset_)
 
     def test_any_all(self):
         for l_ in [keras.backend.any, keras.backend.all]:
