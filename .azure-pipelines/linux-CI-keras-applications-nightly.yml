@@ -26,7 +26,7 @@ jobs:
         KERAS: keras
 
       Python37:
-        python.version: '3.7'
+        python.version: '3.7.3'
         ONNX_PATH: onnx==1.5.0
         KERAS: keras
 

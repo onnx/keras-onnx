@@ -35,7 +35,7 @@ def process_begin_end(new_begin, new_end, stride):
         new_end.append(-sys.maxsize)
 
 
-def on_StridedSlice(ctx, node, name, args):
+def _prepare_StridedSlice(ctx, node, target_opset):
     max_size = sys.maxsize
     begin = node.inputs[1].get_tensor_value() if node.inputs[1].is_const() else [0] * node.inputs[1].output_shapes[0][0]
     end = node.inputs[2].get_tensor_value() if node.inputs[2].is_const() else [max_size] * node.inputs[2].output_shapes[0][0]
@@ -58,7 +58,11 @@ def on_StridedSlice(ctx, node, name, args):
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
     ellipsis_gap = 0
+    data_input_shape = node.inputs[0].output_shapes[0]
     for idx, begin_item in enumerate(begin):
+        if target_opset < 10 and strides[idx] != 1:
+            raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
+
         if (ellipsis_mask >> idx) & 1:
             input_shape = ctx.get_shape(node.input[0])
             tf2onnx.utils.make_sure(
@@ -80,10 +84,11 @@ def on_StridedSlice(ctx, node, name, args):
             process_begin_end(new_begin, new_end, strides[idx])
             continue
 
-        mask = (shrink_axis_mask >> idx) & 1
-        if mask != 0:
-            new_begin.append(begin_item)
-            new_end.append(end_item)
+        shrink_mask = (shrink_axis_mask >> idx) & 1
+        if shrink_mask != 0:
+            shrink_begin = begin_item + data_input_shape[idx] if begin_item < 0 else begin_item
+            new_begin.append(shrink_begin)
+            new_end.append(shrink_begin + 1)
             needs_squeeze.append(idx + ellipsis_gap)
             continue
 
@@ -100,6 +105,12 @@ def on_StridedSlice(ctx, node, name, args):
         new_begin.append(begin_item)
         new_end.append(end_item)
 
+    return new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask
+
+
+def on_StridedSlice(ctx, node, name, args):
+    target_opset = 10
+    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask = _prepare_StridedSlice(ctx, node, target_opset)
     cast_node_begin = None
     if extra_mask or begin_mask:
         start_name = tf2onnx.utils.make_name(node.name)
@@ -162,75 +173,8 @@ def on_StridedSlice(ctx, node, name, args):
 
 def on_StridedSlice_9(ctx, node, name, args):
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    max_size = sys.maxsize
-    begin = node.inputs[1].get_tensor_value() if node.inputs[1].is_const() else [0] * node.inputs[1].output_shapes[0][0]
-    end = node.inputs[2].get_tensor_value() if node.inputs[2].is_const() else [max_size] * node.inputs[2].output_shapes[0][0]
-    strides = node.inputs[3].get_tensor_value() if node.inputs[3].is_const() else [1] * node.inputs[3].output_shapes[0][0]
-    begin_mask = node.get_attr("begin_mask")
-    begin_mask = begin_mask.i if begin_mask is not None else 0
-    end_mask = node.get_attr("end_mask")
-    end_mask = end_mask.i if end_mask is not None else 0
-    new_axis_mask = node.get_attr("new_axis_mask")
-    new_axis_mask = new_axis_mask.i if new_axis_mask is not None else 0
-    shrink_axis_mask = node.get_attr("shrink_axis_mask")
-    shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
-    ellipsis_mask = node.get_attr("ellipsis_mask")
-    ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
-    new_begin = []
-    new_end = []
-    axes = []
-    # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
-    needs_squeeze = []
-    ellipsis_gap = 0
-    for idx, begin_item in enumerate(begin):
-        if strides[idx] != 1:
-            raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
-
-        if (ellipsis_mask >> idx) & 1:
-            input_shape = ctx.get_shape(node.input[0])
-            tf2onnx.utils.make_sure(
-                input_shape is not None,
-                "StridedSlice op {} requires the shape of input".format(node.name)
-            )
-            ellipsis_gap = len(input_shape) - len(begin)
-            continue
-
-        end_item = end[idx]
-        axes.append(idx + ellipsis_gap)
-        if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
-            new_begin.append(0)
-            new_end.append(max_size)
-            continue
-
-        if begin_item == 0 and end_item == 0:
-            new_begin.append(0)
-            new_end.append(max_size)
-            continue
-
-        # an implicit condition is stride == 1 (checked in above)
-        if begin_item < 0 and end_item == 0:
-            end_item = max_size
-
-        mask = (shrink_axis_mask >> idx) & 1
-        if mask != 0:
-            new_begin.append(begin_item)
-            new_end.append(end_item)
-            needs_squeeze.append(idx + ellipsis_gap)
-            continue
-
-        if (begin_mask >> idx) & 1 != 0:
-            new_begin.append(0)
-            new_end.append(end_item)
-            continue
-
-        if (end_mask >> idx) & 1 != 0:
-            new_begin.append(begin_item)
-            new_end.append(max_size)
-            continue
-
-        new_begin.append(begin_item)
-        new_end.append(end_item)
-
+    target_opset = 9
+    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask = _prepare_StridedSlice(ctx, node, target_opset)
     node.set_attr("starts", new_begin)
     node.set_attr("ends", new_end)
     node.set_attr("axes", axes)
