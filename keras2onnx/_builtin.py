@@ -36,10 +36,10 @@ def process_begin_end(new_begin, new_end, stride):
 
 
 def on_StridedSlice(ctx, node, name, args):
-    begin = node.inputs[1].get_tensor_value()
-    end = node.inputs[2].get_tensor_value()
-    strides = node.inputs[3].get_tensor_value()
     max_size = sys.maxsize
+    begin = node.inputs[1].get_tensor_value() if node.inputs[1].is_const() else [0] * node.inputs[1].output_shapes[0][0]
+    end = node.inputs[2].get_tensor_value() if node.inputs[2].is_const() else [max_size] * node.inputs[2].output_shapes[0][0]
+    strides = node.inputs[3].get_tensor_value() if node.inputs[3].is_const() else [1] * node.inputs[3].output_shapes[0][0]
     begin_mask = node.get_attr("begin_mask")
     begin_mask = begin_mask.i if begin_mask is not None else 0
     end_mask = node.get_attr("end_mask")
@@ -50,6 +50,7 @@ def on_StridedSlice(ctx, node, name, args):
     shrink_axis_mask = shrink_axis_mask.i if shrink_axis_mask is not None else 0
     ellipsis_mask = node.get_attr("ellipsis_mask")
     ellipsis_mask = ellipsis_mask.i if ellipsis_mask is not None else 0
+    extra_mask = new_axis_mask or shrink_axis_mask or ellipsis_mask
     new_begin = []
     new_end = []
     axes = []
@@ -99,21 +100,38 @@ def on_StridedSlice(ctx, node, name, args):
         new_begin.append(begin_item)
         new_end.append(end_item)
 
-    start_name = tf2onnx.utils.make_name(node.name)
-    start_node = ctx.make_const(start_name, np.array(new_begin, dtype=np.int64))
-    end_name = tf2onnx.utils.make_name(node.name)
-    end_node = ctx.make_const(end_name, np.array(new_end, dtype=np.int64))
+    cast_node_begin = None
+    if extra_mask or begin_mask:
+        start_name = tf2onnx.utils.make_name(node.name)
+        start_node = ctx.make_const(start_name, np.array(new_begin, dtype=np.int64))
+        node.input[1] = start_node.output[0]
+    else:
+        cast_node_begin = ctx.insert_new_node_on_input(node, "Cast", node.input[1])
+        cast_node_begin.set_attr("to", 7)
+
+    cast_node_end = None
+    if extra_mask or end_mask:
+        end_name = tf2onnx.utils.make_name(node.name)
+        end_node = ctx.make_const(end_name, np.array(new_end, dtype=np.int64))
+        node.input[2] = end_node.output[0]
+    else:
+        cast_node_end = ctx.insert_new_node_on_input(node, "Cast", node.input[2])
+        cast_node_end.set_attr("to", 7)
+
     axes_name = tf2onnx.utils.make_name(node.name)
     axes_node = ctx.make_const(axes_name, np.array(axes, dtype=np.int64))
     step_name = tf2onnx.utils.make_name(node.name)
     step_node = ctx.make_const(step_name, np.array(steps, dtype=np.int64))
 
-    node.input[1] = start_node.output[0]
-    node.input[2] = end_node.output[0]
     node.input[3] = axes_node.output[0]
     node.input.append(step_node.output[0])
     node.type = "Slice"
     nodes = [node]
+
+    if cast_node_begin:
+        nodes.append(cast_node_begin)
+    if cast_node_end:
+        nodes.append(cast_node_end)
 
     new_axis_axes = []
     cur_idx = 0
@@ -144,10 +162,10 @@ def on_StridedSlice(ctx, node, name, args):
 
 def on_StridedSlice_9(ctx, node, name, args):
     # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
-    begin = node.inputs[1].get_tensor_value()
-    end = node.inputs[2].get_tensor_value()
-    strides = node.inputs[3].get_tensor_value()
     max_size = sys.maxsize
+    begin = node.inputs[1].get_tensor_value() if node.inputs[1].is_const() else [0] * node.inputs[1].output_shapes[0][0]
+    end = node.inputs[2].get_tensor_value() if node.inputs[2].is_const() else [max_size] * node.inputs[2].output_shapes[0][0]
+    strides = node.inputs[3].get_tensor_value() if node.inputs[3].is_const() else [1] * node.inputs[3].output_shapes[0][0]
     begin_mask = node.get_attr("begin_mask")
     begin_mask = begin_mask.i if begin_mask is not None else 0
     end_mask = node.get_attr("end_mask")

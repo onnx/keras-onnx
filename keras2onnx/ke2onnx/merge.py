@@ -47,7 +47,8 @@ def convert_keras_merge_layer(scope, operator, container):
             expanded.append(oopb.add_node('Unsqueeze', i_.full_name, i_.full_name + '_i' + str(idx_), axes=[0]))
 
         concat = oopb.apply_concat(expanded, name=operator.full_name + '_concat')
-        reduced = oopb.add_node('ReduceSum', concat, name=operator.full_name + '_reduced', op_version=1)
+        cast = oopb.add_node('Cast', concat, name=operator.full_name + '_cast', to=1)
+        reduced = oopb.add_node('ReduceSum', cast, name=operator.full_name + '_reduced', op_version=1)
         oopb.add_node_with_output('Greater', [reduced, np.array([0], dtype=np.float32)],
                                   [operator.output_masks[0].full_name], name=operator.full_name + '_greater',
                                   op_version=7)
