@@ -15,8 +15,7 @@ import logging
 import six
 import numpy as np
 
-from distutils.version import StrictVersion
-from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, TensorProto, version
+from onnx import helper, numpy_helper, shape_inference, OperatorSetIdProto, AttributeProto, TensorProto
 from tf2onnx import utils, __version__
 from tf2onnx.utils import make_name, port_name, find_opset
 from tf2onnx import optimizer
@@ -472,9 +471,6 @@ class Graph(object):
 
         if name is None:
             name = utils.make_name(op_type)
-
-        if StrictVersion(version.version) < StrictVersion('1.4') and domain is None:
-            domain = ''
 
         if op_name_scope:
             name = "_".join([op_name_scope, name])
