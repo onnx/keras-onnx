@@ -22,6 +22,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    @staticmethod
+    def asarray(*a):
+        return np.array([a], dtype='f')
+
     def test_keras_with_tf2onnx(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Dense(units=4, input_shape=(10,), activation='relu'))
