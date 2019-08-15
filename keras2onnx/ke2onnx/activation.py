@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import tensorflow as tf
 from ..proto import keras, is_tf_keras
 from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_sigmoid, apply_tanh, \
     apply_softmax, apply_identity, apply_selu, apply_clip
@@ -27,7 +28,12 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   activation_get('elu'): apply_elu,
                   activation_get('selu'): apply_selu,
                   activation_get('tanh'): apply_tanh,
-                  activation_get('hard_sigmoid'): apply_hard_sigmoid}
+                  activation_get('hard_sigmoid'): apply_hard_sigmoid,
+                  tf.nn.sigmoid: apply_sigmoid,
+                  tf.nn.softmax: apply_softmax,
+                  tf.nn.relu: apply_relu,
+                  tf.nn.elu: apply_elu,
+                  tf.nn.tanh: apply_tanh}
 
 
 def convert_keras_activation(scope, operator, container):
