@@ -7,6 +7,7 @@ import os
 import sys
 import onnx
 import unittest
+import tensorflow as tf
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
@@ -39,7 +40,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_keras_lambda(self):
         model = keras.models.Sequential()
         model.add(keras.layers.Lambda(lambda x: x ** 2, input_shape=[3, 5]))
-        import tensorflow as tf
         model.add(keras.layers.Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
         model.add(keras.layers.Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
@@ -55,7 +55,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for v1 in [-1, 1]:
             for v2 in [-1, 2]:
                 model = keras.models.Sequential()
-                import tensorflow as tf
                 model.add(keras.layers.Lambda(lambda x: x[:, tf.newaxis, v1:, tf.newaxis, :v2, tf.newaxis, 3], input_shape=[2, 3, 4, 5]))
                 onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
 
@@ -485,6 +484,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = keras.layers.advanced_activations.Softmax(axis=-1, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
+
+    def test_tf_nn_activation(self):
+        for activation in [tf.nn.relu, 'relu']:
+            model = keras.Sequential([
+                keras.layers.Dense(64, activation=activation, input_shape=[10]),
+                keras.layers.Dense(64, activation=activation),
+                keras.layers.Dense(1)
+            ])
+            x = np.random.rand(5, 10).astype(np.float32)
+            expected = model.predict(x)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def _misc_conv_helper(self, layer, ishape):
         input = keras.Input(ishape)
