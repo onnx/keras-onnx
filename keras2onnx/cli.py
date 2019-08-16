@@ -7,11 +7,11 @@ from .main import convert_tensorflow, convert_keras
 
 def main(input_file, output_file=None, inputs=None, outputs=None, opset=None, channel_first=None):
     """
-    Provide a command line interface for the converter.
+    A command line interface for Keras/Tensorflow model to ONNX converter.
     :param input_file: the original model file path
-    :param output_file: the converted ONNX model file path
-    :param inputs: The model graph input node list
-    :param outputs: The model graph output node list
+    :param output_file: the converted ONNX model file path (optional)
+    :param inputs: The model graph input node list (tensorflow model only)
+    :param outputs: The model graph output node list (tensorflow model only)
     :param opset: the target opset for the ONNX model.
     :param channel_first: the input name needs to be transposed as NCHW
     :return:
@@ -40,4 +40,7 @@ def main(input_file, output_file=None, inputs=None, outputs=None, opset=None, ch
 
 
 if __name__ == '__main__':
+    # the color output doesn't work on some Windows cmdline tools
+    if os.environ.get('OS', '') == 'Windows_NT':
+        os.environ.update(ANSI_COLORS_DISABLED='1')
     fire.Fire(main)
