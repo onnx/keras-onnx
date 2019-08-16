@@ -59,6 +59,7 @@ jobs:
       pip install -r requirements-dev.txt
       pip install -i https://test.pypi.org/simple/ ort-nightly
       pip install opencv-python
+      pip install tqdm
       pip install keras-segmentation
     displayName: 'Install dependencies'
 
