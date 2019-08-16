@@ -157,7 +157,7 @@ def convert_tensorflow(frozen_graph_def,
     if not doc_string:
         doc_string = "converted from {}".format(name)
 
-    graph_def = tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, False)
+    graph_def = tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, True)
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(graph_def, name='')
         if get_tensorboard_writer() is not None:
