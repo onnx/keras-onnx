@@ -148,17 +148,18 @@ def convert_tensorflow(frozen_graph_def,
     :param debug_mode: will enable the log and try to convert as much as possible on conversion
     :return an ONNX ModelProto
     """
-    from uuid import uuid4
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
 
     if name is None:
+        from uuid import uuid4
         name = str(uuid4())
 
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
+    graph_def = tf2onnx.tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, False)
     with tf.Graph().as_default() as tf_graph:
-        tf.import_graph_def(frozen_graph_def, name='')
+        tf.import_graph_def(graph_def, name='')
         if get_tensorboard_writer() is not None:
             get_tensorboard_writer().add_graph(tf_graph)
 

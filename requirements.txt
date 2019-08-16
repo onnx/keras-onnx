@@ -3,3 +3,4 @@ protobuf
 requests
 onnx
 onnxconverter-common>=1.5.3
+fire
