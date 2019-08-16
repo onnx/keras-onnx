@@ -5,8 +5,9 @@
 ###############################################################################
 import os
 import logging
-import tf2onnx
 import tensorflow as tf
+import tf2onnx
+from tf2onnx import tfonnx
 from .proto import keras, is_tf_keras
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
@@ -148,17 +149,17 @@ def convert_tensorflow(frozen_graph_def,
     :param debug_mode: will enable the log and try to convert as much as possible on conversion
     :return an ONNX ModelProto
     """
-    from uuid import uuid4
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
-
-    if name is None:
-        name = str(uuid4())
 
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
 
+    if not doc_string:
+        doc_string = "converted from {}".format(name)
+
+    graph_def = tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, True)
     with tf.Graph().as_default() as tf_graph:
-        tf.import_graph_def(frozen_graph_def, name='')
+        tf.import_graph_def(graph_def, name='')
         if get_tensorboard_writer() is not None:
             get_tensorboard_writer().add_graph(tf_graph)
 
@@ -166,7 +167,7 @@ def convert_tensorflow(frozen_graph_def,
     if custom_op_conversions:
         custom_op_handlers.update(custom_op_conversions)
     with tf.Session(graph=tf_graph):
-        g = tf2onnx.tfonnx.process_tf_graph(tf_graph,
+        g = tfonnx.process_tf_graph(tf_graph,
                                             continue_on_error=debug_mode,
                                             opset=target_opset,
                                             custom_op_handlers=custom_op_handlers,
@@ -174,6 +175,7 @@ def convert_tensorflow(frozen_graph_def,
                                             output_names=output_names,
                                             input_names=input_names)
 
-        model_proto = g.make_model(doc_string, graph_name=name)
-        model_proto = tf2onnx.graph.GraphUtil.optimize_model_proto(model_proto)
+        onnx_graph = tf2onnx.optimizer.optimize_graph(g)
+        model_proto = onnx_graph.make_model(doc_string)
+
         return model_proto
