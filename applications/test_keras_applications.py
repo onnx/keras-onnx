@@ -8,6 +8,7 @@ import sys
 import onnx
 import unittest
 import keras2onnx
+import keras_segmentation
 import numpy as np
 from keras2onnx.proto import keras, is_tf_keras
 from distutils.version import StrictVersion
@@ -25,13 +26,15 @@ class TestKerasApplications(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, img_size=224):
+    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
         preprocess_input = keras.applications.resnet50.preprocess_input
         image = keras.preprocessing.image
 
         img_path = os.path.join(os.path.dirname(__file__), 'data', 'street.jpg')
         try:
-            img = image.load_img(img_path, target_size=(img_size, img_size))
+            if not isinstance(target_size, tuple):
+                target_size = (target_size, target_size)
+            img = image.load_img(img_path, target_size=target_size)
             x = image.img_to_array(img)
             x = np.expand_dims(x, axis=0)
             x = preprocess_input(x)
@@ -62,7 +65,7 @@ class TestKerasApplications(unittest.TestCase):
     def test_InceptionV3(self):
         from keras.applications.inception_v3 import InceptionV3
         model = InceptionV3(include_top=True, weights='imagenet')
-        self._test_keras_model(model, img_size=299)
+        self._test_keras_model(model, target_size=299)
 
     def test_DenseNet121(self):
         from keras.applications.densenet import DenseNet121
@@ -72,7 +75,22 @@ class TestKerasApplications(unittest.TestCase):
     def test_Xception(self):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
-        self._test_keras_model(model, atol=5e-3, img_size=299)
+        self._test_keras_model(model, atol=5e-3, target_size=299)
+
+    def test_segnet(self):
+        # From https://github.com/divamgupta/image-segmentation-keras
+        model = keras_segmentation.models.segnet.segnet(101)
+        self._test_keras_model(model, target_size=(416, 608))
+
+    def test_vgg_segnet(self):
+        # From https://github.com/divamgupta/image-segmentation-keras
+        model = keras_segmentation.models.segnet.vgg_segnet(101)
+        self._test_keras_model(model, target_size=(416, 608))
+
+    def test_unet(self):
+        # From https://github.com/divamgupta/image-segmentation-keras
+        model = keras_segmentation.models.unet.unet(101)
+        self._test_keras_model(model, target_size=(416, 608))
 
     def test_ACGAN(self):
         # An ACGAN generator from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
