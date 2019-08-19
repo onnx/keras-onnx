@@ -39,6 +39,7 @@ We converted successfully for all the keras application models, and several othe
 | MobileNet, MobileNetV2 | Computer Vision |
 | DenseNet121, DenseNet169, DenseNet201 | Computer Vision |
 | NASNetMobile, NASNetLarge | Computer Vision |
+| [FCN, FCN-Resnet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/fcn.py) | Computer Vision |
 | [Segnet, VGG-Segnet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py) | Computer Vision |
 | [UNet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/unet.py) | Computer Vision |
 | [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
