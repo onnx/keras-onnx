@@ -4,7 +4,7 @@
 # license information.
 ###############################################################################
 import numpy as np
-import keras
+from ..proto import keras
 from ..common.onnx_ops import apply_transpose, apply_identity, OnnxOperatorBuilder
 from .common import get_permutation_config
 
