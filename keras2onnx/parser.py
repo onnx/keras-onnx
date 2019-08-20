@@ -199,7 +199,6 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
         o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
-        o1.type.shape = oshapes[n_]
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
@@ -405,8 +404,11 @@ def _infer_graph_shape(topology, top_level, varset):
                 var_queue.put_nowait(o_)
 
 
-def _create_link_node(var_ts, top_level, varset, reversed_io=False):
-    ty_ = _infer_variable_type(var_ts)
+def _create_link_node(var_ts, top_level, varset, reversed_io=False, adjust_batch_size=False):
+    if adjust_batch_size:
+        ty_ = _adjust_input_batch_size(_infer_variable_type(var_ts))
+    else:
+        ty_ = _infer_variable_type(var_ts)
     var0 = top_level.get_local_variable_or_declare_one(var_ts.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(var_ts.name, ty_)
     op = varset.declare_local_operator('identity')
@@ -537,7 +539,7 @@ def _parse_graph_scope(graph, keras_node_dict, topology, top_scope, output_names
     model_outputs = []
     for name in output_names:
         var_ts = graph.get_operation_by_name(tsname_to_node(name)).outputs[0]
-        _create_link_node(var_ts, top_scope, varset)
+        _create_link_node(var_ts, top_scope, varset, adjust_batch_size=True)
         model_outputs.append(var_ts.op)
 
     # starting from the output node.
