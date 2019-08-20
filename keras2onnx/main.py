@@ -51,13 +51,13 @@ class KerasTfModelContainer(object):
 
 @with_variable('pb_visual_writer')
 def get_tensorboard_writer():
-    pb_visual_writer = None
     _tb_log_dir = os.environ.get('TB_LOG_DIR')
     if _tb_log_dir:
         from tensorflow.python.summary import summary
         pb_visual_writer = summary.FileWriter(_tb_log_dir)
-    setattr(get_tensorboard_writer, 'pb_visual_writer', pb_visual_writer)
-    return pb_visual_writer
+        return pb_visual_writer
+
+    return None
 
 
 def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
@@ -131,6 +131,24 @@ def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
         return frozen_graph_def
 
 
+def _collect_input_nodes(graph, outputs):
+    nodes_to_keep = set()
+    input_nodes = set()
+    node_inputs = [graph.get_tensor_by_name(ts_).op for ts_ in outputs]
+    while node_inputs:
+        nd_ = node_inputs[0]
+        del node_inputs[0]
+        if nd_.type in ['Placeholder', 'PlaceholderWithDefault']:
+            input_nodes.add(nd_)
+        if nd_ in nodes_to_keep:
+            continue
+
+        nodes_to_keep.add(nd_)
+        node_inputs.extend(in_.op for in_ in nd_.inputs)
+
+    return input_nodes, nodes_to_keep
+
+
 def convert_tensorflow(frozen_graph_def,
                        name=None, input_names=None, output_names=None,
                        doc_string='',
@@ -167,13 +185,16 @@ def convert_tensorflow(frozen_graph_def,
     if custom_op_conversions:
         custom_op_handlers.update(custom_op_conversions)
     with tf.Session(graph=tf_graph):
+        if not input_names:
+            input_nodes = list(_collect_input_nodes(tf_graph, output_names)[0])
+            input_names = [nd_.outputs[0].name for nd_ in input_nodes]
         g = tfonnx.process_tf_graph(tf_graph,
-                                            continue_on_error=debug_mode,
-                                            opset=target_opset,
-                                            custom_op_handlers=custom_op_handlers,
-                                            inputs_as_nchw=channel_first_inputs,
-                                            output_names=output_names,
-                                            input_names=input_names)
+                                    continue_on_error=debug_mode,
+                                    opset=target_opset,
+                                    custom_op_handlers=custom_op_handlers,
+                                    inputs_as_nchw=channel_first_inputs,
+                                    output_names=output_names,
+                                    input_names=input_names)
 
         onnx_graph = tf2onnx.optimizer.optimize_graph(g)
         model_proto = onnx_graph.make_model(doc_string)

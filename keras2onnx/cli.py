@@ -21,8 +21,8 @@ def main(input_file, output_file=None, inputs=None, outputs=None, opset=None, ch
     if output_file is None:
         output_file = file_ext[0] + '.onnx'
 
-    channel_first = [] if channel_first is None else channel_first.split(sep=',')
-
+    v_channel_first = [] if channel_first is None else channel_first.split(sep=',')
+    v_inputs = [] if inputs is None else inputs.split(sep=',')
     if file_ext[-1] == '.h5':
         kml = tf.keras.models.load_model(input_file)
         oxml = convert_keras(kml, kml.model, '', opset, channel_first)
@@ -31,10 +31,13 @@ def main(input_file, output_file=None, inputs=None, outputs=None, opset=None, ch
         with tf.gfile.GFile(input_file, 'rb') as f:
             graph_def = tf.GraphDef()
             graph_def.ParseFromString(f.read())
-            oxml = convert_tensorflow(graph_def, None,
-                                      inputs.split(sep=','),
+            oxml = convert_tensorflow(graph_def,
+                                      os.path.basename(input_file),
+                                      v_inputs,
                                       outputs.split(sep=','),
-                                      '', opset, channel_first)
+                                      '',
+                                      opset,
+                                      v_channel_first)
 
     onnx.save_model(oxml, output_file)
 
