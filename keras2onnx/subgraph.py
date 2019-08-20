@@ -144,4 +144,4 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
 
 
 def is_placeholder_node(node):
-    return node.type == 'Placeholder'
+    return node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']

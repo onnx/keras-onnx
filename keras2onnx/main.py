@@ -16,6 +16,7 @@ from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
+from .subgraph import is_placeholder_node
 from ._builtin import set_converter, tf2onnx_builtin_conversion
 
 
@@ -138,7 +139,7 @@ def _collect_input_nodes(graph, outputs):
     while node_inputs:
         nd_ = node_inputs[0]
         del node_inputs[0]
-        if nd_.type in ['Placeholder', 'PlaceholderWithDefault']:
+        if is_placeholder_node(nd_):
             input_nodes.add(nd_)
         if nd_ in nodes_to_keep:
             continue
