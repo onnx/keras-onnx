@@ -77,6 +77,16 @@ class TestKerasApplications(unittest.TestCase):
         model = Xception(include_top=True, weights='imagenet')
         self._test_keras_model(model, atol=5e-3, target_size=299)
 
+    def test_fcn(self):
+        # From https://github.com/divamgupta/image-segmentation-keras/models/fcn.py
+        model = keras_segmentation.models.fcn.fcn_8(101)
+        self._test_keras_model(model, target_size=(416, 608))
+
+    def test_pspnet(self):
+        # From https://github.com/divamgupta/image-segmentation-keras/models/pspnet.py
+        model = keras_segmentation.models.pspnet.pspnet(101)
+        self._test_keras_model(model, target_size=(384, 576))
+
     def test_segnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
         model = keras_segmentation.models.segnet.segnet(101)
@@ -90,11 +100,6 @@ class TestKerasApplications(unittest.TestCase):
     def test_unet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/unet.py
         model = keras_segmentation.models.unet.unet(101)
-        self._test_keras_model(model, target_size=(416, 608))
-
-    def test_fcn(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/fcn.py
-        model = keras_segmentation.models.fcn.fcn_8(101)
         self._test_keras_model(model, target_size=(416, 608))
 
     def test_ACGAN(self):
