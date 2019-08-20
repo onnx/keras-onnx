@@ -29,7 +29,9 @@ Conv2D = keras.layers.Conv2D
 Conv2DTranspose = keras.layers.Conv2DTranspose
 Conv3D = keras.layers.Conv3D
 Conv3DTranspose = keras.layers.Conv3DTranspose
+Cropping1D = keras.layers.Cropping1D
 Cropping2D = keras.layers.Cropping2D
+Cropping3D = keras.layers.Cropping3D
 Dense = keras.layers.Dense
 Dot = keras.layers.Dot
 dot = keras.layers.dot
@@ -546,11 +548,13 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    def _misc_conv_helper(self, layer, ishape):
+    def _misc_conv_helper(self, layer, ishape, target_opset=None):
+        if target_opset is None:
+            target_opset = get_opset_number_from_onnx()
         input = keras.Input(ishape)
         out = layer(input)
         model = keras.models.Model(input, out)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=target_opset)
 
         data = np.random.uniform(0, 1, size=(1,) + ishape).astype(np.float32)
 
@@ -558,9 +562,27 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def test_crop(self):
+        # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
+        for opset_ in [10]:
+            ishape = (10, 20)
+            for crop_v in [2, (1, 2)]:
+                layer = Cropping1D(cropping=crop_v)
+                self._misc_conv_helper(layer, ishape, opset_)
+
+            for data_format_ in ['channels_last', 'channels_first']:
+                ishape = (20, 20, 1)
+                for crop_v in [2, (2, 2), ((1, 2), (2, 3))]:
+                    layer = Cropping2D(cropping=crop_v, data_format=data_format_)
+                    self._misc_conv_helper(layer, ishape, opset_)
+                ishape = (20, 20, 20, 1)
+                for crop_v in [2, (2, 3, 4), ((1, 2), (2, 3), (3, 5))]:
+                    layer = Cropping3D(cropping=crop_v, data_format=data_format_)
+                    self._misc_conv_helper(layer, ishape, opset_)
+
+        # TODO handle other cases for opset 8
         ishape = (20, 20, 1)
         layer = Cropping2D(cropping=((1, 2), (2, 3)), data_format='channels_last')
-        self._misc_conv_helper(layer, ishape)
+        self._misc_conv_helper(layer, ishape, opset_)
 
     def test_upsample(self):
         if is_keras_later_than('2.1.6'):
