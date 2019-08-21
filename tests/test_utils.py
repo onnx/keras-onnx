@@ -11,6 +11,7 @@ import numpy as np
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
+
 def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6):
     if not os.path.exists(tmp_path):
         os.mkdir(tmp_path)

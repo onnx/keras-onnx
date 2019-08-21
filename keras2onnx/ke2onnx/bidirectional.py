@@ -16,7 +16,7 @@ LSTM = keras.layers.LSTM
 
 def _calculate_keras_bidirectional_output_shapes(operator):
     op = operator.raw_operator
-    if isinstance(op.output_shape[0], collections.Iterable):
+    if isinstance(op.output_shape[0], collections.abc.Iterable):
         operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
                                               for i in op.output_shape[0])
         if op.merge_mode is None:

@@ -10,9 +10,10 @@ import unittest
 import keras2onnx
 import keras_segmentation
 import numpy as np
-from keras2onnx.proto import keras, is_tf_keras
+from keras2onnx.proto import keras
 from distutils.version import StrictVersion
 from os.path import dirname, abspath
+
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../tests/'))
 from test_utils import run_onnx_runtime
 
@@ -142,7 +143,7 @@ class TestKerasApplications(unittest.TestCase):
         # A BIGAN discriminator model from https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py
         latent_dim = 100
         img_shape = (28, 28, 1)
-        z = keras.layers.Input(shape=(latent_dim, ))
+        z = keras.layers.Input(shape=(latent_dim,))
         img = keras.layers.Input(shape=img_shape)
         d_in = keras.layers.concatenate([z, keras.layers.Flatten()(img)])
 
@@ -185,5 +186,6 @@ class TestKerasApplications(unittest.TestCase):
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    if __name__ == "__main__":
-        unittest.main()
+
+if __name__ == "__main__":
+    unittest.main()

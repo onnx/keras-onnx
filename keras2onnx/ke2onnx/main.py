@@ -3,8 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import six
-from collections import Iterable
+from collections.abc import Iterable
 
 from ..proto import keras
 from ..common import with_variable
@@ -198,5 +197,5 @@ keras_layer_to_operator = {
 
 @with_variable('loaded')
 def static_set_ke2onnx_converters(func_set_converter):
-    for ky_, val_ in six.iteritems(keras_layer_to_operator):
+    for ky_, val_ in keras_layer_to_operator.items():
         func_set_converter(ky_, val_)
