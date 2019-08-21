@@ -188,6 +188,8 @@ def get_tf_tensor_shape(tensor):
 
 def map_tf_dtype(dtype):
     if dtype:
+        if dtype not in TF_TO_ONNX_DTYPE:
+            print('akjdflkajsd')
         dtype = TF_TO_ONNX_DTYPE[dtype]
     return dtype
 

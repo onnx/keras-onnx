@@ -34,7 +34,7 @@ def freeze_session(sess, keep_var_names=None, output_names=None, clear_devices=T
             for node in input_graph_def.node:
                 node.device = ""
         frozen_graph = convert_variables_to_constants(sess, input_graph_def,
-                                                      output_names, freeze_var_names)
+                                                      output_names, None)
         return frozen_graph
 
 

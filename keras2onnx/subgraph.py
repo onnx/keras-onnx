@@ -12,6 +12,10 @@ from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.framework import tensor_util
 
 
+def is_placeholder_node(node):
+    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
+
+
 def tsname_to_node(name):
     return name.split(':')[0]
 
@@ -141,8 +145,3 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
             replacement = {k_: im_scope + '/' + k_ for k_ in replacement}
 
     return sub_graph, replacement
-
-
-def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
-
