@@ -51,7 +51,7 @@ def set_logger_level(lvl):
 
 @with_variable('batch_size')
 def get_default_batch_size():
-    return 'N'
+    return 'None'
 
 
 def get_producer():

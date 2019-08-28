@@ -20,7 +20,7 @@ from .wrapper import tf2onnx_wrap, TFNODES
 def _infer_variable_type(tensor):
     tensor_shape = []
     if tensor.shape not in (tf.TensorShape(None), tf.TensorShape([])):
-        tensor_shape = [d.value for d in tensor.shape]
+        tensor_shape = [d.value if d.value is not None else 'None' for d in tensor.shape]
 
     # Determine the tensor's element type
     tensor_type = tensor.dtype
@@ -172,7 +172,6 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
 
     inputs = list_input_tensors(kenode)
     outputs = list_output_tensors(kenode)
-    oshapes = list_output_shapes(kenode)
 
     # This layer will be visited because its output is other layer's input
     assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
