@@ -736,6 +736,34 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
+    def test_batch_normalization_3(self):
+        # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
+        axis_list = [-1] if is_tf_keras else [1, -1]
+        for axis in axis_list:
+            batch_size = 4
+            input_dim_1 = 10
+            input_dim_2 = 20
+
+            model = Sequential()
+            model.add(InputLayer(input_shape=(input_dim_1,)))
+            model.add(BatchNormalization(axis=axis, moving_mean_initializer='Ones', moving_variance_initializer='Zeros'))
+            model.add(Dense(5))
+            data = np.random.randn(batch_size, input_dim_1).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model)
+            expected = model.predict(data)
+            self.assertTrue(
+                run_onnx_runtime('test_batch_normalization_2_2d', onnx_model, [data], expected, self.model_files))
+
+            model = Sequential()
+            model.add(InputLayer(input_shape=(input_dim_1, input_dim_2)))
+            model.add(BatchNormalization(axis=axis, moving_mean_initializer=keras.initializers.Constant(value=0.5), moving_variance_initializer=keras.initializers.Constant(value=10)))
+            model.add(Dense(5))
+            data = np.random.randn(batch_size, input_dim_1, input_dim_2).astype(np.float32)
+            onnx_model = keras2onnx.convert_keras(model)
+            expected = model.predict(data)
+            self.assertTrue(
+                run_onnx_runtime('test_batch_normalization_2_3d', onnx_model, [data], expected, self.model_files))
+
     def test_simpleRNN(self):
         inputs1 = keras.Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
