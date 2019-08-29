@@ -33,6 +33,11 @@ def _preprocessing(op):
         raise RuntimeError('Unsupported number of input = %s > 2' % len(op.input_shape))
     x_shape = op.input_shape[0]
     y_shape = op.input_shape[1]
+    x_shape = [x_ if x_ else -1 for x_ in x_shape]
+    y_shape = [y_ if y_ else -1 for y_ in y_shape]
+    x_shape = np.asarray(x_shape, dtype=np.int64)
+    y_shape = np.asarray(y_shape, dtype=np.int64)
+
     x_ndim = len(x_shape)
     y_ndim = len(y_shape)
     x_batch_size = x_shape[0]
