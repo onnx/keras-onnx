@@ -14,9 +14,25 @@ from keras2onnx.proto import keras
 from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../tests/'))
+sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 
+Activation = keras.layers.Activation
+BatchNormalization = keras.layers.BatchNormalization
+Bidirectional = keras.layers.Bidirectional
+Concatenate = keras.layers.Concatenate
+Conv2D = keras.layers.Conv2D
+Dense = keras.layers.Dense
+Dropout = keras.layers.Dropout
+Embedding = keras.layers.Embedding
+Flatten = keras.layers.Flatten
+Input = keras.layers.Input
+LeakyReLU = keras.layers.LeakyReLU
+LSTM = keras.layers.LSTM
+MaxPooling1D = keras.layers.MaxPooling1D
+multiply = keras.layers.multiply
+Reshape = keras.layers.Reshape
+UpSampling2D = keras.layers.UpSampling2D
 
 class TestKerasApplications(unittest.TestCase):
 
@@ -31,7 +47,7 @@ class TestKerasApplications(unittest.TestCase):
         preprocess_input = keras.applications.resnet50.preprocess_input
         image = keras.preprocessing.image
 
-        img_path = os.path.join(os.path.dirname(__file__), 'data', 'street.jpg')
+        img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         try:
             if not isinstance(target_size, tuple):
                 target_size = (target_size, target_size)
@@ -85,7 +101,29 @@ class TestKerasApplications(unittest.TestCase):
 
     def test_pspnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/pspnet.py
-        model = keras_segmentation.models.pspnet.pspnet(101)
+        from keras_segmentation.models.basic_models import vanilla_encoder
+        img_input, levels = vanilla_encoder(input_height=384, input_width=576)
+        o = levels[4]
+        pool_factors = [1, 2, 3, 6]
+        pool_outs = [o]
+        IMAGE_ORDERING = 'channels_last'
+        if IMAGE_ORDERING == 'channels_first':
+            MERGE_AXIS = 1
+        elif IMAGE_ORDERING == 'channels_last':
+            MERGE_AXIS = -1
+        for p in pool_factors:
+            pooled = keras_segmentation.models.pspnet.pool_block(o, p)
+            pool_outs.append(pooled)
+        o = Concatenate(axis=MERGE_AXIS)(pool_outs)
+        o = Conv2D(512, (1, 1), data_format=IMAGE_ORDERING, use_bias=False)(o)
+        o = BatchNormalization()(o)
+        o = Activation('relu')(o)
+        o = Conv2D(101, (3, 3), data_format=IMAGE_ORDERING, padding='same')(o)
+        o = keras_segmentation.models.model_utils.resize_image(o, (8, 8), data_format=IMAGE_ORDERING)
+
+        model = keras_segmentation.models.model_utils.get_segmentation_model(img_input, o)
+        model.model_name = "pspnet"
+
         self._test_keras_model(model, target_size=(384, 576))
 
     def test_segnet(self):
