@@ -178,23 +178,25 @@ def convert_bidirectional(scope, operator, container):
                                                   ],
                                                  operator.inputs[0].full_name + '_batch_indices_tensor')
 
-            seq_len_tensor = oopb.add_node('Slice',
-                                          [input_shape_tensor,
-                                           ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                           ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                           ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                           ],
-                                          operator.inputs[0].full_name + '_seq_len_tensor')
+            if not is_static_shape:
+                seq_len_tensor = oopb.add_node('Slice',
+                                              [input_shape_tensor,
+                                               ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                               ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                               ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                               ],
+                                              operator.inputs[0].full_name + '_seq_len_tensor')
         else:
             attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
             batch_indices_tensor = oopb.add_node('Slice',
                                                  [input_shape_tensor],
                                                  operator.inputs[0].full_name + '_batch_indices_tensor', **attrs)
 
-            attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
-            seq_len_tensor = oopb.add_node('Slice',
-                                           [input_shape_tensor],
-                                           operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
+            if not is_static_shape:
+                attrs = {'starts': [1], 'ends': [2], 'axes': [0]}
+                seq_len_tensor = oopb.add_node('Slice',
+                                               [input_shape_tensor],
+                                               operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
 
         batch_size_tensor = oopb.add_node('Concat',
                                       [('_a', oopb.int64, np.array([2], dtype='int64')),
