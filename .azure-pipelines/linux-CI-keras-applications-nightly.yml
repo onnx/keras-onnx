@@ -71,8 +71,6 @@ jobs:
       pip install -e .
       python -c "import onnxruntime"
       python -c "import onnxconverter_common"
-      pytest tests --doctest-modules --junitxml=junit/test-results.xml
-      pip install coverage onnx
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
