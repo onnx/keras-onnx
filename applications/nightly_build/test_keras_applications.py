@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 
 Activation = keras.layers.Activation
+AveragePooling2D = keras.layers.AveragePooling2D
 BatchNormalization = keras.layers.BatchNormalization
 Bidirectional = keras.layers.Bidirectional
 Concatenate = keras.layers.Concatenate
@@ -99,6 +100,22 @@ class TestKerasApplications(unittest.TestCase):
         model = keras_segmentation.models.fcn.fcn_8(101)
         self._test_keras_model(model, target_size=(416, 608))
 
+    def _pool_block(self, feats, pool_factor, IMAGE_ORDERING):
+        import keras.backend as K
+        if IMAGE_ORDERING == 'channels_first':
+            h = K.int_shape(feats)[2]
+            w = K.int_shape(feats)[3]
+        elif IMAGE_ORDERING == 'channels_last':
+            h = K.int_shape(feats)[1]
+            w = K.int_shape(feats)[2]
+        pool_size = strides = [int(np.round(float(h) / pool_factor)), int(np.round(float(w) / pool_factor))]
+        x = AveragePooling2D(pool_size, data_format=IMAGE_ORDERING, strides=strides, padding='same')(feats)
+        x = Conv2D(512, (1, 1), data_format=IMAGE_ORDERING, padding='same', use_bias=False)(x)
+        x = BatchNormalization()(x)
+        x = Activation('relu')(x)
+        x = keras_segmentation.models.model_utils.resize_image(x, strides, data_format=IMAGE_ORDERING)
+        return x
+
     def test_pspnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/pspnet.py
         from keras_segmentation.models.basic_models import vanilla_encoder
@@ -112,7 +129,7 @@ class TestKerasApplications(unittest.TestCase):
         elif IMAGE_ORDERING == 'channels_last':
             MERGE_AXIS = -1
         for p in pool_factors:
-            pooled = keras_segmentation.models.pspnet.pool_block(o, p)
+            pooled = self._pool_block(o, p, IMAGE_ORDERING)
             pool_outs.append(pooled)
         o = Concatenate(axis=MERGE_AXIS)(pool_outs)
         o = Conv2D(512, (1, 1), data_format=IMAGE_ORDERING, use_bias=False)(o)
