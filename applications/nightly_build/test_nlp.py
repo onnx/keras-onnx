@@ -92,7 +92,7 @@ class TestNLP(unittest.TestCase):
         x = np.random.randint(5, 10, size=(BATCH_SIZE, story_maxlen)).astype(np.int32)
         y = np.random.randint(5, 10, size=(BATCH_SIZE, query_maxlen)).astype(np.int32)
         expected = model.predict([x, y])
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected, self.model_files))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, {model.input_names[0]: x, model.input_names[1]: y}, expected, self.model_files))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
