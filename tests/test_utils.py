@@ -23,9 +23,6 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     except ImportError:
         return True
 
-    if not isinstance(expected, list):
-        expected = [expected]
-
     if isinstance(data, dict):
         feed_input = data
     else:
@@ -36,9 +33,20 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
         feed = zip(sorted(i_.name for i_ in input_names), data)
         feed_input = dict(feed)
     actual = sess.run(None, feed_input)
-    res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
-    if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
-        model_files.append(temp_model_file)
+
+    if expected is None:
+        return
+
+    if not isinstance(expected, list):
+        expected = [expected]
+
+    try:
+        res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
+    except MemoryError:
+        return
+    finally:
+        if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
+            model_files.append(temp_model_file)
 
     if not res:
         for n_ in range(len(expected)):
