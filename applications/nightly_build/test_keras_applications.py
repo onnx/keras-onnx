@@ -63,8 +63,8 @@ class TestKerasApplications(unittest.TestCase):
         preds = None
         try:
             preds = model.predict(x)
-        except Exception:
-            self.assertTrue(True, 'keras prediction throws an exception, skip comparison.')
+        except RuntimeError:
+            self.assertTrue(True, 'keras prediction throws an exception for model ' + model.name + ', skip comparison.')
 
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(model_name, onnx_model, x, preds, self.model_files, rtol=rtol, atol=atol))
