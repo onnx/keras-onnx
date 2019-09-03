@@ -12,7 +12,8 @@ import numpy as np
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import test_image
+from test_utils import run_image
+img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -82,7 +83,8 @@ class TestPSPNet(unittest.TestCase):
         model = keras_segmentation.models.model_utils.get_segmentation_model(img_input, o)
         model.model_name = "pspnet"
 
-        test_image(model, target_size=(384, 576))
+        res = run_image(model, self.model_files, img_path, target_size=(384, 576))
+        self.assertTrue(*res)
 
 
 if __name__ == "__main__":

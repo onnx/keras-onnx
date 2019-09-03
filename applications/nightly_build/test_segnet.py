@@ -10,7 +10,8 @@ import keras_segmentation
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import test_image
+from test_utils import run_image
+img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 
 class TestSegNet(unittest.TestCase):
@@ -25,12 +26,14 @@ class TestSegNet(unittest.TestCase):
     def test_segnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
         model = keras_segmentation.models.segnet.segnet(101)
-        test_image(model, target_size=(416, 608))
+        res = run_image(model, self.model_files, img_path, target_size=(416, 608))
+        self.assertTrue(*res)
 
     def test_vgg_segnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
         model = keras_segmentation.models.segnet.vgg_segnet(101)
-        test_image(model, target_size=(416, 608))
+        res = run_image(model, self.model_files, img_path, target_size=(416, 608))
+        self.assertTrue(*res)
 
 
 if __name__ == "__main__":

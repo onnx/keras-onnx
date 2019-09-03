@@ -10,7 +10,8 @@ import keras_segmentation
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import test_image
+from test_utils import run_image
+img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 
 class TestFCN(unittest.TestCase):
@@ -25,7 +26,8 @@ class TestFCN(unittest.TestCase):
     def test_fcn(self):
         # From https://github.com/divamgupta/image-segmentation-keras/models/fcn.py
         model = keras_segmentation.models.fcn.fcn_8(101)
-        test_image(model, target_size=(416, 608))
+        res = run_image(model, self.model_files, img_path, target_size=(416, 608))
+        self.assertTrue(*res)
 
 
 if __name__ == "__main__":

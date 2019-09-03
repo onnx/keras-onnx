@@ -70,11 +70,10 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     return res
 
 
-def test_image(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
+def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
     preprocess_input = keras.applications.resnet50.preprocess_input
     image = keras.preprocessing.image
 
-    img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
     try:
         if not isinstance(target_size, tuple):
             target_size = (target_size, target_size)
@@ -83,14 +82,15 @@ def test_image(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5
         x = np.expand_dims(x, axis=0)
         x = preprocess_input(x)
     except FileNotFoundError:
-        self.assertTrue(False, 'The image data does not exist.')
-        return
+        return False, 'The image data does not exist.'
 
+    msg = ''
     preds = None
     try:
         preds = model.predict(x)
     except RuntimeError:
-        self.assertTrue(True, 'keras prediction throws an exception for model ' + model.name + ', skip comparison.')
+        msg = 'keras prediction throws an exception for model ' + model.name + ', skip comparison.'
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
-    self.assertTrue(run_onnx_runtime(model_name, onnx_model, x, preds, self.model_files, rtol=rtol, atol=atol))
+    res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol)
+    return res, msg
