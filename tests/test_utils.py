@@ -7,6 +7,8 @@ import os
 import sys
 import onnx
 import numpy as np
+import keras
+import keras2onnx
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
@@ -40,13 +42,10 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     if not isinstance(expected, list):
         expected = [expected]
 
-    try:
-        res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
-    except MemoryError:
-        return
-    finally:
-        if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
-            model_files.append(temp_model_file)
+    res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
+
+    if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
+        model_files.append(temp_model_file)
 
     if not res:
         for n_ in range(len(expected)):
@@ -69,3 +68,29 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
                   file=sys.stderr)
 
     return res
+
+
+def test_image(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
+    preprocess_input = keras.applications.resnet50.preprocess_input
+    image = keras.preprocessing.image
+
+    img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
+    try:
+        if not isinstance(target_size, tuple):
+            target_size = (target_size, target_size)
+        img = image.load_img(img_path, target_size=target_size)
+        x = image.img_to_array(img)
+        x = np.expand_dims(x, axis=0)
+        x = preprocess_input(x)
+    except FileNotFoundError:
+        self.assertTrue(False, 'The image data does not exist.')
+        return
+
+    preds = None
+    try:
+        preds = model.predict(x)
+    except RuntimeError:
+        self.assertTrue(True, 'keras prediction throws an exception for model ' + model.name + ', skip comparison.')
+
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    self.assertTrue(run_onnx_runtime(model_name, onnx_model, x, preds, self.model_files, rtol=rtol, atol=atol))
