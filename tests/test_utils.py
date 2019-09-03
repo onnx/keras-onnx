@@ -7,8 +7,8 @@ import os
 import sys
 import onnx
 import numpy as np
-import keras
 import keras2onnx
+from keras2onnx.proto import keras
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
