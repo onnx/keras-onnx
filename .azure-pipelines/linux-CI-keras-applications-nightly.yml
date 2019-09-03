@@ -63,14 +63,12 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      python -c "import onnxconverter_common"
       pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      python -c "import onnxconverter_common"
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
