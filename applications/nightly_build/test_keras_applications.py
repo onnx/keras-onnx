@@ -15,7 +15,8 @@ from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime
+from test_utils import run_image, run_onnx_runtime
+img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -44,63 +45,43 @@ class TestKerasApplications(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
-        preprocess_input = keras.applications.resnet50.preprocess_input
-        image = keras.preprocessing.image
-
-        img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
-        try:
-            if not isinstance(target_size, tuple):
-                target_size = (target_size, target_size)
-            img = image.load_img(img_path, target_size=target_size)
-            x = image.img_to_array(img)
-            x = np.expand_dims(x, axis=0)
-            x = preprocess_input(x)
-        except FileNotFoundError:
-            self.assertTrue(False, 'The image data does not exist.')
-            return
-
-        preds = None
-        try:
-            preds = model.predict(x)
-        except RuntimeError:
-            self.assertTrue(True, 'keras prediction throws an exception for model ' + model.name + ', skip comparison.')
-
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(model_name, onnx_model, x, preds, self.model_files, rtol=rtol, atol=atol))
-
-
     def test_MobileNet(self):
         mobilenet = keras.applications.mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_ResNet50(self):
         from keras.applications.resnet50 import ResNet50
         model = ResNet50(include_top=True, weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_InceptionV3(self):
         from keras.applications.inception_v3 import InceptionV3
         model = InceptionV3(include_top=True, weights='imagenet')
-        self._test_keras_model(model, target_size=299)
+        res = run_image(model, self.model_files, img_path, target_size=299)
+        self.assertTrue(*res)
 
     def test_DenseNet121(self):
         from keras.applications.densenet import DenseNet121
         model = DenseNet121(include_top=True, weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_Xception(self):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
-        self._test_keras_model(model, atol=5e-3, target_size=299)
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299)
+        self.assertTrue(*res)
 
     def test_ACGAN(self):
         # An ACGAN generator from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
