@@ -3,7 +3,8 @@
 
 from __future__ import absolute_import
 
-from keras2onnx.proto import keras
+import keras2onnx
+keras = keras2onnx.proto.keras
 from keras import backend as K
 from keras.engine import Layer
 from keras.utils.generic_utils import get_custom_objects

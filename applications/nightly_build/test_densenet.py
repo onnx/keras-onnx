@@ -12,7 +12,7 @@ from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image
 
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../model_source/'))
+sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../model_source/densenet/'))
 import densenet
 
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
