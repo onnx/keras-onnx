@@ -31,10 +31,12 @@ Flatten = keras.layers.Flatten
 Input = keras.layers.Input
 LeakyReLU = keras.layers.LeakyReLU
 LSTM = keras.layers.LSTM
-MaxPooling1D = keras.layers.MaxPooling1D
+MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Reshape = keras.layers.Reshape
 UpSampling2D = keras.layers.UpSampling2D
+
+Sequential = keras.models.Sequential
 
 class TestKerasApplications(unittest.TestCase):
 
@@ -81,6 +83,26 @@ class TestKerasApplications(unittest.TestCase):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299)
+        self.assertTrue(*res)
+
+    def test_SmileCNN(self):
+        # From https://github.com/kylemcdonald/SmileCNN/blob/master/2%20Training.ipynb
+        nb_filters = 32
+        nb_pool = 2
+        nb_conv = 3
+        nb_classes = 2
+
+        model = Sequential()
+
+        model.add(Conv2D(nb_filters, (nb_conv, nb_conv), activation='relu', input_shape=(32, 32, 3)))
+        model.add(Conv2D(nb_filters, (nb_conv, nb_conv), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+        model.add(Dropout(0.25))
+        model.add(Flatten())
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(nb_classes, activation='softmax'))
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
         self.assertTrue(*res)
 
     def test_ACGAN(self):

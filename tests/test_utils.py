@@ -8,7 +8,7 @@ import sys
 import onnx
 import numpy as np
 import keras2onnx
-from keras2onnx.proto import keras
+from keras2onnx.proto import keras, is_keras_older_than
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
@@ -70,17 +70,22 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     return res
 
 
-def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
+def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb", target_size=224):
     preprocess_input = keras.applications.resnet50.preprocess_input
     image = keras.preprocessing.image
 
     try:
         if not isinstance(target_size, tuple):
             target_size = (target_size, target_size)
-        img = image.load_img(img_path, target_size=target_size)
+        if is_keras_older_than("2.2.3"):
+            # color_mode is not supported in old keras version
+            img = image.load_img(img_path, target_size=target_size)
+        else:
+            img = image.load_img(img_path, color_mode=color_mode, target_size=target_size)
         x = image.img_to_array(img)
         x = np.expand_dims(x, axis=0)
-        x = preprocess_input(x)
+        if color_mode == "rgb":
+            x = preprocess_input(x)
     except FileNotFoundError:
         return False, 'The image data does not exist.'
 
