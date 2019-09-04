@@ -17,6 +17,7 @@ import densenet
 
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
+from keras2onnx.proto import is_keras_older_than
 
 class TestDenseNet(unittest.TestCase):
 
@@ -27,6 +28,8 @@ class TestDenseNet(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
+                     "Cannot import normalize_data_format from keras.backend")
     def test_densenet(self):
         # From https://github.com/titu1994/DenseNet/blob/master/densenet.py
         image_dim = (224, 224, 3)

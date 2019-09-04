@@ -3,8 +3,7 @@
 
 import tensorflow as tf
 
-import keras2onnx
-keras = keras2onnx.proto.keras
+from keras2onnx.proto import keras
 from keras.backend import tensorflow_backend as KTF
 from keras.backend.common import image_data_format
 

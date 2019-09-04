@@ -12,8 +12,7 @@ from __future__ import division
 
 import warnings
 
-import keras2onnx
-keras = keras2onnx.proto.keras
+from keras2onnx.proto import keras
 from keras.models import Model
 from keras.layers.core import Dense, Dropout, Activation, Reshape
 from keras.layers.convolutional import Conv2D, Conv2DTranspose, UpSampling2D
