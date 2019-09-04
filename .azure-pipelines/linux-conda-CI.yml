@@ -9,6 +9,7 @@ trigger:
 jobs:
 
 - job: 'Test'
+  timeoutInMinutes: 180
   pool:
     vmImage: 'Ubuntu-16.04'
   strategy:
@@ -53,14 +54,25 @@ jobs:
       pip install -e .
       cd ..
       pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly
+      pip install opencv-python
+      pip install tqdm
+      pip install keras-segmentation
     displayName: 'Install dependencies'
 
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      python -c "import onnxconverter_common"
-      pytest tests --doctest-modules --junitxml=junit/test-results.xml
+      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
+
+  - script: |
+      pip install -e .
+      python -c "import onnxruntime"
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage report -m
+      coverage html
+    displayName: 'coverage'
 
   - task: PublishTestResults@2
     inputs:
