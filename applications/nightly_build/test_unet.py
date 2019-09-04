@@ -8,7 +8,7 @@ import sys
 import unittest
 import keras_segmentation
 from os.path import dirname, abspath
-from keras2onnx.proto import keras
+from keras2onnx.proto import keras, is_keras_older_than
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image
@@ -38,6 +38,8 @@ class TestUnet(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, target_size=(416, 608))
         self.assertTrue(*res)
 
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
+                     "Cannot import normalize_data_format from keras.backend")
     def test_unet_2(self):
         # From https://github.com/jocicmarko/ultrasound-nerve-segmentation
         img_rows = 96
