@@ -7,11 +7,13 @@ import os
 import sys
 import unittest
 import keras2onnx
+import onnx
 import numpy as np
-from keras2onnx.proto import keras, is_tf_keras
+from keras2onnx.proto import keras
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
+from distutils.version import StrictVersion
 
 Activation = keras.layers.Activation
 BatchNormalization = keras.layers.BatchNormalization
@@ -134,6 +136,8 @@ class TestACGAN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    @unittest.skipIf(StrictVersion(onnx.__version__) < StrictVersion("1.5.0"),
+                     "Not supported before onnx 1.5.0")
     def test_ACGAN(self):
         keras_model = ACGAN().combined
         batch = 5
