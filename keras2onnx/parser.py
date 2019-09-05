@@ -234,8 +234,8 @@ def _check_layer_converter_availability(sub_model):
 
 
 def _create_model_input_mapping_operators(ts_from, ts_to, prefix, subprefix, varset):
-    ty_ = _infer_variable_type(ts_from)
-    # type(_infer_variable_type(ts_to)) and type(ty_) can be different which is resolved by implicit cast.
+    ty_ = _infer_variable_type(ts_from, varset.target_opset)
+    # type(_infer_variable_type(ts_to, varset.target_opset) and type(ty_) can be different which is resolved by implicit cast.
     var0 = varset.get_local_variable_or_declare_one(subprefix + ts_from.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(prefix + ts_to.name, ty_)
     op = varset.declare_local_operator('identity', op_name=prefix + ts_to.name)
