@@ -14,9 +14,29 @@ from keras2onnx.proto import keras
 from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../tests/'))
-from test_utils import run_onnx_runtime
+sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
+from test_utils import run_image, run_onnx_runtime
+img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
+Activation = keras.layers.Activation
+AveragePooling2D = keras.layers.AveragePooling2D
+BatchNormalization = keras.layers.BatchNormalization
+Bidirectional = keras.layers.Bidirectional
+Concatenate = keras.layers.Concatenate
+Conv2D = keras.layers.Conv2D
+Dense = keras.layers.Dense
+Dropout = keras.layers.Dropout
+Embedding = keras.layers.Embedding
+Flatten = keras.layers.Flatten
+Input = keras.layers.Input
+LeakyReLU = keras.layers.LeakyReLU
+LSTM = keras.layers.LSTM
+MaxPooling2D = keras.layers.MaxPooling2D
+multiply = keras.layers.multiply
+Reshape = keras.layers.Reshape
+UpSampling2D = keras.layers.UpSampling2D
+
+Sequential = keras.models.Sequential
 
 class TestKerasApplications(unittest.TestCase):
 
@@ -27,81 +47,63 @@ class TestKerasApplications(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    def _test_keras_model(self, model, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, target_size=224):
-        preprocess_input = keras.applications.resnet50.preprocess_input
-        image = keras.preprocessing.image
-
-        img_path = os.path.join(os.path.dirname(__file__), 'data', 'street.jpg')
-        try:
-            if not isinstance(target_size, tuple):
-                target_size = (target_size, target_size)
-            img = image.load_img(img_path, target_size=target_size)
-            x = image.img_to_array(img)
-            x = np.expand_dims(x, axis=0)
-            x = preprocess_input(x)
-
-            preds = model.predict(x)
-            onnx_model = keras2onnx.convert_keras(model, model.name)
-            self.assertTrue(run_onnx_runtime(model_name, onnx_model, x, preds, self.model_files, rtol=rtol, atol=atol))
-        except FileNotFoundError:
-            self.assertTrue(False, 'The image data does not exist.')
-
     def test_MobileNet(self):
         mobilenet = keras.applications.mobilenet
         model = mobilenet.MobileNet(weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
         model = mobilenet_v2.MobileNetV2(weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_ResNet50(self):
         from keras.applications.resnet50 import ResNet50
         model = ResNet50(include_top=True, weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_InceptionV3(self):
         from keras.applications.inception_v3 import InceptionV3
         model = InceptionV3(include_top=True, weights='imagenet')
-        self._test_keras_model(model, target_size=299)
+        res = run_image(model, self.model_files, img_path, target_size=299)
+        self.assertTrue(*res)
 
     def test_DenseNet121(self):
         from keras.applications.densenet import DenseNet121
         model = DenseNet121(include_top=True, weights='imagenet')
-        self._test_keras_model(model)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
 
     def test_Xception(self):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')
-        self._test_keras_model(model, atol=5e-3, target_size=299)
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299)
+        self.assertTrue(*res)
 
-    def test_fcn(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/fcn.py
-        model = keras_segmentation.models.fcn.fcn_8(101)
-        self._test_keras_model(model, target_size=(416, 608))
+    def test_SmileCNN(self):
+        # From https://github.com/kylemcdonald/SmileCNN/blob/master/2%20Training.ipynb
+        nb_filters = 32
+        nb_pool = 2
+        nb_conv = 3
+        nb_classes = 2
 
-    def test_pspnet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/pspnet.py
-        model = keras_segmentation.models.pspnet.pspnet(101)
-        self._test_keras_model(model, target_size=(384, 576))
+        model = Sequential()
 
-    def test_segnet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
-        model = keras_segmentation.models.segnet.segnet(101)
-        self._test_keras_model(model, target_size=(416, 608))
-
-    def test_vgg_segnet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
-        model = keras_segmentation.models.segnet.vgg_segnet(101)
-        self._test_keras_model(model, target_size=(416, 608))
-
-    def test_unet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/unet.py
-        model = keras_segmentation.models.unet.unet(101)
-        self._test_keras_model(model, target_size=(416, 608))
+        model.add(Conv2D(nb_filters, (nb_conv, nb_conv), activation='relu', input_shape=(32, 32, 3)))
+        model.add(Conv2D(nb_filters, (nb_conv, nb_conv), activation='relu'))
+        model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+        model.add(Dropout(0.25))
+        model.add(Flatten())
+        model.add(Dense(128, activation='relu'))
+        model.add(Dropout(0.5))
+        model.add(Dense(nb_classes, activation='softmax'))
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
+        self.assertTrue(*res)
 
     def test_ACGAN(self):
         # An ACGAN generator from https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py
@@ -165,26 +167,6 @@ class TestKerasApplications(unittest.TestCase):
 
         expected = keras_model.predict([x, y])
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected, self.model_files))
-
-    def test_addition_rnn(self):
-        # An implementation of sequence to sequence learning for performing addition
-        # from https://github.com/keras-team/keras/blob/master/examples/addition_rnn.py
-        DIGITS = 3
-        MAXLEN = DIGITS + 1 + DIGITS
-        HIDDEN_SIZE = 128
-        BATCH_SIZE = 128
-        CHARS_LENGTH = 12
-
-        for RNN in [keras.layers.LSTM, keras.layers.GRU, keras.layers.SimpleRNN]:
-            model = keras.models.Sequential()
-            model.add(RNN(HIDDEN_SIZE, input_shape=(MAXLEN, CHARS_LENGTH)))
-            model.add(keras.layers.RepeatVector(DIGITS + 1))
-            model.add(RNN(HIDDEN_SIZE, return_sequences=True))
-            model.add(keras.layers.TimeDistributed(keras.layers.Dense(CHARS_LENGTH, activation='softmax')))
-            onnx_model = keras2onnx.convert_keras(model, model.name)
-            x = np.random.rand(BATCH_SIZE, MAXLEN, CHARS_LENGTH).astype(np.float32)
-            expected = model.predict(x)
-            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
 
 if __name__ == "__main__":

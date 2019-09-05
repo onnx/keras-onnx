@@ -67,14 +67,17 @@ jobs:
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      python -c "import onnxconverter_common"
-      pytest applications/test_keras_applications.py --doctest-modules --junitxml=junit/test-results.xml
-      pytest tests --doctest-modules --junitxml=junit/test-results.xml
-      pip install coverage onnx
+      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
+    displayName: 'pytest'
+
+  - script: |
+      call activate py$(python.version)
+      pip install -e .
+      echo Test onnxruntime installation... && python -c "import onnxruntime"
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
-    displayName: 'pytest + coverage'
+    displayName: 'coverage'
 
   - task: PublishTestResults@2
     inputs:

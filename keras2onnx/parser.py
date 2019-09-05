@@ -17,10 +17,13 @@ from .funcbook import get_converter
 from .wrapper import tf2onnx_wrap, TFNODES
 
 
-def _infer_variable_type(tensor):
+def _infer_variable_type(tensor, opset):
     tensor_shape = []
     if tensor.shape not in (tf.TensorShape(None), tf.TensorShape([])):
-        tensor_shape = [d.value for d in tensor.shape]
+        if opset > 8:
+            tensor_shape = [d.value for d in tensor.shape]
+        else:  # most inference engine has problem with unset dim param if they released around opset 8 publish
+            tensor_shape = ['None' if d.value is None else d.value for d in tensor.shape]
 
     # Determine the tensor's element type
     tensor_type = tensor.dtype
@@ -59,7 +62,7 @@ def _locate_inputs_by_node(node_list, varset):
                 continue
 
             if i_ not in inputs:
-                v0 = varset.get_local_variable_or_declare_one(i_.name, _infer_variable_type(i_))
+                v0 = varset.get_local_variable_or_declare_one(i_.name, _infer_variable_type(i_, varset.target_opset))
                 inputs[i_] = v0
 
     return list(inputs.values()), list(inputs.keys())
@@ -76,7 +79,7 @@ def _locate_outputs(node_list, varset):
     assert nodes
     for n0_ in nodes:
         for n_ in n0_.outputs:
-            var_output.append(varset.get_local_variable_or_declare_one(n_.name, _infer_variable_type(n_)))
+            var_output.append(varset.get_local_variable_or_declare_one(n_.name, _infer_variable_type(n_, varset.target_opset)))
 
     return var_output
 
@@ -114,9 +117,9 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
     i_ = inputs[0]
     iname = i_.name
     k2o_logger().debug('td_layer input: ' + iname)
-    i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_))
+    i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_, varset.target_opset))
     i0_reshape_name = i_.op.name + '_reshape_0:0'
-    i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_))
+    i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_, varset.target_opset))
     i0_reshape_shape = (-1,) + ishapes[0][2:]
     operator_reshape_0 = varset.declare_local_operator('reshape_timedistributed',
                                                        op_name=layer.name + '_reshape_0', target_shape=i0_reshape_shape)
@@ -126,14 +129,14 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
     o_ = outputs[0]
     oname = o_.name
     k2o_logger().debug('td_layer output: ' + oname)
-    o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
+    o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_, varset.target_opset))
     o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
     operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed',
                                                        op_name=layer.name + '_reshape_1', target_shape=oshapes1)
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
-    o1_reshape = varset.declare_local_variable(o1_reshape_name, _infer_variable_type(o_))
+    o1_reshape = varset.declare_local_variable(o1_reshape_name, _infer_variable_type(o_, varset.target_opset))
     operator_reshape_1.add_input(o1_reshape)
 
     inner_layer = layer.layer
@@ -172,7 +175,6 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
 
     inputs = list_input_tensors(kenode)
     outputs = list_output_tensors(kenode)
-    oshapes = list_output_shapes(kenode)
 
     # This layer will be visited because its output is other layer's input
     assert len(node_list) == 0 or node_list[0] in [ts_.op for ts_ in outputs]
@@ -183,7 +185,7 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
     for i_ in inputs:
         iname = prefix + i_.name
         k2o_logger().debug('input : ' + iname)
-        var_type = _adjust_input_batch_size(_infer_variable_type(i_))
+        var_type = _adjust_input_batch_size(_infer_variable_type(i_, varset.target_opset))
         i0 = varset.get_local_variable_or_declare_one(iname, var_type)
         operator.add_input(i0)
 
@@ -192,13 +194,13 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         for im_ in [m_ for m_ in in_mask if m_ is not None]:
             mts_name = im_.name  # input mask in a shared model is not supported yet, why is it needed?
             k2o_logger().debug('input mask: ' + mts_name)
-            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(im_))
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(im_, varset.target_opset))
             operator.add_input_mask(mts_var)
 
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
-        o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_))
+        o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_, varset.target_opset))
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
@@ -206,7 +208,7 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         for om_ in [m_ for m_ in out_mask if m_ is not None]:
             mts_name = prefix + om_.name
             k2o_logger().debug('output mask: ' + mts_name)
-            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(om_))
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(om_, varset.target_opset))
             operator.add_output_mask(mts_var)
 
     cvt = get_converter(operator.type)
@@ -321,7 +323,7 @@ def _on_parsing_tf_subgraph(node_list, varset):
         # ph_.name -> identity -> ph_name -> ...
         oop = varset.declare_local_operator('identity')
         oop.add_input(var_)
-        ov = varset.declare_local_variable(ph_name, _infer_variable_type(ph_))
+        ov = varset.declare_local_variable(ph_name, _infer_variable_type(ph_, varset.target_opset))
         oop.add_output(ov)
         operator.add_input(ov)
 
@@ -348,8 +350,8 @@ def _finalize_tf2onnx_op(topo, operator, varset):
                 idf_ = tf.identity(subgraph.get_tensor_by_name(operator.full_name + '/' + n_.name),
                                    operator.full_name + '_identity')
                 outputs.append(idf_.name)
-                iv = varset.get_local_variable_or_declare_one(idf_.name, _infer_variable_type(n_))
-                ov = varset.get_local_variable_or_declare_one(nodes[n0_][i_], _infer_variable_type(n_))
+                iv = varset.get_local_variable_or_declare_one(idf_.name, _infer_variable_type(n_, varset.target_opset))
+                ov = varset.get_local_variable_or_declare_one(nodes[n0_][i_], _infer_variable_type(n_, varset.target_opset))
                 operator.add_output(iv)
                 oop = varset.declare_local_operator('identity')
                 oop.add_input(iv)
@@ -407,9 +409,9 @@ def _infer_graph_shape(topology, top_level, varset):
 
 def _create_link_node(var_ts, top_level, varset, reversed_io=False, adjust_batch_size=False):
     if adjust_batch_size:
-        ty_ = _adjust_input_batch_size(_infer_variable_type(var_ts))
+        ty_ = _adjust_input_batch_size(_infer_variable_type(var_ts, varset.target_opset))
     else:
-        ty_ = _infer_variable_type(var_ts)
+        ty_ = _infer_variable_type(var_ts, varset.target_opset)
     var0 = top_level.get_local_variable_or_declare_one(var_ts.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(var_ts.name, ty_)
     op = varset.declare_local_operator('identity')
@@ -645,7 +647,7 @@ def parse_graph(topo, graph, target_opset, output_names):
     for idx_, ts_ in enumerate(topo.raw_model.model.inputs):
         op = top_level.declare_local_operator('identity')
         input_ts = topo.raw_model.model.inputs[idx_]
-        var_type = _adjust_input_batch_size(_infer_variable_type(input_ts))
+        var_type = _adjust_input_batch_size(_infer_variable_type(input_ts, target_opset))
         str_value = input_ts.name
         var0 = None
         if hasattr(topo.raw_model.model, 'input_names'):
