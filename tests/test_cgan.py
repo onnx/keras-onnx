@@ -84,9 +84,6 @@ class CGAN():
         model.add(Dense(np.prod(self.img_shape), activation='tanh'))
         model.add(Reshape(self.img_shape))
 
-        model.summary()
-
-
         noise = Input(shape=(self.latent_dim,))
         label = Input(shape=(1,), dtype='int32')
         label_embedding = Flatten()(Embedding(self.num_classes, self.latent_dim)(label))
@@ -109,7 +106,6 @@ class CGAN():
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dropout(0.4))
         model.add(Dense(1, activation='sigmoid'))
-        model.summary()
 
         model.add(Dense(1, activation='sigmoid'))
 

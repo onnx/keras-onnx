@@ -76,8 +76,6 @@ class BGAN():
         model.add(Dense(np.prod(self.img_shape), activation='tanh'))
         model.add(Reshape(self.img_shape))
 
-        model.summary()
-
         noise = Input(shape=(self.latent_dim,))
         img = model(noise)
 
@@ -93,7 +91,6 @@ class BGAN():
         model.add(Dense(256))
         model.add(LeakyReLU(alpha=0.2))
         model.add(Dense(1, activation='sigmoid'))
-        model.summary()
 
         img = Input(shape=self.img_shape)
         validity = model(img)

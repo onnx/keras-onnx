@@ -81,8 +81,6 @@ class BIGAN():
         model.add(BatchNormalization(momentum=0.8))
         model.add(Dense(self.latent_dim))
 
-        model.summary()
-
         img = Input(shape=self.img_shape)
         z = model(img)
 
@@ -99,8 +97,6 @@ class BIGAN():
         model.add(BatchNormalization(momentum=0.8))
         model.add(Dense(np.prod(self.img_shape), activation='tanh'))
         model.add(Reshape(self.img_shape))
-
-        model.summary()
 
         z = Input(shape=(self.latent_dim,))
         gen_img = model(z)

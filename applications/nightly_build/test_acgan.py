@@ -82,8 +82,6 @@ class ACGAN():
         model.add(Conv2D(self.channels, kernel_size=3, padding='same'))
         model.add(Activation("tanh"))
 
-        model.summary()
-
         noise = Input(shape=(self.latent_dim,))
         label = Input(shape=(1,), dtype='int32')
         label_embedding = Flatten()(Embedding(self.num_classes, self.latent_dim)(label))
@@ -114,7 +112,6 @@ class ACGAN():
         model.add(Dropout(0.25))
 
         model.add(Flatten())
-        model.summary()
 
         img = Input(shape=self.img_shape)
 
