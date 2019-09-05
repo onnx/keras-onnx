@@ -5,10 +5,12 @@
 ###############################################################################
 import os
 import unittest
+import tensorflow as tf
 import keras2onnx
 import numpy as np
-from keras2onnx.proto import keras
+from keras2onnx.proto import keras, is_tf_keras
 from test_utils import run_onnx_runtime
+from distutils.version import StrictVersion
 
 import importlib
 importlib.import_module('test_utils')
@@ -132,6 +134,8 @@ class TestCGAN(unittest.TestCase):
             os.remove(fl)
 
     def test_CGAN(self):
+        if is_tf_keras and StrictVersion(tf.__version__) < StrictVersion("1.14.0"):
+            return
         keras_model = CGAN().combined
         batch = 5
         x = np.random.rand(batch, 100).astype(np.float32)

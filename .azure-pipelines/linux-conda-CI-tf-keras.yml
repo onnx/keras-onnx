@@ -46,11 +46,7 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install $(TENSORFLOW_PATH)
-      pip install numpy
-      pip install protobuf
-      pip install requests
-      pip install onnx
-      pip install fire
+      pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
