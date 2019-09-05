@@ -252,6 +252,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         nodes = container.nodes
     except Exception:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
+        k2o_logger().warning('The onnxconverter_common.optimizer throws an exception, skip it.')
         nodes = container.nodes
 
     # Create a graph from its main components
