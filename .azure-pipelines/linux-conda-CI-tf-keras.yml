@@ -63,7 +63,7 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      pytest applications/nightly_build/test_srgan.py applications/nightly_build/test_sgan.py --doctest-modules --junitxml=junit/test-results.xml
+      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
   - script: |
