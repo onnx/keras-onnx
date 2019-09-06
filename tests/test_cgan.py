@@ -133,9 +133,9 @@ class TestCGAN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    @unittest.skipIf(is_tf_keras and StrictVersion(tf.__version__) < StrictVersion("1.14.0"),
+                     "Not supported before tensorflow 1.14.0 for tf_keras")
     def test_CGAN(self):
-        if is_tf_keras and StrictVersion(tf.__version__) < StrictVersion("1.14.0"):
-            return
         keras_model = CGAN().combined
         batch = 5
         x = np.random.rand(batch, 100).astype(np.float32)
