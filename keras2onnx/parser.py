@@ -233,15 +233,15 @@ def _check_layer_converter_availability(sub_model):
     return False
 
 
-def _create_model_input_mapping_operators(ts_from, ts_to, prefix, varset):
+def _create_model_input_mapping_operators(ts_from, ts_to, prefix, subprefix, varset):
     ty_ = _infer_variable_type(ts_from, varset.target_opset)
-    assert type(_infer_variable_type(ts_to, varset.target_opset)) is type(ty_)
-    var0 = varset.get_local_variable_or_declare_one(ts_from.name, ty_)
+    # type(_infer_variable_type(ts_to, varset.target_opset) and type(ty_) can be different which is resolved by implicit cast.
+    var0 = varset.get_local_variable_or_declare_one(subprefix + ts_from.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(prefix + ts_to.name, ty_)
     op = varset.declare_local_operator('identity', op_name=prefix + ts_to.name)
     op.add_input(var0)
     op.add_output(var1)
-    k2o_logger().debug("mapping:  %s -> %s" % (ts_from.name, ts_to.name))
+    k2o_logger().debug("mapping:  %s -> %s (%s -> %s)" % (ts_from.name, ts_to.name, subprefix + ts_from.name, prefix + ts_to.name))
     return op
 
 
@@ -284,7 +284,7 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
 
         # the input node needs to be mapped to the outmost inbound keras node.
         for idx_, in_ in enumerate(list_input_tensors(top_kenode)):
-            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix + prefix,
+            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix + prefix, upper_prefix,
                                                   varset)
             ts_inputs.append(in_)
 
@@ -297,7 +297,8 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
                 continue
             elif isinstance(layer, keras.Model):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer.name)
-                _on_parsing_model_layer(layer, graph, n_, varset, top_kenode, upper_prefix + prefix)
+                cur_kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer), sub_model.outputs[0].name)
+                _on_parsing_model_layer(layer, graph, n_, varset, cur_kenode, upper_prefix + prefix)
             else:
                 _on_parsing_keras_layer(graph, [], layer, n_, sub_model, varset, upper_prefix + prefix)
 
