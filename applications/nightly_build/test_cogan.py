@@ -31,6 +31,7 @@ ZeroPadding2D = keras.layers.ZeroPadding2D
 Sequential = keras.models.Sequential
 Model = keras.models.Model
 
+
 # From https://github.com/eriklindernoren/Keras-GAN/blob/master/cogan/cogan.py
 class COGAN():
     """Reference: https://wiseodd.github.io/techblog/2017/02/18/coupled_gan/"""
