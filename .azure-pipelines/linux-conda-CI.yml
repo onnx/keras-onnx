@@ -45,6 +45,7 @@ jobs:
       python -m pip install --upgrade pip
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
+      pip install h5py==2.9.0
       pip install tensorflow
       pip install $(KERAS)
       pip install -r requirements.txt
