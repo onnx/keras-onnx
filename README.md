@@ -49,6 +49,17 @@ We converted successfully for all the keras application models, and several othe
 | [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
 | [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
 | [CGAN (Conditional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/cgan/cgan.py) | GAN |
+| [Coupled GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/cogan/cogan.py) | GAN |
+| [Deep Convolutional GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/discogan/discogan.py) | GAN |
+| [DualGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/dualgan/dualgan.py) | GAN |
+| [Generative Adversarial Network](https://github.com/eriklindernoren/Keras-GAN/blob/master/gan/gan.py) | GAN |
+| [InfoGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/infogan/infogan.py) | GAN |
+| [LSGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/lsgan/lsgan.py) | GAN |
+| [Pix2Pix](https://github.com/eriklindernoren/Keras-GAN/blob/master/pix2pix/pix2pix.py) | GAN |
+| [Semi-Supervised GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/sgan/sgan.py) | GAN |
+| [Super-Resolution GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/srgan/srgan.py) | GAN |
+| [Wasserstein GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/wgan/wgan.py) | GAN |
+| [Wasserstein GAN GP](https://github.com/eriklindernoren/Keras-GAN/blob/master/wgan_gp/wgan_gp.py) | GAN |
 | [keras-team examples](https://github.com/keras-team/keras/blob/master/examples/) | Text and Sequence | addition_rnn, babi_rnn, imdb_bidirectional_lstm, imdb_cnn_lstm, imdb_lstm, lstm_text_generation, reuters_mlp |
 
 The following models need customed conversion, see the instruction column.
