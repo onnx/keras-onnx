@@ -8,7 +8,7 @@ if __name__ == "__main__":
     res_final = True
     count = 0
     for f_ in onlyfiles:
-        res = os.system("pytest " + f_)
+        res = os.system("pytest " + f_ +  " --doctest-modules --junitxml=junit/test-results-" + f_[5:-3] + ".xml")
 
         if not res:
             res_final = False
@@ -16,5 +16,7 @@ if __name__ == "__main__":
             assert (False)
         count = count + 1
 
-    if not res_final:
+    if res_final:
+        assert(True)
+    else:
         assert(False)
