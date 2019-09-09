@@ -68,7 +68,8 @@ jobs:
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      python -c "python applications/nightly_build/run_all.py"
+      cd applications/nightly_build
+      python run_all.py
     displayName: 'pytest'
 
   - script: |
