@@ -64,7 +64,7 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      python applications/nightly_build/run_all.py
+      python -c "python applications/nightly_build/run_all.py"
     displayName: 'pytest'
 
   - script: |
