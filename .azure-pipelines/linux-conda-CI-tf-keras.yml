@@ -64,14 +64,8 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      pytest applications/nightly_build_1 --doctest-modules --junitxml=junit/test-results-1.xml
-    displayName: 'pytest-1'
-
-  - script: |
-      pip install -e .
-      python -c "import onnxruntime"
-      pytest applications/nightly_build_2 --doctest-modules --junitxml=junit/test-results-2.xml
-    displayName: 'pytest-2'
+      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
+    displayName: 'pytest'
 
   - script: |
       pip install -e .

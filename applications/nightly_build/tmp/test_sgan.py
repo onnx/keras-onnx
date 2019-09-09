@@ -125,9 +125,12 @@ class TestSGAN(unittest.TestCase):
 
     def test_SGAN(self):
         keras_model = SGAN().combined
+        keras_model.save('sgan.h5')
         x = np.random.rand(5, 100).astype(np.float32)
         expected = keras_model.predict(x)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        import onnx
+        onnx.save_model(onnx_model, 'sgan.onnx')
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
 
