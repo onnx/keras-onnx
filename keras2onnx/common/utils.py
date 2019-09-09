@@ -47,6 +47,8 @@ def set_logger_level(lvl):
     logger = k2o_logger()
     if logger.level != lvl:
         logger.setLevel(lvl)
+        for h_ in logger.handlers:
+            h_.setLevel(lvl)
 
 
 @with_variable('batch_size')
