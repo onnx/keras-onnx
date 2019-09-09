@@ -68,15 +68,15 @@ jobs:
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
-    displayName: 'pytest'
+      pytest applications/nightly_build_2 --doctest-modules --junitxml=junit/test-results-2.xml
+    displayName: 'pytest-2'
 
   - script: |
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      pytest applications/nightly_build_2 --doctest-modules --junitxml=junit/test-results-2.xml
-    displayName: 'pytest-2'
+      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
+    displayName: 'pytest'
 
   - script: |
       call activate py$(python.version)
