@@ -64,7 +64,8 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      pytest applications/nightly_build --doctest-modules --junitxml=junit/test-results.xml
+      cd applications/nightly_build
+      python run_all.py
     displayName: 'pytest'
 
   - script: |
@@ -77,6 +78,6 @@ jobs:
 
   - task: PublishTestResults@2
     inputs:
-      testResultsFiles: '**/test-results.xml'
+      testResultsFiles: '**/test-results-*.xml'
       testRunTitle: 'Python $(python.version)'
     condition: succeededOrFailed()
