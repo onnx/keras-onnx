@@ -14,6 +14,24 @@ working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
 
+def print_mismatches(case_name, list_idx, expected_list, actual_list, rtol=1.e-3, atol=1.e-6):
+    diff_list = abs(expected_list - actual_list)
+    count_total = len(expected_list)
+    count_error = 0
+
+    for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
+        if d_ > atol + rtol * abs(a_):
+            if count_error < 10:  # print the first 10 mismatches
+                print(
+                    "case = " + case_name + ", result mismatch for expected = " + str(e_) +
+                    ", actual = " + str(a_), file=sys.stderr)
+            count_error = count_error + 1
+
+    print("case = " + case_name + ", " +
+          str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(list_idx),
+          file=sys.stderr)
+
+
 def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6):
     if not os.path.exists(tmp_path):
         os.mkdir(tmp_path)
@@ -51,21 +69,7 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
         for n_ in range(len(expected)):
             expected_list = expected[n_].flatten()
             actual_list = actual[n_].flatten()
-            diff_list = abs(expected_list - actual_list)
-            count_total = len(expected_list)
-            count_error = 0
-
-            for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
-                if d_ > atol + rtol * abs(a_):
-                    if count_error < 10:  # print the first 10 mismatches
-                        print(
-                            "case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                            ", actual = " + str(a_), file=sys.stderr)
-                    count_error = count_error + 1
-
-            print("case = " + case_name + ", " +
-                  str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(n_),
-                  file=sys.stderr)
+            print_mismatches(case_name, n_, expected_list, actual_list, rtol, atol)
 
     return res
 
