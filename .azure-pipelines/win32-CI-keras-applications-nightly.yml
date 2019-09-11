@@ -69,7 +69,7 @@ jobs:
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       cd applications/nightly_build
-      python run_all.py
+      python run_all.py --exclude "test_mask_rcnn.py"
     displayName: 'pytest'
 
   - script: |
