@@ -753,7 +753,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         hidden_1 = SimpleRNN(5, activation='relu', return_sequences=True)(inputs2, initial_state=[state])
         output = Dense(2, activation='sigmoid')(hidden_1)
         keras_model = keras.Model(inputs=[inputs2, state], outputs=output)
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
         N, H, W, C = 3, 1, 2, 5
         x = np.random.rand(N, H, W).astype(np.float32, copy=False)
@@ -1080,7 +1080,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         sub_sum = Add()([mapped1_3, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
         keras_model.compile('sgd', loss='mse')
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
         x = [x, 2 * x]
         expected = keras_model.predict(x)
@@ -1121,7 +1121,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         keras_model = keras.Sequential()
         keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
         # keras_model.output_shape == (None, 10, 8)
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         x = np.random.rand(32, 10, 16).astype(np.float32)
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
@@ -1130,7 +1130,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         N, D, W, H, C = 5, 10, 15, 15, 3
         keras_model.add(TimeDistributed(Conv2D(64, (3, 3)),
                                         input_shape=(D, W, H, C)))
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         x = np.random.rand(N, D, W, H, C).astype(np.float32)
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
@@ -1221,7 +1221,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             output = Concatenate(name="output")(outputs)
             output = IdentityLayer()(output)
             model = Model(image_input, output)
-            onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=7, debug_mode=True)
+            onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=7)
             x = np.random.rand(2, 700, 420, 1).astype(np.float32)
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
