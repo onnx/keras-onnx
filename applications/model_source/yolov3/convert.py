@@ -237,6 +237,8 @@ def convert_weights(config_path, weights_path, output_path):
     if remaining_weights > 0:
         print('Warning: {} unused weights'.format(remaining_weights))
 
+    return model
+
 # %%
 def _main(args):
     config_path = os.path.expanduser(args.config_path)

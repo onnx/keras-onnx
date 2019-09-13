@@ -49,10 +49,10 @@ class TestYoloV3(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
     def test_yolov3(self):
-        img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3')
-        yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3/yolo3')
         model_dir = os.path.join(yolo3_dir, 'model_data')
+        img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
+        yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3/yolo3')
 
         yolov3_weights_path = os.path.join(yolo3_dir, 'yolov3.weights')
         yolov3_cfg_path = os.path.join(yolo3_dir, 'yolov3.cfg')
@@ -61,16 +61,14 @@ class TestYoloV3(unittest.TestCase):
         if not os.path.exists(yolov3_weights_path):
             urllib.request.urlretrieve(YOLOV3_WEIGHTS_PATH, yolov3_weights_path)
 
+        yolo_weights = None
         if not os.path.exists(yolo_h5_path):
-            convert_weights(yolov3_cfg_path, yolov3_weights_path, yolo_h5_path)
-
-        from PIL import Image
-        image = Image.open(img_path)
+            yolo_weights = convert_weights(yolov3_cfg_path, yolov3_weights_path, yolo_h5_path)
 
         my_yolo = YOLO(yolo3_yolo3_dir)
-        target_opset = 10
-        my_yolo.load_model()
+        my_yolo.load_model(yolo_weights)
         case_name = 'yolov3'
+        target_opset = 10
         onnx_model = keras2onnx.convert_keras(my_yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'], debug_mode=True)
 
         if not os.path.exists(tmp_path):
@@ -84,6 +82,8 @@ class TestYoloV3(unittest.TestCase):
         except ImportError:
             return True
 
+        from PIL import Image
+        image = Image.open(img_path)
         image_data = my_yolo.prepare_keras_data(image)
 
         all_boxes_k, all_scores_k, indices_k = my_yolo.final_model.predict([image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2)])

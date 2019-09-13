@@ -244,10 +244,18 @@ class LinkedNode(object):
             for var_ in o_.output:
                 assert var_map.get(var_) is None
                 var_map[var_] = ln
+                k2o_logger().debug("Insert var_map key_=%s, value=%s" % (var_, ln.origin.name))
+
+        print("****")
+        for n_ in view:
+            print(n_.origin.name)
+        print("****")
 
         additional_nodes = []
         count_nchw = 0
         for n_ in view:
+            if n_.origin.name == 'Identity9':
+                aa = 1
             for var_ in n_.origin.input:
                 target = var_map.get(var_)
                 if target is None:
