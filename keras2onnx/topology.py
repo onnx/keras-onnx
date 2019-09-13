@@ -251,7 +251,7 @@ class LinkedNode(object):
             for var_ in n_.origin.input:
                 target = var_map.get(var_)
                 if target is None:
-                    print('var_ =' + var_ + ', n_origin_name =' + n_.origin.name)
+                    k2o_logger().debug("var_=%s, n_origin_name=%s" % (var_, n_.origin.name))
                     assert var_ == '' or var_ in inputs
                     target = LinkedNode(out_n=[var_])  # create an empty node as input
                     new_output = var_ + '_nhwc'
