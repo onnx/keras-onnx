@@ -201,7 +201,7 @@ class YOLO(object):
             self.yolo_model = yolo_weights
 
         input_image_shape = keras.Input(shape=(2,), name='image_shape')
-        image_input = keras.Input((None, None, 3), dtype='float32')
+        image_input = keras.Input((None, None, 3), dtype='float32', name='input_1')
         y1, y2, y3 = self.yolo_model(image_input)
 
         boxes, box_scores = \
