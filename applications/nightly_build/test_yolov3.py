@@ -33,6 +33,7 @@ class TestYoloV3(unittest.TestCase):
         self.model_files = []
 
     def tearDown(self):
+        return
         for fl in self.model_files:
             os.remove(fl)
 
@@ -70,7 +71,7 @@ class TestYoloV3(unittest.TestCase):
         target_opset = 10
         my_yolo.load_model()
         case_name = 'yolov3'
-        onnx_model = keras2onnx.convert_keras(my_yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'])
+        onnx_model = keras2onnx.convert_keras(my_yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'], debug_mode=True)
 
         if not os.path.exists(tmp_path):
             os.mkdir(tmp_path)

@@ -240,6 +240,11 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
 
     # enable the ONNX optimizations
+    import onnxconverter_common
+    nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+                                                         inputs=container.inputs + extra_inputs,
+                                                         outputs=container.outputs)
+    '''
     try:
         import onnxconverter_common
         nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
@@ -254,7 +259,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
         k2o_logger().warning('The onnxconverter_common.optimizer throws an exception, skip it.')
         nodes = container.nodes
-
+    '''
     # Create a graph from its main components
     if target_opset < 9:
         graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
