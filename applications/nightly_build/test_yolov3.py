@@ -49,10 +49,10 @@ class TestYoloV3(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
     def test_yolov3(self):
-        yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3')
+        yolo3_dir = os.path.join(os.path.dirname(__file__), '../../../keras-yolo3')
         model_dir = os.path.join(yolo3_dir, 'model_data')
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
-        yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3/yolo3')
+        yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../../../keras-yolo3/yolo3')
 
         yolov3_weights_path = os.path.join(yolo3_dir, 'yolov3.weights')
         yolov3_cfg_path = os.path.join(yolo3_dir, 'yolov3.cfg')

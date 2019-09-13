@@ -16,9 +16,9 @@ from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_ca
 from keras2onnx.proto import onnx_proto
 
 from os.path import dirname, abspath
-yolo3_dir = os.path.join(os.path.dirname(__file__), '../model_source/yolov3')
+yolo3_dir = os.path.join(os.path.dirname(__file__), '../../../keras-yolo3')
 if os.path.exists(yolo3_dir):
-    sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../model_source/yolov3'))
+    sys.path.insert(0, yolo3_dir)
 
 import yolo3
 from yolo3.model import yolo_body, tiny_yolo_body, yolo_boxes_and_scores
