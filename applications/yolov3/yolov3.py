@@ -178,27 +178,30 @@ class YOLO(object):
         anchors = [float(x) for x in anchors.split(',')]
         return np.array(anchors).reshape(-1, 2)
 
-    def load_model(self):
+    def load_model(self, yolo_weights=None):
         model_path = self._get_data_path(self.model_path, self.yolo3_dir)
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        if yolo_weights is None:
+            # Load model, or construct model and load weights.
+            num_anchors = len(self.anchors)
+            num_classes = len(self.class_names)
+            is_tiny_version = num_anchors == 6  # default setting
 
-        # Load model, or construct model and load weights.
-        num_anchors = len(self.anchors)
-        num_classes = len(self.class_names)
-        is_tiny_version = num_anchors == 6  # default setting
-        try:
-            self.yolo_model = load_model(model_path, compile=False)
-        except:
-            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
-                if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
-            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+            try:
+                self.yolo_model = load_model(model_path, compile=False)
+            except:
+                self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
+                    if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
+                self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+            else:
+                assert self.yolo_model.layers[-1].output_shape[-1] == \
+                    num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
+                    'Mismatch between model and given anchor and class sizes'
         else:
-            assert self.yolo_model.layers[-1].output_shape[-1] == \
-                num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
-                'Mismatch between model and given anchor and class sizes'
+            self.yolo_model = yolo_weights
 
         input_image_shape = keras.Input(shape=(2,), name='image_shape')
-        image_input = keras.Input((None, None, 3), dtype='float32')
+        image_input = keras.Input((None, None, 3), dtype='float32', name='input_1')
         y1, y2, y3 = self.yolo_model(image_input)
 
         boxes, box_scores = \
