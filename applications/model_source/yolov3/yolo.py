@@ -20,9 +20,9 @@ from keras.utils import multi_gpu_model
 
 class YOLO(object):
     _defaults = {
-        "model_path": os.path.join(os.path.abspath(os.path.dirname(__file__)), 'model_data/yolo.h5'),
-        "anchors_path": os.path.join(os.path.abspath(os.path.dirname(__file__)), 'model_data/yolo_anchors.txt'),
-        "classes_path": os.path.join(os.path.abspath(os.path.dirname(__file__)), 'model_data/coco_classes.txt'),
+        "model_path": 'model_data/yolo.h5',
+        "anchors_path": 'model_data/yolo_anchors.txt',
+        "classes_path": 'model_data/coco_classes.txt',
         "score" : 0.3,
         "iou" : 0.45,
         "model_image_size" : (416, 416),
@@ -43,7 +43,6 @@ class YOLO(object):
         self.anchors = self._get_anchors()
         self.sess = K.get_session()
         self.boxes, self.scores, self.classes = self.generate()
-        # self.boxes = self.generate()
 
     def _get_class(self):
         classes_path = os.path.expanduser(self.classes_path)
@@ -95,8 +94,6 @@ class YOLO(object):
         self.input_image_shape = K.placeholder(shape=(2, ))
         if self.gpu_num>=2:
             self.yolo_model = multi_gpu_model(self.yolo_model, gpus=self.gpu_num)
-        # return self.yolo_model.output
-        # return self.yolo_model.layers[1].output
         boxes, scores, classes = yolo_eval(self.yolo_model.output, self.anchors,
                 len(self.class_names), self.input_image_shape,
                 score_threshold=self.score, iou_threshold=self.iou)
@@ -115,7 +112,7 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
 
-        # print(image_data.shape)
+        print(image_data.shape)
         image_data /= 255.
         image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
 
@@ -126,27 +123,8 @@ class YOLO(object):
                 self.input_image_shape: [image.size[1], image.size[0]],
                 K.learning_phase(): 0
             })
-        '''
-        r = self.sess.run(
-            [self.boxes],
-            feed_dict={
-                self.yolo_model.input: image_data,
-                self.input_image_shape: [image.size[1], image.size[0]],
-                K.learning_phase(): 0
-            })
-        
-        from onnx import numpy_helper
-        tensor1 = numpy_helper.from_array(out_boxes, 'yolonms_layer_1/ExpandDims_1:0')
-        with open(os.path.join('test_data', 'output_0.pb'), 'wb') as f:
-            f.write(tensor1.SerializeToString())
-        tensor2 = numpy_helper.from_array(out_scores, 'yolonms_layer_1/ExpandDims_3:0')
-        with open(os.path.join('test_data', 'output_1.pb'), 'wb') as f:
-            f.write(tensor2.SerializeToString())
-        tensor3 = numpy_helper.from_array(out_classes, 'yolonms_layer_1/concat_2:0')
-        with open(os.path.join('test_data', 'output_2.pb'), 'wb') as f:
-            f.write(tensor3.SerializeToString())
-        '''
-        # print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
+
+        print('Found {} boxes for {}'.format(len(out_boxes), 'img'))
 
         font = ImageFont.truetype(font='font/FiraMono-Medium.otf',
                     size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
@@ -166,7 +144,7 @@ class YOLO(object):
             left = max(0, np.floor(left + 0.5).astype('int32'))
             bottom = min(image.size[1], np.floor(bottom + 0.5).astype('int32'))
             right = min(image.size[0], np.floor(right + 0.5).astype('int32'))
-            # print(label, (left, top), (right, bottom))
+            print(label, (left, top), (right, bottom))
 
             if top - label_size[1] >= 0:
                 text_origin = np.array([left, top - label_size[1]])
@@ -185,12 +163,11 @@ class YOLO(object):
             del draw
 
         end = timer()
-        # print(end - start)
-        return (image, end - start)
+        print(end - start)
+        return image
 
     def close_session(self):
         self.sess.close()
-
 
 def detect_video(yolo, video_path, output_path=""):
     import cv2
