@@ -15,9 +15,9 @@ from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
 from keras2onnx.proto import onnx_proto
 
-import yolo3
-from yolo3.model import yolo_body, tiny_yolo_body, yolo_boxes_and_scores
-from yolo3.utils import letterbox_image
+import applications.yolov3.yolo3 as yolo3
+from applications.yolov3.yolo3.model import yolo_body, tiny_yolo_body, yolo_boxes_and_scores
+from applications.yolov3.yolo3.utils import letterbox_image
 
 
 class YOLOEvaluationLayer(keras.layers.Layer):
@@ -101,13 +101,13 @@ class YOLONMSLayer(keras.layers.Layer):
         scores_ = K.concatenate(scores_, axis=0)
         classes_ = K.concatenate(classes_, axis=0)
 
-        boxes_r = tf.expand_dims(tf.expand_dims(boxes_, 0), 0)
+        boxes_r = tf.expand_dims(boxes_, 0)
         scores_r = tf.expand_dims(tf.expand_dims(scores_, 0), 0)
         return [boxes_r, scores_r, classes_]
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, None, 4), (None, None, None), (None, None)]
+        return [(None, None, 4), (None, None, None), (None,)]
 
 
 class YOLO(object):
@@ -276,11 +276,16 @@ def convert_NMSLayer(scope, operator, container):
     apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
 
     box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
+    score_reduce = scope.get_unique_variable_name(operator.inputs[1].full_name + '_rdc')
     score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
 
     container.add_node("Unsqueeze", box_transpose,
                        box_batch, op_version=operator.target_opset, axes=[0])
-    container.add_node("Unsqueeze", score_transpose,
+
+    container.add_node('ReduceMax', score_transpose, score_reduce, op_version=operator.target_opset,
+                       axes=[0])
+
+    container.add_node("Unsqueeze", score_reduce,
                        score_batch, op_version=operator.target_opset, axes=[0])
 
     layer = operator.raw_operator  # type: YOLONMSLayer
