@@ -16,8 +16,8 @@ import urllib.request
 YOLOV3_WEIGHTS_PATH = r'https://pjreddie.com/media/files/yolov3.weights'
 model_file_name = 'yolov3.weights'
 
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../keras-yolo3'))
-from yolo import YOLO
+sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../yolov3'))
+from yolov3 import YOLO
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../model_source/yolov3/'))
 from convert import convert_weights
 
