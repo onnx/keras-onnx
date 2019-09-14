@@ -16,7 +16,7 @@ from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_ca
 from keras2onnx.proto import onnx_proto
 
 from os.path import dirname, abspath
-yolo3_dir = os.path.join(os.path.dirname(__file__), '../../../keras-yolo3')
+yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3')
 if os.path.exists(yolo3_dir):
     sys.path.insert(0, yolo3_dir)
 
