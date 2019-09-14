@@ -62,6 +62,8 @@ jobs:
       pip install opencv-python
       pip install tqdm
       pip install keras-segmentation
+      pip install matplotlib
+      git clone https://github.com/qqwweee/keras-yolo3
     displayName: 'Install dependencies'
 
   - script: |
