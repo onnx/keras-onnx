@@ -11,15 +11,14 @@ import onnx
 import numpy as np
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
+from keras.models import load_model
 
 import urllib.request
-YOLOV3_WEIGHTS_PATH = r'https://pjreddie.com/media/files/yolov3.weights'
-model_file_name = 'yolov3.weights'
+YOLOV3_WEIGHTS_PATH = r'https://lotus.blob.core.windows.net/converter-models/yolov3.h5'
+model_file_name = 'yolov3.h5'
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../yolov3'))
 from yolov3 import YOLO
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../model_source/yolov3/'))
-from convert import convert_weights
 
 from distutils.version import StrictVersion
 
@@ -49,22 +48,13 @@ class TestYoloV3(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
     def test_yolov3(self):
-        yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3')
-        model_dir = os.path.join(yolo3_dir, 'model_data')
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3/yolo3')
 
-        yolov3_weights_path = os.path.join(yolo3_dir, 'yolov3.weights')
-        yolov3_cfg_path = os.path.join(yolo3_dir, 'yolov3.cfg')
-        yolo_h5_path = os.path.join(model_dir, 'yolo.h5')
+        if not os.path.exists(model_file_name):
+            urllib.request.urlretrieve(YOLOV3_WEIGHTS_PATH, model_file_name)
 
-        if not os.path.exists(yolov3_weights_path):
-            urllib.request.urlretrieve(YOLOV3_WEIGHTS_PATH, yolov3_weights_path)
-
-        yolo_weights = None
-        if not os.path.exists(yolo_h5_path):
-            yolo_weights = convert_weights(yolov3_cfg_path, yolov3_weights_path, yolo_h5_path)
-
+        yolo_weights = load_model(model_file_name)
         my_yolo = YOLO(yolo3_yolo3_dir)
         my_yolo.load_model(yolo_weights)
         case_name = 'yolov3'
