@@ -81,12 +81,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
                         " Please set environment variable TF_KERAS = 1.")
 
-    if name is None:
-        name = model.name
-
-    if target_opset is None:
-        target_opset = get_opset_number_from_onnx()
-
+    name = name or model.name
+    target_opset = target_opset or get_opset_number_from_onnx()
     output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
