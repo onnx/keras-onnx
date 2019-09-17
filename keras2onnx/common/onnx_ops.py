@@ -65,10 +65,13 @@ class OnnxOperatorBuilder:
         self._container.add_node(op_type, ox_inputs, outputs, op_domain, op_version, name=name, **attrs)
         return outputs
 
-    def add_node(self, op_type, inputs, name, op_domain='', op_version=None, **attrs):
-        return self.add_node_all(op_type, inputs, name, 1, op_domain, op_version, **attrs)[0]
+    def add_node(self, op_type, inputs, name, outputs_num=1, op_domain='', op_version=None, **attrs):
+        if outputs_num == 1:
+            return self.add_node_all(op_type, inputs, name, outputs_num, op_domain, op_version, **attrs)[0]
+        else:
+            return self.add_node_all(op_type, inputs, name, outputs_num, op_domain, op_version, **attrs)
 
-    def add_node_with_output(self, op_type, inputs, outputs, name, op_domain='', op_version=None, **attrs):
+    def add_node_with_output(self, op_type, inputs, outputs, name, outputs_num=1, op_domain='', op_version=None, **attrs):
         if op_version is None:
             op_version = self._container.target_opset
         ox_inputs = self._process_inputs(inputs, name)
