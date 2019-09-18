@@ -68,7 +68,7 @@ if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
 
-class TestKerasTF2ONNX(unittest.TestCase):
+class TestKerasTF2ONNX_2(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
