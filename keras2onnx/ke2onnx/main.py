@@ -235,10 +235,14 @@ keras_layer_to_operator = {
     _layer.Bidirectional: convert_bidirectional
 }
 
-if not is_keras_older_than('2.2.4'):
+if not is_keras_older_than('2.1.3'):
     keras_layer_to_operator.update({
-        _adv_activations.ReLU: convert_keras_activation,
-        _adv_activations.Softmax: convert_keras_activation
+        _adv_activations.Softmax: convert_keras_advanced_activation
+    })
+
+if not is_keras_older_than('2.2.0'):
+    keras_layer_to_operator.update({
+        _adv_activations.ReLU: convert_keras_advanced_activation,
     })
 
 

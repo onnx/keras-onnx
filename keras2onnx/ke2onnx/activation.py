@@ -39,15 +39,14 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
 def convert_keras_activation(scope, operator, container):
     input_name = operator.input_full_names[0]
     output_name = operator.output_full_names[0]
-    activation = getattr(operator.raw_operator, 'activation', type(operator.raw_operator))
+    activation = operator.raw_operator.activation
     if activation in [activation_get('sigmoid'), keras.activations.sigmoid]:
         apply_sigmoid(scope, input_name, output_name, container)
     elif activation in [activation_get('tanh'), keras.activations.tanh]:
         apply_tanh(scope, input_name, output_name, container)
-    elif activation in [activation_get('relu'), keras.activations.relu, keras.layers.advanced_activations.ReLU]:
+    elif activation in [activation_get('relu'), keras.activations.relu]:
         apply_relu(scope, input_name, output_name, container)
-    elif activation in [activation_get('softmax'),
-                        keras.activations.softmax, keras.layers.advanced_activations.Softmax]:
+    elif activation in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, input_name, output_name, container, axis=-1)
     elif activation in [activation_get('elu'), keras.activations.elu]:
         apply_elu(scope, input_name, output_name, container, alpha=1.0)
