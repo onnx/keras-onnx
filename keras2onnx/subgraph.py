@@ -12,6 +12,10 @@ from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.framework import tensor_util
 
 
+def is_placeholder_node(node):
+    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
+
+
 def tsname_to_node(name):
     return name.split(':')[0]
 
@@ -23,6 +27,18 @@ def _node_name(n):
         return n.split(":")[0]
 
 
+def _copy_node_wo_dep(node):
+    newnode = copy.deepcopy(node)
+    idx = []
+    for ix_, inp_ in enumerate(newnode.input):
+        if inp_.startswith('^'):
+            idx.append(ix_)
+
+    for ix_ in idx[::-1]:
+        del newnode.input[ix_]
+    return newnode
+
+
 def _extract_sub_graph(graph_def, dest_nodes, stop_nodes):
     if not isinstance(graph_def, graph_pb2.GraphDef):
         raise TypeError("graph_def must be a graph_pb2.GraphDef proto.")
@@ -30,14 +46,14 @@ def _extract_sub_graph(graph_def, dest_nodes, stop_nodes):
     if isinstance(dest_nodes, six.string_types):
         raise TypeError("dest_nodes must be a list.")
 
-    name_to_node = {_node_name(n_.name): n_ for n_ in graph_def.node}
+    name_to_node = {_node_name(n_.name): _copy_node_wo_dep(n_) for n_ in graph_def.node}
 
     nodes_to_keep = dest_nodes[:]
 
     # Now construct the output GraphDef
     out = graph_pb2.GraphDef()
     for n_ in nodes_to_keep:
-        out.node.extend([copy.deepcopy(name_to_node[n_])])
+        out.node.extend([name_to_node[n_]])
     out.library.CopyFrom(graph_def.library)
     out.versions.CopyFrom(graph_def.versions)
 
@@ -122,7 +138,7 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
             elif str(input_node.attr["T"]):
                 output_node.attr["dtype"].CopyFrom(input_node.attr["T"])
             else:
-                if input_node.op == 'All':
+                if input_node.op in ['All', 'Any']:
                     output_node.attr["dtype"].CopyFrom(attr_value_pb2.AttrValue(type="DT_BOOL"))
                 elif input_node.op == 'Cast':
                     output_node.attr["dtype"].CopyFrom(input_node.attr["DstT"])
@@ -141,8 +157,3 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
             replacement = {k_: im_scope + '/' + k_ for k_ in replacement}
 
     return sub_graph, replacement
-
-
-def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
-

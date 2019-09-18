@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from ..proto import keras, is_keras_later_than
+from ..proto import keras, is_keras_older_than
 from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu
 
 
@@ -32,11 +32,11 @@ def convert_keras_advanced_activation(scope, operator, container):
         attrs = {'name': operator.full_name}
         ver_opset = 6
         input_tensor_names = [operator.input_full_names[0]]
-        if not is_keras_later_than('2.1.3') and \
+        if not is_keras_older_than('2.1.3') and \
                 isinstance(op, activations.Softmax):
             op_type = 'Softmax'
             attrs['axis'] = op.get_config()['axis']
-        elif not is_keras_later_than('2.2.0') and \
+        elif not is_keras_older_than('2.2.0') and \
                 isinstance(op, activations.ReLU):
             if op.threshold != 0.0:
                 raise RuntimeError('Threshold in ReLU is not supported in ONNX')

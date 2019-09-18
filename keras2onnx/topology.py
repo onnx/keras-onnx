@@ -238,21 +238,22 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         value_info = helper.make_tensor_value_info(tensor.name, tensor.data_type, tensor.dims)
         extra_inputs.append(value_info)
 
-
     # enable the ONNX optimizations
     try:
         import onnxconverter_common
-        nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs, inputs=container.inputs + extra_inputs,
-                              outputs=container.outputs)
+        nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+                                                             inputs=container.inputs + extra_inputs,
+                                                             outputs=container.outputs)
     except ImportError:
         onnx_not_imported = 'onnxconverter_common is not imported,'
         if nchw_inputs:
-            raise Exception('{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
+            raise Exception(
+                '{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
         k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         nodes = container.nodes
-    except Exception:
+    except Exception as e:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
-        k2o_logger().warning('The onnxconverter_common.optimizer throws an exception, skip it.')
+        k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
         nodes = container.nodes
 
     # Create a graph from its main components
@@ -289,6 +290,12 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         op_set.domain = op_domain
         op_set.version = op_version
         i += 1
+        if container.target_opset < op_version:
+            raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
+                               'which requires at least opset %d.') % (container.target_opset, op_version))
+        elif container.target_opset > op_version:
+            k2o_logger().warning('The maximum opset needed by this model is only %d.' % op_version)
+
 
     # Add extra information
     onnx_model.ir_version = onnx_proto.IR_VERSION

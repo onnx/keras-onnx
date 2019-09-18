@@ -5,9 +5,10 @@
 ###############################################################################
 from collections.abc import Iterable
 
-from ..proto import keras
-from ..common import with_variable
-from ..common.onnx_ops import apply_identity, apply_reshape, apply_concat, apply_transpose
+import numpy as np
+from ..proto import keras, is_keras_older_than
+from ..common import with_variable, k2o_logger
+from ..common.onnx_ops import apply_identity, apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -18,9 +19,10 @@ from .dot import convert_keras_dot
 from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
 from .conv import convert_keras_conv1d, convert_keras_conv2d, convert_keras_conv3d
 from .conv import convert_keras_conv_transpose_2d, convert_keras_conv_transpose_3d, convert_keras_depthwise_conv_2d
-from .conv import convert_keras_separable_conv1d,convert_keras_separable_conv2d
+from .conv import convert_keras_separable_conv1d, convert_keras_separable_conv2d
 from .pooling import convert_keras_max_pooling_1d, convert_keras_max_pooling_2d, convert_keras_max_pooling_3d
-from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, convert_keras_average_pooling_3d
+from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, \
+    convert_keras_average_pooling_3d
 from .crop import convert_keras_crop_1d, convert_keras_crop_2d, convert_keras_crop_3d
 from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
 from .embedding import convert_keras_embed
@@ -99,9 +101,47 @@ def convert_keras_flatten(scope, operator, container):
         perm = [0] + perm + [1]
         input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
         apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container,
-                      operator_name=operator.raw_operator.name+"_transpose", perm=perm)
+                        operator_name=operator.raw_operator.name + "_transpose", perm=perm)
         apply_reshape(scope, input_tensor_name, operator.outputs[0].full_name, container,
                       operator_name=operator.raw_operator.name, desired_shape=target_shape)
+
+
+def _apply_not_equal(oopb, target_opset, operator):
+    if target_opset >= 11:
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
+                                  operator.full_name + 'mask')
+        not_o = oopb.add_node('Not', equal_out,
+                              name=operator.full_name + '_not')
+    else:
+        k2o_logger().warning("On converting a model with opset < 11, " +
+                             "the masking layer result may be incorrect if the model input is in range (0, 1.0).")
+        equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
+                                      operator.full_name + '_input_cast', to=6)
+        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
+                                  operator.full_name + 'mask')
+        not_o = oopb.add_node('Not', equal_out,
+                              name=operator.full_name + '_not')
+    return not_o
+
+
+def convert_keras_masking(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    not_o = _apply_not_equal(oopb, container.target_opset, operator)
+    cast_o = oopb.apply_cast(not_o, to=oopb.float, name=operator.full_name + '_cast')
+    if operator.output_masks:
+        reduce_node = oopb.add_node("ReduceSum",
+                                    cast_o[0], keepdims=False, axes=[-1], name=operator.full_name + '_reduced')
+        oopb.add_node_with_output("Greater", [reduce_node, np.array(0, dtype=np.float32)],
+                                  [operator.output_masks[0].full_name], name=operator.full_name + '_greater')
+
+    reduce_node2 = oopb.add_node("ReduceSum",
+                                 cast_o, keepdims=True, axes=[-1], name=operator.full_name + 'reduced2')
+    greater_o = oopb.add_node("Greater",
+                              [reduce_node2, np.array(0, dtype=np.float32)], name=operator.full_name + '_greater2')
+    cast2_o = oopb.apply_cast(greater_o, to=oopb.float, name=operator.full_name + '_cast2')
+
+    oopb.add_node_with_output('Mul', [cast2_o[0], operator.inputs[0].full_name], [operator.outputs[0].full_name],
+                              name=operator.outputs[0].full_name)
 
 
 def convert_keras_training_only_layer(scope, operator, container):
@@ -167,6 +207,7 @@ keras_layer_to_operator = {
     _layer.Dense: convert_keras_dense,
     _layer.Dot: convert_keras_dot,
     _layer.Embedding: convert_keras_embed,
+    _layer.Masking: convert_keras_masking,
 
     _layer.MaxPooling1D: convert_keras_max_pooling_1d,
     _layer.MaxPooling2D: convert_keras_max_pooling_2d,
@@ -193,6 +234,16 @@ keras_layer_to_operator = {
     _layer.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
+
+if not is_keras_older_than('2.1.3'):
+    keras_layer_to_operator.update({
+        _adv_activations.Softmax: convert_keras_advanced_activation
+    })
+
+if not is_keras_older_than('2.2.0'):
+    keras_layer_to_operator.update({
+        _adv_activations.ReLU: convert_keras_advanced_activation,
+    })
 
 
 @with_variable('loaded')
