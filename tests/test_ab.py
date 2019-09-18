@@ -157,6 +157,5 @@ class TestKerasTF2ONNX_2(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime(onnx_model.graph.name, onnx_model, test_input, test_output, self.model_files))
 
-
 if __name__ == "__main__":
     unittest.main()
