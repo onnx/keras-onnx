@@ -6,7 +6,7 @@
 from collections.abc import Iterable
 
 import numpy as np
-from ..proto import keras
+from ..proto import keras, is_keras_older_than
 from ..common import with_variable, k2o_logger
 from ..common.onnx_ops import apply_identity, apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
 
@@ -181,12 +181,10 @@ keras_layer_to_operator = {
     _layer.UpSampling3D: convert_keras_upsample_3d,
     _layer.BatchNormalization: convert_keras_batch_normalization,
 
-    _adv_activations.ReLU: convert_keras_activation,
     _adv_activations.LeakyReLU: convert_keras_advanced_activation,
     _adv_activations.ThresholdedReLU: convert_keras_advanced_activation,
     _adv_activations.ELU: convert_keras_advanced_activation,
     _adv_activations.PReLU: convert_keras_advanced_activation,
-    _adv_activations.Softmax: convert_keras_activation,
 
     _layer.Activation: convert_keras_activation,
 
@@ -236,6 +234,12 @@ keras_layer_to_operator = {
     _layer.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
+
+if not is_keras_older_than('2.2.4'):
+    keras_layer_to_operator.update({
+        _adv_activations.ReLU: convert_keras_activation,
+        _adv_activations.Softmax: convert_keras_activation
+    })
 
 
 @with_variable('loaded')
