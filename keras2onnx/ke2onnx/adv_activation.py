@@ -4,7 +4,7 @@
 # license information.
 ###############################################################################
 from ..proto import keras, is_keras_older_than
-from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu
+from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu, apply_clip
 
 
 activations = keras.layers.advanced_activations
@@ -38,9 +38,9 @@ def convert_keras_advanced_activation(scope, operator, container):
             attrs['axis'] = op.get_config()['axis']
         elif not is_keras_older_than('2.2.0') and \
                 isinstance(op, activations.ReLU):
-            if op.threshold != 0.0:
-                raise RuntimeError('Threshold in ReLU is not supported in ONNX')
-            op_type = 'Relu'
+            apply_clip(scope, operator.input_full_names[0], operator.output_full_names[0], container,
+                       operator_name=operator.full_name+'_clip', max=op.max_value, min=op.threshold)
+            return
         else:
             raise RuntimeError('Unsupported advanced layer found %s' % type(op))
 

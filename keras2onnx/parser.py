@@ -259,7 +259,8 @@ def _find_kenode_by_output_tensor(inbound_nodes, output_name):
 
 def _is_template_tensors(tensors, templ_tensors):
     for t_, tt_ in zip(tensors, templ_tensors):
-        if t_.name.find(tt_.name) < 0 or [s_.value for s_ in t_.shape] != [s_.value for s_ in tt_.shape]:
+        # t_.shape and tt_.shape can be different if the input shape is different.
+        if t_.name.find(tt_.name) < 0:
             return False
 
     return True
@@ -290,12 +291,17 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
                 sub_model_node_idx += 1
             if found:
                 break
+
+        bn_name_list = [bn_.name for bn_ in list_output_tensors(base_node)]
         for idx_, out_ in enumerate(list_output_tensors(curr_node)):
-            base_ts = list_output_tensors(base_node)[idx_]
-            if not prefix:
-                prefix = out_.name[0:out_.name.find(base_ts.name)]
-            else:
-                assert prefix == out_.name[0:out_.name.find(base_ts.name)]
+            name_match_len = -1
+            for bn_name_ in bn_name_list:
+                cur_match_len = out_.name.find(bn_name_)
+                if cur_match_len > -1:
+                    name_match_len = cur_match_len
+                    break
+            assert name_match_len > 0
+            prefix = out_.name[0:name_match_len]
             ts_outputs.append(out_)
         if top_kenode is None:
             top_kenode = curr_node
