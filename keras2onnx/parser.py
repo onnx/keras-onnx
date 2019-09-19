@@ -293,15 +293,18 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
                 break
 
         bn_name_list = [bn_.name for bn_ in list_output_tensors(base_node)]
+        prefix_found = False
         for idx_, out_ in enumerate(list_output_tensors(curr_node)):
-            name_match_len = -1
-            for bn_name_ in bn_name_list:
-                cur_match_len = out_.name.find(bn_name_)
-                if cur_match_len > -1:
-                    name_match_len = cur_match_len
-                    break
-            assert name_match_len > 0
-            prefix = out_.name[0:name_match_len]
+            if not prefix_found:
+                name_match_len = -1
+                for bn_name_ in bn_name_list:
+                    cur_match_len = out_.name.find(bn_name_)
+                    if cur_match_len > -1:
+                        name_match_len = cur_match_len
+                        break
+                assert name_match_len > 0
+                prefix = out_.name[0:name_match_len]
+                prefix_found = True
             ts_outputs.append(out_)
         if top_kenode is None:
             top_kenode = curr_node

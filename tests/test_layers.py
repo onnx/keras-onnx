@@ -738,6 +738,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
     def test_simpleRNN(self):
+        K.clear_session()
         inputs1 = keras.Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
@@ -948,6 +949,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def test_seq_dynamic_batch_size(self):
+        K.clear_session()
         data_dim = 4  # input_size
         timesteps = 3  # seq_length
 
