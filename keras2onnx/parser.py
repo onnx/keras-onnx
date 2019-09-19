@@ -306,6 +306,7 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
                 prefix = out_.name[0:name_match_len]
                 prefix_found = True
             ts_outputs.append(out_)
+
         if top_kenode is None:
             top_kenode = curr_node
 
