@@ -54,6 +54,7 @@ jobs:
       pip install -e .
       cd ..
       pip install -r requirements-dev.txt
+      pip install keras-resnet
     displayName: 'Install dependencies'
 
   - script: |

@@ -737,6 +737,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
+    def test_keras_resnet_batchnormalization(self):
+        N, C, H, W = 2, 3, 120, 120
+        import keras_resnet
+
+        model = Sequential()
+        model.add(ZeroPadding2D(padding=((3, 3), (3, 3)), input_shape=(H, W, C), data_format='channels_last'))
+        model.add(Conv2D(64, kernel_size=(7, 7), strides=(2, 2), padding='valid', dilation_rate=(1, 1), use_bias=False,
+                         data_format='channels_last'))
+        model.add(keras_resnet.layers.BatchNormalization(freeze=True, axis=3))
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+
     def test_simpleRNN(self):
         K.clear_session()
         inputs1 = keras.Input(shape=(3, 1))
