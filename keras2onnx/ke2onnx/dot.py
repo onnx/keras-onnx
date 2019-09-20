@@ -430,7 +430,12 @@ def convert_keras_dot_post_224(scope, operator, container):
 
 @cvtfunc(shape_infer=_calculate_keras_dot_output_shapes)
 def convert_keras_dot(scope, operator, container):
+    from keras2onnx.proto import keras
     if not is_keras_later_than("2.2.4"):
+        print('dot_224')
+        print('keras=' + keras.__version__.split('-')[0])
         convert_keras_dot_224(scope, operator, container)
     else:
+        print('dot_post_224')
+        print('keras=' + keras.__version__.split('-')[0])
         convert_keras_dot_post_224(scope, operator, container)
