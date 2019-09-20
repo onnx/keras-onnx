@@ -418,7 +418,8 @@ def _finalize_tf2onnx_op(topo, operator, varset):
                                    operator.full_name + '_identity')
                 outputs.append(idf_.name)
                 iv = varset.get_local_variable_or_declare_one(idf_.name, _infer_variable_type(n_, varset.target_opset))
-                ov = varset.get_local_variable_or_declare_one(nodes[n0_][i_], _infer_variable_type(n_, varset.target_opset))
+                ov = varset.get_local_variable_or_declare_one(n0_.outputs[i_].name,
+                                                              _infer_variable_type(n_, varset.target_opset))
                 operator.add_output(iv)
                 oop = varset.declare_local_operator(TYPES.Identity)
                 oop.add_input(iv)

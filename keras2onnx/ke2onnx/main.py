@@ -71,7 +71,9 @@ def list_output_shapes(node):
 
 def convert_keras_reshape(scope, operator, container):
     iop = operator.raw_operator
-    target_shape = tuple([-1 if i_ is None else i_ for i_ in iop.output_shape])
+    target_shape = [-1 if i_ is None else i_ for i_ in iop.output_shape]
+    if target_shape[0] == -1:
+        target_shape[0] = 0
 
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
