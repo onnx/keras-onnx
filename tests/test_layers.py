@@ -646,9 +646,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         input_1_shapes = [[32, 20, 1], [2, 3, 5], [2, 3, 5], [4, 3, 5], [2, 7], [2, 3, 4, 12, 3], [1, 3]]
         input_2_shapes = [[32, 30, 20], [2, 3, 5], [2, 3, 5], [4, 5], [2, 7, 5], [2, 3, 4, 15, 3], [1, 3]]
         axes_list = [[1, 2], 1, 2, [2, 1], [1, 1], 4, 1]
-        count = 0
         for i_ in range(len(input_1_shapes)):
-            print('count=' + str(count))
             for normalize in [True, False]:
                 drop2_embed_title = Input(batch_shape=tuple(input_1_shapes[i_]), name='input1')
                 att_weight = Input(batch_shape=tuple(input_2_shapes[i_]), name='input2')
@@ -660,7 +658,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 onnx_model = keras2onnx.convert_keras(model, model.name)
                 self.assertTrue(
                     run_onnx_runtime(onnx_model.graph.name, onnx_model, [data1, data2], expected, self.model_files))
-            count = count + 1
 
         drop2_embed_title = Input(batch_shape=(None, 7), name='input1')
         att_weight = Input(batch_shape=(None, 7, 5), name='input2')
@@ -739,21 +736,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
-
-    def test_keras_resnet_batchnormalization(self):
-        N, C, H, W = 2, 3, 120, 120
-        import keras_resnet
-
-        model = Sequential()
-        model.add(ZeroPadding2D(padding=((3, 3), (3, 3)), input_shape=(H, W, C), data_format='channels_last'))
-        model.add(Conv2D(64, kernel_size=(7, 7), strides=(2, 2), padding='valid', dilation_rate=(1, 1), use_bias=False,
-                         data_format='channels_last'))
-        model.add(keras_resnet.layers.BatchNormalization(freeze=True, axis=3))
-
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def test_simpleRNN(self):
         K.clear_session()

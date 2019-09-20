@@ -35,6 +35,7 @@ MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Reshape = keras.layers.Reshape
 UpSampling2D = keras.layers.UpSampling2D
+ZeroPadding2D = keras.layers.ZeroPadding2D
 
 Sequential = keras.models.Sequential
 
@@ -104,6 +105,21 @@ class TestKerasApplications(unittest.TestCase):
         model.add(Dense(nb_classes, activation='softmax'))
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
         self.assertTrue(*res)
+
+    def test_keras_resnet_batchnormalization(self):
+        N, C, H, W = 2, 3, 120, 120
+        import keras_resnet
+
+        model = Sequential()
+        model.add(ZeroPadding2D(padding=((3, 3), (3, 3)), input_shape=(H, W, C), data_format='channels_last'))
+        model.add(Conv2D(64, kernel_size=(7, 7), strides=(2, 2), padding='valid', dilation_rate=(1, 1), use_bias=False,
+                         data_format='channels_last'))
+        model.add(keras_resnet.layers.BatchNormalization(freeze=True, axis=3))
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":

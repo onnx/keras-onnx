@@ -2,4 +2,3 @@ pillow
 pytest
 onnxruntime
 coverage
-keras-resnet

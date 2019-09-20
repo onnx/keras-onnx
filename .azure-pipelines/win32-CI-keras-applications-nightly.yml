@@ -62,6 +62,7 @@ jobs:
       pip install opencv-python
       pip install tqdm
       pip install keras-segmentation
+      pip install keras-resnet
     displayName: 'Install dependencies'
 
   - script: |
