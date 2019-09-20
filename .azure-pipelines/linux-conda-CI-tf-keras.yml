@@ -46,6 +46,7 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
+      pip install setuptools>=41.0.1
       pip install $(TENSORFLOW_PATH)
       pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common

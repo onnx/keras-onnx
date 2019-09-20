@@ -49,6 +49,7 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
+      pip install setuptools>=41.0.1
       pip install tensorflow
       pip install %KERAS%
       pip install -r requirements.txt
