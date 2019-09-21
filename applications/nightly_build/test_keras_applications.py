@@ -10,7 +10,7 @@ import unittest
 import keras2onnx
 import keras_segmentation
 import numpy as np
-from keras2onnx.proto import keras
+from keras2onnx.proto import keras, is_keras_older_than
 from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
@@ -54,7 +54,7 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path)
         self.assertTrue(*res)
 
-    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
@@ -106,6 +106,8 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
         self.assertTrue(*res)
 
+    @unittest.skipIf(is_keras_older_than("2.2.4"),
+                     "keras-resnet requires keras 2.2.4 or later.")
     def test_keras_resnet_batchnormalization(self):
         N, C, H, W = 2, 3, 120, 120
         import keras_resnet
