@@ -10,7 +10,7 @@ import unittest
 import keras2onnx
 import keras_segmentation
 import numpy as np
-from keras2onnx.proto import keras
+from keras2onnx.proto import keras, is_keras_older_than
 from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
@@ -35,6 +35,7 @@ MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Reshape = keras.layers.Reshape
 UpSampling2D = keras.layers.UpSampling2D
+ZeroPadding2D = keras.layers.ZeroPadding2D
 
 Sequential = keras.models.Sequential
 
@@ -53,7 +54,7 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path)
         self.assertTrue(*res)
 
-    @unittest.skipIf(StrictVersion(keras.__version__.split('-')[0]) < StrictVersion("2.2.3"),
+    @unittest.skipIf(is_keras_older_than("2.2.3"),
                      "There is no mobilenet_v2 module before keras 2.2.3.")
     def test_MobileNetV2(self):
         mobilenet_v2 = keras.applications.mobilenet_v2
@@ -104,6 +105,23 @@ class TestKerasApplications(unittest.TestCase):
         model.add(Dense(nb_classes, activation='softmax'))
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
         self.assertTrue(*res)
+
+    @unittest.skipIf(is_keras_older_than("2.2.4"),
+                     "keras-resnet requires keras 2.2.4 or later.")
+    def test_keras_resnet_batchnormalization(self):
+        N, C, H, W = 2, 3, 120, 120
+        import keras_resnet
+
+        model = Sequential()
+        model.add(ZeroPadding2D(padding=((3, 3), (3, 3)), input_shape=(H, W, C), data_format='channels_last'))
+        model.add(Conv2D(64, kernel_size=(7, 7), strides=(2, 2), padding='valid', dilation_rate=(1, 1), use_bias=False,
+                         data_format='channels_last'))
+        model.add(keras_resnet.layers.BatchNormalization(freeze=True, axis=3))
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":

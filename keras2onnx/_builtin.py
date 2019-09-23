@@ -12,6 +12,14 @@ from .funcbook import set_converter
 from .proto import onnx_proto, helper
 
 
+class TYPES:
+    # tf-node types:
+    Identity = 'Identity'
+
+    # converter internal types:
+    TD_Reshape = 'reshape_timedistributed'
+
+
 def default_convert(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
@@ -22,8 +30,8 @@ def convert_reshape_timedistributed(scope, operator, container):
                   operator_name=operator.full_name, desired_shape=target_shape)
 
 
-set_converter('identity', default_convert)
-set_converter('reshape_timedistributed', convert_reshape_timedistributed)
+set_converter(TYPES.Identity, default_convert)
+set_converter(TYPES.TD_Reshape, convert_reshape_timedistributed)
 
 
 def process_begin_end(new_begin, new_end, stride):
