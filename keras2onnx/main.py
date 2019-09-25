@@ -81,12 +81,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
                         " Please set environment variable TF_KERAS = 1.")
 
-    if name is None:
-        name = model.name
-
-    if target_opset is None:
-        target_opset = get_opset_number_from_onnx()
-
+    name = name or model.name
+    target_opset = target_opset or get_opset_number_from_onnx()
     output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
@@ -112,24 +108,27 @@ def build_io_names_tf2onnx(model):
     }
 
 
-def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
-    """
-    Freezes internal tensorflow graph for the specified keras model.
-
-    :return The frozen graph object.
-    """
-    session = keras.backend.get_session()
+def _freeze_graph(session, keep_var_names=None, output_names=None):
     graph = session.graph
     with graph.as_default():
         freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
-        output_names = output_names or \
-                       [tsname_to_node(n_) for n_ in build_io_names_tf2onnx(model)['output_names']]
         input_graph_def = graph.as_graph_def()
         for node in input_graph_def.node:
             node.device = ""
         frozen_graph_def = tf.graph_util.convert_variables_to_constants(
             session, input_graph_def, output_names, freeze_var_names)
         return frozen_graph_def
+
+
+def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
+    """
+    Freezes internal tensorflow graph for the specified keras model.
+
+    :return The frozen graph object.
+    """
+    output_names = output_names or \
+                   [tsname_to_node(n_) for n_ in build_io_names_tf2onnx(model)['output_names']]
+    return _freeze_graph(keras.backend.get_session(), keep_var_names, output_names)
 
 
 def _collect_input_nodes(graph, outputs):
@@ -150,15 +149,15 @@ def _collect_input_nodes(graph, outputs):
     return input_nodes, nodes_to_keep
 
 
-def convert_tensorflow(frozen_graph_def,
+def convert_tensorflow(graph_def,
                        name=None, input_names=None, output_names=None,
                        doc_string='',
                        target_opset=None,
                        channel_first_inputs=None,
                        debug_mode=False, custom_op_conversions=None):
     """
-    convert a frozen tensorflow graph def into a ONNX model proto, just like how keras does.
-    :param frozen_graph_def: the frozen tensorflow graph
+    convert a tensorflow graph def into a ONNX model proto, just like how keras does.
+    :param graph_def: the frozen tensorflow graph
     :param name: the converted onnx model internal name
     :param input_names: the inputs name list of the model
     :param output_names: the output name list of the model
@@ -176,11 +175,10 @@ def convert_tensorflow(frozen_graph_def,
     if not doc_string:
         doc_string = "converted from {}".format(name)
 
-    graph_def = tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, True)
+    # tf_graph_def = tfonnx.tf_optimize(input_names, output_names, graph_def, True)
+    tf_graph_def = graph_def
     with tf.Graph().as_default() as tf_graph:
-        tf.import_graph_def(graph_def, name='')
-        if get_tensorboard_writer() is not None:
-            get_tensorboard_writer().add_graph(tf_graph)
+        tf.import_graph_def(tf_graph_def, name='')
 
     custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
     if custom_op_conversions:
@@ -200,4 +198,4 @@ def convert_tensorflow(frozen_graph_def,
         onnx_graph = tf2onnx.optimizer.optimize_graph(g)
         model_proto = onnx_graph.make_model(doc_string)
 
-        return model_proto
+    return model_proto

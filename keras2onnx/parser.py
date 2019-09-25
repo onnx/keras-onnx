@@ -15,6 +15,7 @@ from .topology import Topology
 from .subgraph import is_placeholder_node, tsname_to_node, create_subgraph
 from .funcbook import get_converter
 from .wrapper import tf2onnx_wrap, TFNODES
+from ._builtin import TYPES
 
 
 def _infer_variable_type(tensor, opset):
@@ -95,7 +96,7 @@ def _is_relevant_keras_node(model, node):
     return False
 
 
-def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
+def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset, prefix=None):
     """
         This conversion supports timedistributed wrapper partially where the layer itself can be converted by onnx.
     """
@@ -114,25 +115,26 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
 
     assert num_relevant_keras_node == 1
 
+    prefix = prefix or ''
     i_ = inputs[0]
-    iname = i_.name
+    iname = prefix + i_.name
     k2o_logger().debug('td_layer input: ' + iname)
     i0 = varset.get_local_variable_or_declare_one(iname, _infer_variable_type(i_, varset.target_opset))
     i0_reshape_name = i_.op.name + '_reshape_0:0'
     i0_reshape = varset.declare_local_variable(i0_reshape_name, _infer_variable_type(i_, varset.target_opset))
     i0_reshape_shape = (-1,) + ishapes[0][2:]
-    operator_reshape_0 = varset.declare_local_operator('reshape_timedistributed',
+    operator_reshape_0 = varset.declare_local_operator(TYPES.TD_Reshape,
                                                        op_name=layer.name + '_reshape_0', target_shape=i0_reshape_shape)
     operator_reshape_0.add_input(i0)
     operator_reshape_0.add_output(i0_reshape)
 
     o_ = outputs[0]
-    oname = o_.name
+    oname = prefix + o_.name
     k2o_logger().debug('td_layer output: ' + oname)
     o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_, varset.target_opset))
     o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
-    operator_reshape_1 = varset.declare_local_operator('reshape_timedistributed',
+    operator_reshape_1 = varset.declare_local_operator(TYPES.TD_Reshape,
                                                        op_name=layer.name + '_reshape_1', target_shape=oshapes1)
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
@@ -146,11 +148,11 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset):
 
     if isinstance(layer.layer, keras.Model):
         kenode = extract_inbound_nodes(layer.layer)[0]
-        intop = varset.declare_local_operator('identity')
+        intop = varset.declare_local_operator(TYPES.Identity)
         intop.add_input(i0_reshape)
         intop.add_output(varset.get_local_variable_or_declare_one(list_input_tensors(kenode)[0].name))
         _on_parsing_model_layer(layer.layer, graph, kenode, varset)
-        intop = varset.declare_local_operator('identity')
+        intop = varset.declare_local_operator(TYPES.Identity)
         intop.add_input(varset.get_local_variable_or_declare_one(list_output_tensors(kenode)[0].name))
         intop.add_output(o1_reshape)
     else:
@@ -224,8 +226,11 @@ def _check_layer_converter_availability(sub_model):
             exist = _check_layer_converter_availability(l_)
         else:
             layer_type = type(l_)
-            exist = layer_type is keras.layers.InputLayer or get_converter(layer_type)
+            exist = get_converter(layer_type) or \
+                    layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
+
         if not exist:
+            k2o_logger().info("The layer {} doesn't have a specific converter, fall back.".format(str(l_)))
             break
     else:
         return True
@@ -238,7 +243,7 @@ def _create_model_input_mapping_operators(ts_from, ts_to, prefix, subprefix, var
     # type(_infer_variable_type(ts_to, varset.target_opset) and type(ty_) can be different which is resolved by implicit cast.
     var0 = varset.get_local_variable_or_declare_one(subprefix + ts_from.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(prefix + ts_to.name, ty_)
-    op = varset.declare_local_operator('identity', op_name=prefix + ts_to.name)
+    op = varset.declare_local_operator(TYPES.Identity, op_name=prefix + ts_to.name)
     op.add_input(var0)
     op.add_output(var1)
     k2o_logger().debug("mapping:  %s -> %s (%s -> %s)" % (ts_from.name, ts_to.name, subprefix + ts_from.name, prefix + ts_to.name))
@@ -246,9 +251,19 @@ def _create_model_input_mapping_operators(ts_from, ts_to, prefix, subprefix, var
 
 
 def _find_kenode_by_output_tensor(inbound_nodes, output_name):
-    def find_ts_name(tensors, name): return next((ts_ for ts_ in tensors if ts_.name.find(name) == 0), None)
+    def find_ts_name(tensors, name):
+        return next((ts_ for ts_ in tensors if ts_.name.find(name) == 0), None)
 
     return next((n_ for n_ in inbound_nodes if find_ts_name(list_output_tensors(n_), output_name) is not None), None)
+
+
+def _is_template_tensors(tensors, templ_tensors):
+    for t_, tt_ in zip(tensors, templ_tensors):
+        # t_.shape and tt_.shape can be different if the input shape is different.
+        if t_.name.find(tt_.name) < 0:
+            return False
+
+    return True
 
 
 def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=None, upper_prefix=None):
@@ -258,43 +273,58 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
     prefix = ''
     # mapping input/output nodes for the sub_model.
     inbound_nodes = extract_inbound_nodes(sub_model)
-    name_set = []
-    sub_model_node_idx = 0
-    for nodes_ in sub_model._nodes_by_depth.values():
-        for n_ in nodes_:
-            for ts_ in n_.output_tensors:
-                name_set.append(ts_.name)
 
+    sub_model_node_idx = 0
     if len(inbound_nodes) > 1 and inbound_nodes[0] is not target_kenode:
         # Assumption: the first node in the inbound node list is always the one used in the keras layers.
-        base_node = inbound_nodes[0]
         curr_node = target_kenode
         assert curr_node is not None
+        found = False
+        base_node = None
+        for nodes_ in sub_model._nodes_by_depth.values():
+            for nd_ in nodes_:
+                if _is_template_tensors(list_output_tensors(curr_node), list_output_tensors(nd_)):
+                    found = True
+                    base_node = nd_
+                    break
+            else:
+                sub_model_node_idx += 1
+            if found:
+                break
+
+        bn_name_list = [bn_.name for bn_ in list_output_tensors(base_node)]
+        prefix_found = False
         for idx_, out_ in enumerate(list_output_tensors(curr_node)):
-            max_loc = 0
-            for i_, ts_name in enumerate(name_set):
-                loc = out_.name.find(ts_name)
-                if loc != -1 and loc > max_loc:
-                    max_loc = loc
-                    sub_model_node_idx = i_
-            prefix = out_.name[0:max_loc]
+            if not prefix_found:
+                name_match_len = -1
+                for bn_name_ in bn_name_list:
+                    cur_match_len = out_.name.find(bn_name_)
+                    if cur_match_len > -1:
+                        name_match_len = cur_match_len
+                        break
+                assert name_match_len > 0
+                prefix = out_.name[0:name_match_len]
+                prefix_found = True
             ts_outputs.append(out_)
+
         if top_kenode is None:
             top_kenode = curr_node
 
         # the input node needs to be mapped to the outmost inbound keras node.
         for idx_, in_ in enumerate(list_input_tensors(top_kenode)):
-            _create_model_input_mapping_operators(in_, list_input_tensors(base_node)[idx_], upper_prefix + prefix, upper_prefix,
+            _create_model_input_mapping_operators(in_, list_input_tensors(inbound_nodes[0])[idx_], upper_prefix + prefix, upper_prefix,
                                                   varset)
             ts_inputs.append(in_)
 
-    k2o_logger().debug("prefix : %s" % prefix)
+    k2o_logger().debug("prefix_beg: %s" % prefix)
     for i_ in range(sub_model_node_idx, len(sub_model._nodes_by_depth)):
         nodes_ = sub_model._nodes_by_depth[i_]
         for n_ in nodes_:
             layer = n_.outbound_layer
             if isinstance(layer, keras.layers.InputLayer):
                 continue
+            elif isinstance(layer, keras.layers.wrappers.TimeDistributed):
+                _on_parsing_time_distributed_layer(graph, [], layer, sub_model, varset, upper_prefix + prefix)
             elif isinstance(layer, keras.Model):
                 k2o_logger().debug("Processing a keras sub model - %s" % layer.name)
                 cur_kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer), sub_model.outputs[0].name)
@@ -302,11 +332,48 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
             else:
                 _on_parsing_keras_layer(graph, [], layer, n_, sub_model, varset, upper_prefix + prefix)
 
-    k2o_logger().debug("end prefix - %s" % prefix)
+    k2o_logger().debug("prefix_end: - %s" % prefix)
     return ts_inputs, ts_outputs
 
 
+def _check_tfnode_converter_availability(nodelist):
+    for n_ in nodelist:
+        cvt = get_converter(n_.type)
+        if cvt is None:
+            return False
+
+    return True
+
+
+def _on_parsing_tf_nodes(nodelist, varset):
+    for node_ in nodelist:
+        cvt = get_converter(node_.type)
+        assert cvt is not None
+
+        operator = varset.declare_local_operator(node_.type, raw_model=node_, op_name=node_.name)
+
+        for i_ in node_.inputs:
+            k2o_logger().debug('input : ' + i_.name)
+            var_type = _infer_variable_type(i_, varset.target_opset)
+            i0 = varset.get_local_variable_or_declare_one(i_.name, var_type)
+            operator.add_input(i0)
+
+        for o_ in node_.outputs:
+            oname = o_.name
+            k2o_logger().debug('output: ' + oname)
+            out0 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_, varset.target_opset))
+            operator.add_output(out0)
+
+        cvt = get_converter(operator.type)
+        if cvt is not None and hasattr(cvt, 'shape_infer'):
+            operator.shape_infer = cvt.shape_infer
+
+
 def _on_parsing_tf_subgraph(node_list, varset):
+    if _check_tfnode_converter_availability(node_list):
+        _on_parsing_tf_nodes(node_list, varset)
+        return
+
     operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
     operator.nodelist = node_list
 
@@ -321,7 +388,7 @@ def _on_parsing_tf_subgraph(node_list, varset):
         assert ph_ is not None
 
         # ph_.name -> identity -> ph_name -> ...
-        oop = varset.declare_local_operator('identity')
+        oop = varset.declare_local_operator(TYPES.Identity)
         oop.add_input(var_)
         ov = varset.declare_local_variable(ph_name, _infer_variable_type(ph_, varset.target_opset))
         oop.add_output(ov)
@@ -351,9 +418,10 @@ def _finalize_tf2onnx_op(topo, operator, varset):
                                    operator.full_name + '_identity')
                 outputs.append(idf_.name)
                 iv = varset.get_local_variable_or_declare_one(idf_.name, _infer_variable_type(n_, varset.target_opset))
-                ov = varset.get_local_variable_or_declare_one(nodes[n0_][i_], _infer_variable_type(n_, varset.target_opset))
+                ov = varset.get_local_variable_or_declare_one(n0_.outputs[i_].name,
+                                                              _infer_variable_type(n_, varset.target_opset))
                 operator.add_output(iv)
-                oop = varset.declare_local_operator('identity')
+                oop = varset.declare_local_operator(TYPES.Identity)
                 oop.add_input(iv)
                 oop.add_output(ov)
 
@@ -389,7 +457,7 @@ def _infer_graph_shape(topology, top_level, varset):
             if oop.type == TFNODES:
                 _finalize_tf2onnx_op(topology, oop, varset)
             else:
-                if isinstance(oop.raw_operator, keras.layers.Layer):
+                if isinstance(oop.raw_operator, (keras.layers.Layer, tf.Operation)):
                     assert oop.outputs
                 elif oop.raw_operator:
                     oop.outputs = _locate_outputs(oop.raw_operator, varset)
@@ -414,7 +482,7 @@ def _create_link_node(var_ts, top_level, varset, reversed_io=False, adjust_batch
         ty_ = _infer_variable_type(var_ts, varset.target_opset)
     var0 = top_level.get_local_variable_or_declare_one(var_ts.name, ty_)
     var1 = varset.get_local_variable_or_declare_one(var_ts.name, ty_)
-    op = varset.declare_local_operator('identity')
+    op = varset.declare_local_operator(TYPES.Identity)
     if reversed_io:
         var0, var1 = var1, var0
     op.add_input(var1)
@@ -642,10 +710,10 @@ def parse_graph(topo, graph, target_opset, output_names):
 
     top_level = topo.declare_scope('__root')
 
-    # Create the onnx model input name before parsing to keep
-    # the model input names are identical to the original Keras model.
+    # Create the onnx model input name before parsing to keep ...
+    # ... the model input names are identical to the original Keras model.
     for idx_, ts_ in enumerate(topo.raw_model.model.inputs):
-        op = top_level.declare_local_operator('identity')
+        op = top_level.declare_local_operator(TYPES.Identity)
         input_ts = topo.raw_model.model.inputs[idx_]
         var_type = _adjust_input_batch_size(_infer_variable_type(input_ts, target_opset))
         str_value = input_ts.name
@@ -655,7 +723,7 @@ def parse_graph(topo, graph, target_opset, output_names):
         elif topo.raw_model.model.inputs[idx_].name.endswith(':0'):
             str_value = topo.raw_model.model.inputs[idx_].name[:-2]
         else:
-            # if there is no difference between input tensor name and model input name
+            # if there is no difference between input tensor name and model input name,
             # skip it.
             var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
         if not var0:
