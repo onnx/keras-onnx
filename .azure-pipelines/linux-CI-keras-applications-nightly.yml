@@ -19,16 +19,19 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
+        INSTALL_KERAS_RESNET:
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras
+        KERAS: keras==2.2.4
+        INSTALL_KERAS_RESNET: pip install keras-resnet
 
       Python37:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.5.0
         KERAS: keras
+        INSTALL_KERAS_RESNET: pip install keras-resnet
 
     maxParallel: 3
 
@@ -66,6 +69,8 @@ jobs:
       cd ..
       pip install matplotlib
       git clone https://github.com/qqwweee/keras-yolo3
+      $(INSTALL_KERAS_RESNET)
+      pip install git+https://www.github.com/keras-team/keras-contrib.git
     displayName: 'Install dependencies'
 
   - script: |

@@ -445,6 +445,9 @@ class Variable:
         """
         return self.onnx_name
 
+    def __repr__(self):
+        return self.onnx_name
+
     @staticmethod
     def tfname_to_onnx(name):
         # tf2onnx does not change name but still keep '/'.

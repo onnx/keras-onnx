@@ -12,6 +12,7 @@ from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_
 from test_utils import run_onnx_runtime
 
 import importlib
+
 importlib.import_module('test_utils')
 
 K = keras.backend
@@ -737,6 +738,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
     def test_simpleRNN(self):
+        K.clear_session()
         inputs1 = keras.Input(shape=(3, 1))
         cls = SimpleRNN(2, return_state=False, return_sequences=True)
         oname = cls(inputs1)  # , initial_state=t0)
@@ -947,6 +949,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def test_seq_dynamic_batch_size(self):
+        K.clear_session()
         data_dim = 4  # input_size
         timesteps = 3  # seq_length
 
@@ -1114,6 +1117,18 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         onnx_model = keras2onnx.convert_keras(model, model.name)
         x = np.random.rand(2, 3, 320, 320).astype(np.float32)
+        expected = model.predict(x)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+    def test_masking(self):
+        timesteps, features = (3, 5)
+        model = Sequential([
+            keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
+            LSTM(8, return_state=False, return_sequences=False)
+        ])
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
