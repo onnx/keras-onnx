@@ -68,6 +68,7 @@ The following models need customed conversion, see the instruction column.
 |----------|-------|-------|
 | [YOLOv3](https://github.com/qqwweee/keras-yolo3) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/yolov3)|
 | [Mask RCNN](https://github.com/matterport/Mask_RCNN) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/mask_rcnn)|
+| [Context-Conditional GAN](https://github.com/eriklindernoren/Keras-GAN/tree/master/ccgan) | GAN | [Unit test](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_ccgan.py)|
 
 
 ## Scripts

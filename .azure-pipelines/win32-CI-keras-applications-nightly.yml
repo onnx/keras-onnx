@@ -66,6 +66,7 @@ jobs:
       pip install tqdm
       pip install keras-segmentation
       %INSTALL_KERAS_RESNET%
+      pip install git+https://www.github.com/keras-team/keras-contrib.git
     displayName: 'Install dependencies'
 
   - script: |
