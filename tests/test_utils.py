@@ -9,6 +9,7 @@ import onnx
 import numpy as np
 import keras2onnx
 from keras2onnx.proto import keras, is_keras_older_than
+from keras2onnx.common.onnx_ops import apply_identity
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
@@ -103,3 +104,56 @@ def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1
     onnx_model = keras2onnx.convert_keras(model, model.name)
     res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol)
     return res, msg
+
+# convert keras_contrib.layers.InstanceNormalization
+def convert_InstanceNormalizationLayer(scope, operator, container):
+    from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
+    op = operator.raw_operator
+    params = op.get_weights()
+    assert len(op.input_shape) == 4
+    beta = params[0].reshape(1, 1, 1, 1).astype('float32')
+    gamma = params[1].reshape(1, 1, 1, 1).astype('float32')
+    oopb = OnnxOperatorBuilder(container, scope)
+
+    reducemean_1 = oopb.add_node('ReduceMean',
+                                [operator.inputs[0].full_name],
+                                 operator.inputs[0].full_name + '_reduce_mean_1',
+                                 axes=[1,2,3], keepdims=1)
+
+    sub_1 = oopb.add_node('Sub',
+                         [operator.inputs[0].full_name, reducemean_1],
+                         operator.inputs[0].full_name + '_sub_1')
+
+    mul = oopb.add_node('Mul',
+                         [sub_1, sub_1],
+                         operator.inputs[0].full_name + '_mul')
+
+    reducemean_2 = oopb.add_node('ReduceMean',
+                                [mul],
+                                 operator.inputs[0].full_name + '_reduce_mean_2',
+                                 axes=[1,2,3], keepdims=1)
+
+    sqrt = oopb.add_node('Sqrt',
+                         [reducemean_2],
+                         operator.inputs[0].full_name + '_sqrt')
+
+    add = oopb.add_node('Add',
+                        [sqrt,
+                        ('_start', oopb.float, np.array([op.epsilon], dtype='float32'))],
+                        operator.inputs[0].full_name + '_add')
+
+    div = oopb.add_node('Div',
+                        [sub_1, add],
+                        operator.inputs[0].full_name + '_div')
+
+    mul_scale = oopb.add_node('Mul',
+                              [div,
+                              ('_start', oopb.float, beta)],
+                              operator.inputs[0].full_name + '_mul_scale')
+
+    add_bias = oopb.add_node('Add',
+                             [mul_scale,
+                             ('_start', oopb.float, gamma)],
+                             operator.inputs[0].full_name + '_add_bias')
+
+    apply_identity(scope, add_bias, operator.outputs[0].full_name, container)
