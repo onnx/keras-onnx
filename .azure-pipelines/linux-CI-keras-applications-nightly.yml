@@ -67,6 +67,8 @@ jobs:
       pip install -r requirements.txt
       python setup.py install
       cd ..
+      pip install matplotlib
+      git clone https://github.com/qqwweee/keras-yolo3
       $(INSTALL_KERAS_RESNET)
       pip install git+https://www.github.com/keras-team/keras-contrib.git
     displayName: 'Install dependencies'
