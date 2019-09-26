@@ -11,3 +11,4 @@ export PYTHONPATH=$(the keras-yolo3 path)
 # run object detection, convert the model to onnx first if the onnx model does not exist
 python yolov3.py <image url>
 ```
+The unit test is added in our nightly build, see [here](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_yolov3.py)

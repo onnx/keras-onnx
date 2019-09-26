@@ -12,3 +12,4 @@ cd <keras2onnx directory>/applications/mask_rcnn
 # convert the model to onnx and test it with an image.
 python mask_rcnn.py <image_file_path>
 ```
+The unit test is added in our nightly build, see [here](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_mask_rcnn.py)
