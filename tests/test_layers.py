@@ -1121,7 +1121,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_keras_older_than("2.2.4"),
+    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
                      "ReLU support requires keras 2.2.4 or later.")
     def test_shared_model_3(self):
         def _bottleneck(x, filters, activation, strides, block_id):
