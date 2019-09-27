@@ -46,6 +46,7 @@ Input = keras.layers.Input
 InputLayer = keras.layers.InputLayer
 Lambda = keras.layers.Lambda
 Layer = keras.layers.Layer
+LeakyReLU = keras.layers.LeakyReLU
 LSTM = keras.layers.LSTM
 Maximum = keras.layers.Maximum
 MaxPool1D = keras.layers.MaxPool1D
@@ -1119,6 +1120,62 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = np.random.rand(2, 3, 320, 320).astype(np.float32)
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+    @unittest.skipIf(is_keras_older_than("2.2.4"),
+                     "ReLU support requires keras 2.2.4 or later.")
+    def test_shared_model_3(self):
+        def _bottleneck(x, filters, activation, strides, block_id):
+            padding = 'same' if strides == 1 else 'valid'
+            ch_axis = 1 if K.image_data_format() == 'channels_first' else -1
+            if strides > 1:
+                x = ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(x)
+
+            x = Conv2D(filters // 2, (1, 1), padding='same', name=f'bottleneck_{block_id}_conv_0',
+                          use_bias=False, data_format=K.image_data_format())(x)
+
+            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_0')(x)
+
+            if activation == 'relu':
+                x = ReLU(name=f'bottleneck_{block_id}_relu_0')(x)
+            elif activation == 'leaky':
+                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_0')(x)
+            else:
+                assert False
+
+            x = Conv2D(filters // 2, (3, 3), padding=padding, name=f'bottleneck_{block_id}_conv_1',
+                          strides=strides, use_bias=False, data_format=K.image_data_format())(x)
+            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_1')(x)
+            if activation == 'relu':
+                x = ReLU(name=f'bottleneck_{block_id}_relu_1')(x)
+            elif activation == 'leaky':
+                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_1')(x)
+            else:
+                assert False
+
+            x = Conv2D(filters, (1, 1), padding='same', name=f'bottleneck_{block_id}_conv_2',
+                          use_bias=False, data_format=K.image_data_format())(x)
+            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_2')(x)
+            if activation == 'relu':
+                x = ReLU(name=f'bottleneck_{block_id}_relu_2')(x)
+            elif activation == 'leaky':
+                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_2')(x)
+            else:
+                assert False
+
+            return x
+
+        def convnet_7(input_shape, activation):
+            input = Input(shape=input_shape, name='input_1')
+            x = _bottleneck(input, filters=16, strides=1, activation=activation, block_id=1)
+            x = _bottleneck(x, filters=32, strides=2, activation=activation, block_id=2)
+            return Model(inputs=input, outputs=x, name='convnet_7')
+
+        for activation in ['relu', 'leaky']:
+            model = convnet_7(input_shape=(3, 96, 128), activation=activation)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            x = np.random.rand(1, 3, 96, 128).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def test_masking(self):
         timesteps, features = (3, 5)
