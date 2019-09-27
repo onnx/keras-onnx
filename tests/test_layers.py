@@ -1130,35 +1130,35 @@ class TestKerasTF2ONNX(unittest.TestCase):
             if strides > 1:
                 x = ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(x)
 
-            x = Conv2D(filters // 2, (1, 1), padding='same', name=f'bottleneck_{block_id}_conv_0',
+            x = Conv2D(filters // 2, (1, 1), padding='same', name='bottleneck_'+str(block_id)+'_conv_0',
                           use_bias=False, data_format=K.image_data_format())(x)
 
-            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_0')(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_0')(x)
 
             if activation == 'relu':
-                x = ReLU(name=f'bottleneck_{block_id}_relu_0')(x)
+                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_0')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_0')(x)
+                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_0')(x)
             else:
                 assert False
 
-            x = Conv2D(filters // 2, (3, 3), padding=padding, name=f'bottleneck_{block_id}_conv_1',
+            x = Conv2D(filters // 2, (3, 3), padding=padding, name='bottleneck_'+str(block_id)+'_conv_1',
                           strides=strides, use_bias=False, data_format=K.image_data_format())(x)
-            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_1')(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_1')(x)
             if activation == 'relu':
-                x = ReLU(name=f'bottleneck_{block_id}_relu_1')(x)
+                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_1')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_1')(x)
+                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_1')(x)
             else:
                 assert False
 
-            x = Conv2D(filters, (1, 1), padding='same', name=f'bottleneck_{block_id}_conv_2',
+            x = Conv2D(filters, (1, 1), padding='same', name='bottleneck_'+str(block_id)+'_conv_2',
                           use_bias=False, data_format=K.image_data_format())(x)
-            x = BatchNormalization(axis=ch_axis, name=f'bottleneck_{block_id}_bnorm_2')(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_2')(x)
             if activation == 'relu':
-                x = ReLU(name=f'bottleneck_{block_id}_relu_2')(x)
+                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_2')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name=f'bottleneck_{block_id}_leaky_2')(x)
+                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_2')(x)
             else:
                 assert False
 
