@@ -15,6 +15,11 @@ from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
 from keras2onnx.proto import onnx_proto
 
+from os.path import dirname, abspath
+yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3')
+if os.path.exists(yolo3_dir):
+    sys.path.insert(0, yolo3_dir)
+
 import yolo3
 from yolo3.model import yolo_body, tiny_yolo_body, yolo_boxes_and_scores
 from yolo3.utils import letterbox_image
@@ -80,38 +85,52 @@ class YOLONMSLayer(keras.layers.Layer):
     def call(self, inputs, **kwargs):
         boxes = inputs[0]
         box_scores = inputs[1]
+        box_scores_transpose = tf.transpose(box_scores, perm=[1, 0])
+        boxes_number = tf.shape(boxes)[0]
+        box_range = tf.range(boxes_number)
 
         mask = box_scores >= self.score_threshold
         max_boxes_tensor = K.constant(self.max_boxes, dtype='int32')
-        boxes_ = []
-        scores_ = []
         classes_ = []
+        batch_indexs_ = []
+        nms_indexes_ = []
+        class_box_range_ = []
         for c in range(self.num_classes):
             class_boxes = tf.boolean_mask(boxes, mask[:, c])
             class_box_scores = tf.boolean_mask(box_scores[:, c], mask[:, c])
+            class_box_range = tf.boolean_mask(box_range, mask[:, c])
             nms_index = tf.image.non_max_suppression(
                 class_boxes, class_box_scores, max_boxes_tensor, iou_threshold=self.iou_threshold)
-            class_boxes = K.gather(class_boxes, nms_index)
             class_box_scores = K.gather(class_box_scores, nms_index)
+            class_box_range = K.gather(class_box_range, nms_index)
             classes = K.ones_like(class_box_scores, 'int32') * c
-            boxes_.append(class_boxes)
-            scores_.append(class_box_scores)
+            batch_index = K.zeros_like(class_box_scores, 'int32')
+            batch_indexs_.append(batch_index)
             classes_.append(classes)
-        boxes_ = K.concatenate(boxes_, axis=0)
-        scores_ = K.concatenate(scores_, axis=0)
-        classes_ = K.concatenate(classes_, axis=0)
+            nms_indexes_.append(nms_index)
+            class_box_range_.append(class_box_range)
 
-        boxes_r = tf.expand_dims(tf.expand_dims(boxes_, 0), 0)
-        scores_r = tf.expand_dims(tf.expand_dims(scores_, 0), 0)
-        return [boxes_r, scores_r, classes_]
+        classes_ = K.concatenate(classes_, axis=0)
+        batch_indexs_ = K.concatenate(batch_indexs_, axis=0)
+        class_box_range_ = K.concatenate(class_box_range_, axis=0)
+
+        boxes_1 = tf.expand_dims(boxes, 0)
+        classes_1 = tf.expand_dims(classes_, 1)
+        batch_indexs_ = tf.expand_dims(batch_indexs_, 1)
+        class_box_range_ = tf.expand_dims(class_box_range_, 1)
+        box_scores_transpose_1 = tf.expand_dims(box_scores_transpose, 0)
+        nms_final_ = K.concatenate([batch_indexs_, classes_1, class_box_range_], axis=1)
+        nms_final_1 = tf.expand_dims(nms_final_, 0)
+        return [boxes_1, box_scores_transpose_1, nms_final_1]
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
-        return [(None, None, 4), (None, None, None), (None, None)]
+        return [(None, None, 4), (None, self.num_classes, None), (None, None, 3)]
 
 
 class YOLO(object):
-    def __init__(self):
+    def __init__(self, yolo3_dir=None):
+        self.yolo3_dir = yolo3_dir
         self.model_path = 'model_data/yolo.h5'  # model path or trained weights path
         self.anchors_path = 'model_data/yolo_anchors.txt'
         self.classes_path = 'model_data/coco_classes.txt'
@@ -137,48 +156,52 @@ class YOLO(object):
         K.set_learning_phase(0)
 
     @staticmethod
-    def _get_data_path(name):
+    def _get_data_path(name, yolo3_dir):
         path = os.path.expanduser(name)
         if not os.path.isabs(path):
-            yolo3_dir = os.path.dirname(inspect.getabsfile(yolo3))
+            if yolo3_dir is None:
+                yolo3_dir = os.path.dirname(inspect.getabsfile(yolo3))
             path = os.path.join(yolo3_dir, os.path.pardir, path)
         return path
 
     def _get_class(self):
-        classes_path = self._get_data_path(self.classes_path)
+        classes_path = self._get_data_path(self.classes_path, self.yolo3_dir)
         with open(classes_path) as f:
             class_names = f.readlines()
         class_names = [c.strip() for c in class_names]
         return class_names
 
     def _get_anchors(self):
-        anchors_path = self._get_data_path(self.anchors_path)
+        anchors_path = self._get_data_path(self.anchors_path, self.yolo3_dir)
         with open(anchors_path) as f:
             anchors = f.readline()
         anchors = [float(x) for x in anchors.split(',')]
         return np.array(anchors).reshape(-1, 2)
 
-    def load_model(self):
-        model_path = self._get_data_path(self.model_path)
+    def load_model(self, yolo_weights=None):
+        model_path = self._get_data_path(self.model_path, self.yolo3_dir)
         assert model_path.endswith('.h5'), 'Keras model or weights must be a .h5 file.'
+        if yolo_weights is None:
+            # Load model, or construct model and load weights.
+            num_anchors = len(self.anchors)
+            num_classes = len(self.class_names)
+            is_tiny_version = num_anchors == 6  # default setting
 
-        # Load model, or construct model and load weights.
-        num_anchors = len(self.anchors)
-        num_classes = len(self.class_names)
-        is_tiny_version = num_anchors == 6  # default setting
-        try:
-            self.yolo_model = load_model(model_path, compile=False)
-        except:
-            self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
-                if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
-            self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+            try:
+                self.yolo_model = load_model(model_path, compile=False)
+            except:
+                self.yolo_model = tiny_yolo_body(Input(shape=(None, None, 3)), num_anchors // 2, num_classes) \
+                    if is_tiny_version else yolo_body(Input(shape=(None, None, 3)), num_anchors // 3, num_classes)
+                self.yolo_model.load_weights(self.model_path)  # make sure model, anchors and classes match
+            else:
+                assert self.yolo_model.layers[-1].output_shape[-1] == \
+                    num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
+                    'Mismatch between model and given anchor and class sizes'
         else:
-            assert self.yolo_model.layers[-1].output_shape[-1] == \
-                num_anchors / len(self.yolo_model.output) * (num_classes + 5), \
-                'Mismatch between model and given anchor and class sizes'
+            self.yolo_model = yolo_weights
 
         input_image_shape = keras.Input(shape=(2,), name='image_shape')
-        image_input = keras.Input((None, None, 3), dtype='float32')
+        image_input = keras.Input((None, None, 3), dtype='float32', name='input_1')
         y1, y2, y3 = self.yolo_model(image_input)
 
         boxes, box_scores = \
@@ -191,10 +214,10 @@ class YOLO(object):
         self.final_model = keras.Model(inputs=[image_input, input_image_shape],
                                        outputs=[out_boxes, out_scores, out_indices])
 
-        self.final_model.save('model_data/final_model.h5')
+        self.final_model.save('final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
-    def detect_with_onnx(self, image):
+    def prepare_keras_data(self, image):
         if self.model_image_size != (None, None):
             assert self.model_image_size[0] % 32 == 0, 'Multiples of 32 required'
             assert self.model_image_size[1] % 32 == 0, 'Multiples of 32 required'
@@ -205,21 +228,27 @@ class YOLO(object):
             boxed_image = letterbox_image(image, new_image_size)
         image_data = np.array(boxed_image, dtype='float32')
         image_data /= 255.
-        image_data = np.transpose(image_data, [2, 0, 1])
+        image_data = np.expand_dims(image_data, 0) # Add batch dimension.
+        return image_data
 
-        image_data = np.expand_dims(image_data, 0)  # Add batch dimension.
+    def detect_with_onnx(self, image):
+        self.load_model()
+        image_data = self.prepare_keras_data(image)
+        all_boxes_k, all_scores_k, indices_k = self.final_model.predict([image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2)])
+
+        image_data_onnx = np.transpose(image_data, [0, 3, 1, 2])
         feed_f = dict(zip(['input_1', 'image_shape'],
-                          (image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
+                          (image_data_onnx, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
         all_boxes, all_scores, indices = self.session.run(None, input_feed=feed_f)
 
         out_boxes, out_scores, out_classes = [], [], []
-        for idx_ in indices:
+        for idx_ in indices[0]:
             out_classes.append(idx_[1])
             out_scores.append(all_scores[tuple(idx_)])
             idx_1 = (idx_[0], idx_[2])
             out_boxes.append(all_boxes[idx_1])
 
-        font = ImageFont.truetype(font=self._get_data_path('font/FiraMono-Medium.otf'),
+        font = ImageFont.truetype(font=self._get_data_path('font/FiraMono-Medium.otf', self.yolo3_dir),
                                   size=np.floor(3e-2 * image.size[1] + 0.5).astype('int32'))
         thickness = (image.size[0] + image.size[1]) // 300
 
@@ -303,7 +332,11 @@ def convert_NMSLayer(scope, operator, container):
                        cast_name,
                        op_version=operator.target_opset,
                        name=nms_node.name)
-    apply_cast(scope, cast_name, operator.output_full_names[2], container, to=onnx_proto.TensorProto.INT32)
+
+    cast_batch = scope.get_unique_variable_name(operator.output_full_names[2] + '_btc')
+    container.add_node("Unsqueeze", cast_name,
+                       cast_batch, op_version=operator.target_opset, axes=[0])
+    apply_cast(scope, cast_batch, operator.output_full_names[2], container, to=onnx_proto.TensorProto.INT32)
 
     apply_identity(scope, box_batch, operator.output_full_names[0], container)
     apply_identity(scope, score_batch, operator.output_full_names[1], container)
