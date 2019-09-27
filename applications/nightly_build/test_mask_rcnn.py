@@ -80,7 +80,7 @@ class TestMaskRCNN(unittest.TestCase):
             for n_ in compare_idx:
                 expected_list = expected[n_].flatten()
                 actual_list = actual[n_].flatten()
-                print_mismatches(self, case_name, n_, expected_list, actual_list, atol, rtol)
+                print_mismatches(case_name, n_, expected_list, actual_list, atol, rtol)
 
         self.assertTrue(res)
 
