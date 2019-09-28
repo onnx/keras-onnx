@@ -30,7 +30,7 @@ jobs:
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras
+        KERAS: keras==2.2.4
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
     maxParallel: 3
@@ -58,7 +58,7 @@ jobs:
       pip install -r requirements.txt
       pip install onnxconverter-common
       pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly==0.5.0.dev917
+      pip install -i https://test.pypi.org/simple/ ort-nightly
       pip install opencv-python
       pip install tqdm
       pip install keras-segmentation
