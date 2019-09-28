@@ -53,12 +53,9 @@ jobs:
       pip install tensorflow
       pip install $(KERAS)
       pip install -r requirements.txt
-      git clone https://github.com/microsoft/onnxconverter-common
-      cd onnxconverter-common
-      pip install -e .
-      cd ..
+      pip install onnxconverter-common
       pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly
+      pip install -i https://test.pypi.org/simple/ ort-nightly==0.5.0.dev917
       pip install opencv-python
       pip install tqdm
       pip install keras-segmentation
