@@ -9,6 +9,7 @@ trigger:
 jobs:
 
 - job: 'Test'
+  timeoutInMinutes: 180
   pool:
     vmImage: 'vs2017-win2016'
   strategy:
@@ -17,17 +18,20 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
-        TENSORFLOW_PATH: tensorflow==1.11.0
+        KERAS: keras==2.1.6
+        INSTALL_KERAS_RESNET:
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        TENSORFLOW_PATH: tensorflow==1.13.1
+        KERAS: keras==2.2.4
+        INSTALL_KERAS_RESNET: pip install keras-resnet
 
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.5.0
-        TENSORFLOW_PATH: tensorflow
+        KERAS: keras
+        INSTALL_KERAS_RESNET: pip install keras-resnet
 
     maxParallel: 3
 
@@ -49,25 +53,40 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      pip install %TENSORFLOW_PATH%
+      pip install tensorflow
+      pip install %KERAS%
       pip install -r requirements.txt
-      git clone https://github.com/microsoft/onnxconverter-common
-      cd onnxconverter-common
-      pip install -e .
-      cd ..
+      pip install onnxconverter-common
       pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly==0.5.0.dev917
+      pip install opencv-python
+      pip install tqdm
+      pip install keras-segmentation
+      pip install matplotlib
+      git clone https://github.com/qqwweee/keras-yolo3
+      %INSTALL_KERAS_RESNET%
+      pip install git+https://www.github.com/keras-team/keras-contrib.git
     displayName: 'Install dependencies'
 
   - script: |
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      python -c "import onnxconverter_common"
-      pytest tests --doctest-modules --junitxml=junit/test-results.xml
+      cd applications/nightly_build
+      python run_all.py --exclude "test_mask_rcnn.py"
     displayName: 'pytest'
+
+  - script: |
+      call activate py$(python.version)
+      pip install -e .
+      echo Test onnxruntime installation... && python -c "import onnxruntime"
+      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage report -m
+      coverage html
+    displayName: 'coverage'
 
   - task: PublishTestResults@2
     inputs:
-      testResultsFiles: '**/test-results.xml'
+      testResultsFiles: '**/test-results-*.xml'
       testRunTitle: 'Python $(python.version)'
     condition: succeededOrFailed()
