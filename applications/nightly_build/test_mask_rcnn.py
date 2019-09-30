@@ -20,6 +20,7 @@ model_file_name = 'mask_rcnn_coco.h5'
 if not os.path.exists(model_file_name):
     urllib.request.urlretrieve(MASKRCNN_WEIGHTS_PATH, model_file_name)
 
+keras.backend.clear_session()
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../mask_rcnn/'))
 from mask_rcnn import model, tf2onnx_contrib_op_conversion
 from distutils.version import StrictVersion
@@ -41,7 +42,6 @@ class TestMaskRCNN(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
     def test_mask_rcnn(self):
-        keras.backend.clear_session()
         onnx_model = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
         import skimage
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
