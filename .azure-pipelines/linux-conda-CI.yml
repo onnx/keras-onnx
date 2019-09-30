@@ -21,12 +21,12 @@ jobs:
 
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: onnx==1.6.0
         KERAS: keras==2.2.5
 
       Python37:
         python.version: '3.7.3'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: onnx==1.6.0
         KERAS: keras
 
     maxParallel: 3
@@ -48,6 +48,7 @@ jobs:
       pip install h5py==2.9.0
       pip install tensorflow==1.14.0
       pip install $(KERAS)
+      pip install -i https://test.pypi.org/simple/ ort-nightly
       pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common

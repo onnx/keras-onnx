@@ -23,13 +23,13 @@ jobs:
 
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: onnx==1.6.0
         KERAS: keras==2.2.4
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
       Python37:
         python.version: '3.7.3'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: onnx==1.6.0
         KERAS: keras
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
