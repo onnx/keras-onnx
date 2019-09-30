@@ -53,7 +53,7 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      pip install tensorflow
+      pip install tensorflow==1.14.0
       pip install %KERAS%
       pip install -r requirements.txt
       pip install onnxconverter-common
