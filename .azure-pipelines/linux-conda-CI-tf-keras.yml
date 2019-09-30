@@ -9,7 +9,6 @@ trigger:
 jobs:
 
 - job: 'Test'
-  timeoutInMinutes: 180
   pool:
     vmImage: 'Ubuntu-16.04'
   strategy:
@@ -18,20 +17,17 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
-        INSTALL_KERAS_RESNET:
+        TENSORFLOW_PATH: tensorflow==1.11.0
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras==2.2.4
-        INSTALL_KERAS_RESNET: pip install keras-resnet
+        TENSORFLOW_PATH: tensorflow==1.13.1
 
       Python37:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras
-        INSTALL_KERAS_RESNET: pip install keras-resnet
+        TENSORFLOW_PATH: tensorflow==1.14.0
 
     maxParallel: 3
 
@@ -50,43 +46,24 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
-      pip install tensorflow==1.14.0
-      pip install $(KERAS)
+      pip install $(TENSORFLOW_PATH)
       pip install -r requirements.txt
-      pip install onnxconverter-common
-      pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly==0.5.0.dev905
-      pip install opencv-python
-      pip install tqdm
-      pip install keras-segmentation
-      git clone https://github.com/matterport/Mask_RCNN
-      cd Mask_RCNN
-      pip install -r requirements.txt
-      python setup.py install
+      git clone https://github.com/microsoft/onnxconverter-common
+      cd onnxconverter-common
+      pip install -e .
       cd ..
-      pip install matplotlib
-      git clone https://github.com/qqwweee/keras-yolo3
-      $(INSTALL_KERAS_RESNET)
-      pip install git+https://www.github.com/keras-team/keras-contrib.git
+      pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
 
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      cd applications/nightly_build
-      python run_all.py
+      python -c "import onnxconverter_common"
+      pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
-
-  - script: |
-      pip install -e .
-      python -c "import onnxruntime"
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
-      coverage report -m
-      coverage html
-    displayName: 'coverage'
 
   - task: PublishTestResults@2
     inputs:
-      testResultsFiles: '**/test-results-*.xml'
+      testResultsFiles: '**/test-results.xml'
       testRunTitle: 'Python $(python.version)'
     condition: succeededOrFailed()
