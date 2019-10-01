@@ -48,13 +48,13 @@ jobs:
       pip install h5py==2.9.0
       pip install tensorflow==1.14.0
       pip install $(KERAS)
-      pip install -i https://test.pypi.org/simple/ ort-nightly
       pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
       cd ..
       pip install -r requirements-dev.txt
+      pip install -i https://test.pypi.org/simple/ ort-nightly
     displayName: 'Install dependencies'
 
   - script: |
