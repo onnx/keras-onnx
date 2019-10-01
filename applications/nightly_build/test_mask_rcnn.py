@@ -21,6 +21,7 @@ if not os.path.exists(model_file_name):
     urllib.request.urlretrieve(MASKRCNN_WEIGHTS_PATH, model_file_name)
 
 keras.backend.clear_session()
+keras.backend.set_learning_phase(0)
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../mask_rcnn/'))
 from mask_rcnn import model, tf2onnx_contrib_op_conversion
 from distutils.version import StrictVersion
