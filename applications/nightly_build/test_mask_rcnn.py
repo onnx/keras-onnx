@@ -12,7 +12,7 @@ import onnx
 import numpy as np
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, print_mismatches
+from test_utils import run_onnx_runtime, print_mismatches, tf2onnx_contrib_op_conversion
 
 import urllib.request
 MASKRCNN_WEIGHTS_PATH = r'https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5'
@@ -22,7 +22,7 @@ if not os.path.exists(model_file_name):
 
 keras.backend.clear_session()
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../mask_rcnn/'))
-from mask_rcnn import model, tf2onnx_contrib_op_conversion
+from mask_rcnn import model
 from distutils.version import StrictVersion
 
 working_path = os.path.abspath(os.path.dirname(__file__))
