@@ -1093,6 +1093,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
                      "Low keras version is not supported.")
     def test_shared_model_2(self):
+        K.clear_session()
         K.set_learning_phase(0)
 
         def _conv_layer(input, filters, kernel_size, strides=1, dilation_rate=1):
@@ -1124,6 +1125,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
                      "ReLU support requires keras 2.2.4 or later.")
     def test_shared_model_3(self):
+        K.clear_session()
         def _bottleneck(x, filters, activation, strides, block_id):
             padding = 'same' if strides == 1 else 'valid'
             ch_axis = 1 if K.image_data_format() == 'channels_first' else -1
