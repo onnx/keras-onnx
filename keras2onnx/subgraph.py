@@ -90,6 +90,15 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
     all_op_names = set([n_.name for n_ in node_list])
     missing_ops = set(tensor_op_names) - all_op_names
 
+    def is_converted_node(curr_node):
+        if curr_node.op == "ReadVariableOp":
+            default_input = curr_node.input[0]
+            if default_input in found_variables:
+                return True
+            if default_input in missing_ops:
+                return True
+        return False
+
     replacement = {}
     tf_graph_def = tf_graph.as_graph_def()
     subgraph_def = _extract_sub_graph(tf_graph_def, [n_.name for n_ in node_list], missing_ops)
@@ -109,8 +118,7 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
                     tensor=tensor_util.make_tensor_proto(
                         data, dtype=dtype.type, shape=data.shape)))
             how_many_converted += 1
-        elif input_node.op == "ReadVariableOp" and (
-                input_node.input[0] in found_variables):
+        elif is_converted_node(input_node):
             # The preceding branch converts all VarHandleOps of ResourceVariables to
             # constants, so we need to convert the associated ReadVariableOps to
             # Identity ops.
@@ -145,8 +153,12 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
                 else:
                     raise RuntimeError("Can't get the node data type for %s" % input_node.name)
             ts_shape = tf.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
+            if len(ts_shape) == 0:
+                ts_shape = tf_graph.get_operation_by_name(input_node.name).node_def.attr['shape'].shape
+            else:
+                ts_shape = ts_shape.as_proto()
             output_node.attr["shape"].CopyFrom(
-                attr_value_pb2.AttrValue(shape=ts_shape.as_proto()))
+                attr_value_pb2.AttrValue(shape=ts_shape))
             output_graph_def.node.extend([output_node])
 
     output_graph_def.library.CopyFrom(subgraph_def.library)
