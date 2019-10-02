@@ -13,16 +13,6 @@ import numpy as np
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime, print_mismatches, tf2onnx_contrib_op_conversion
-
-import urllib.request
-MASKRCNN_WEIGHTS_PATH = r'https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5'
-model_file_name = 'mask_rcnn_coco.h5'
-if not os.path.exists(model_file_name):
-    urllib.request.urlretrieve(MASKRCNN_WEIGHTS_PATH, model_file_name)
-
-keras.backend.clear_session()
-sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../mask_rcnn/'))
-from mask_rcnn import model
 from distutils.version import StrictVersion
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -30,7 +20,7 @@ tmp_path = os.path.join(working_path, 'temp')
 
 
 # mask rcnn code From https://github.com/matterport/Mask_RCNN
-class TestMaskRCNN(unittest.TestCase):
+class TestMaskRCNN_Infer(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
@@ -41,31 +31,36 @@ class TestMaskRCNN(unittest.TestCase):
 
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
-    def test_mask_rcnn(self):
-        onnx_model = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
-        import skimage
-        img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
-        image = skimage.io.imread(img_path)
-        images = [image]
-        case_name = 'mask_rcnn'
+    def test_mask_rcnn_infer(self):
+        from onnx import numpy_helper
+        tensor0 = onnx.TensorProto()
+        with open(os.path.join(tmp_path, 'input_0.pb'), 'rb') as f:
+            tensor0.ParseFromString(f.read())
+        molded_images = numpy_helper.to_array(tensor0)
+        tensor1 = onnx.TensorProto()
+        with open(os.path.join(tmp_path, 'input_1.pb'), 'rb') as f:
+            tensor1.ParseFromString(f.read())
+        anchors = numpy_helper.to_array(tensor1)
+        tensor2 = onnx.TensorProto()
+        with open(os.path.join(tmp_path, 'input_2.pb'), 'rb') as f:
+            tensor2.ParseFromString(f.read())
+        image_metas = numpy_helper.to_array(tensor2)
+        expected = []
+        for idx in range(7):
+            tensor = onnx.TensorProto()
+            with open(os.path.join(tmp_path, 'output_'+str(idx)+'.pb'), 'rb') as f:
+                tensor.ParseFromString(f.read())
+            expected.append(numpy_helper.to_array(tensor))
 
+        case_name = 'mask_rcnn'
         if not os.path.exists(tmp_path):
             os.mkdir(tmp_path)
         temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
-        onnx.save_model(onnx_model, temp_model_file)
         try:
             import onnxruntime
             sess = onnxruntime.InferenceSession(temp_model_file)
         except ImportError:
             return True
-
-        # preprocessing
-        molded_images, image_metas, windows = model.mold_inputs(images)
-        anchors = model.get_anchors(molded_images[0].shape)
-        anchors = np.broadcast_to(anchors, (model.config.BATCH_SIZE,) + anchors.shape)
-
-        expected = model.keras_model.predict(
-            [molded_images.astype(np.float32), image_metas.astype(np.float32), anchors])
 
         actual = \
             sess.run(None, {"input_image": molded_images.astype(np.float32),
