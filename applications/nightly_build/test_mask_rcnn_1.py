@@ -30,7 +30,7 @@ tmp_path = os.path.join(working_path, 'temp')
 
 
 # mask rcnn code From https://github.com/matterport/Mask_RCNN
-class TestMaskRCNN(unittest.TestCase):
+class TestMaskRCNN_Infer(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
@@ -41,8 +41,7 @@ class TestMaskRCNN(unittest.TestCase):
 
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
                      "NonMaxSuppression op is not supported for onnx < 1.5.0.")
-    def test_mask_rcnn(self):
-        onnx_model = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
+    def test_mask_rcnn_infer(self):
         import skimage
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         image = skimage.io.imread(img_path)
@@ -52,7 +51,6 @@ class TestMaskRCNN(unittest.TestCase):
         if not os.path.exists(tmp_path):
             os.mkdir(tmp_path)
         temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
-        onnx.save_model(onnx_model, temp_model_file)
         try:
             import onnxruntime
             sess = onnxruntime.InferenceSession(temp_model_file)
