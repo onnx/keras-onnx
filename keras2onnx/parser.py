@@ -28,6 +28,10 @@ def _infer_variable_type(tensor, opset):
 
     # Determine the tensor's element type
     tensor_type = tensor.dtype
+    if tensor.dtype == 'resource':
+        node_attr = tensor.op.node_def.attr
+        tensor_type = node_attr['dtype'].type
+        tensor_shape = ['None' if d.size is None else d.size for d in node_attr['shape'].shape.dim]
     if tensor_type in [tf.int8, tf.int16, tf.int32]:
         return Int32TensorType(shape=tensor_shape)
     elif tensor_type == tf.int64:
@@ -80,7 +84,8 @@ def _locate_outputs(node_list, varset):
     assert nodes
     for n0_ in nodes:
         for n_ in n0_.outputs:
-            var_output.append(varset.get_local_variable_or_declare_one(n_.name, _infer_variable_type(n_, varset.target_opset)))
+            var_output.append(
+                varset.get_local_variable_or_declare_one(n_.name, _infer_variable_type(n_, varset.target_opset)))
 
     return var_output
 
@@ -246,7 +251,8 @@ def _create_model_input_mapping_operators(ts_from, ts_to, prefix, subprefix, var
     op = varset.declare_local_operator(TYPES.Identity, op_name=prefix + ts_to.name)
     op.add_input(var0)
     op.add_output(var1)
-    k2o_logger().debug("mapping:  %s -> %s (%s -> %s)" % (ts_from.name, ts_to.name, subprefix + ts_from.name, prefix + ts_to.name))
+    k2o_logger().debug(
+        "mapping:  %s -> %s (%s -> %s)" % (ts_from.name, ts_to.name, subprefix + ts_from.name, prefix + ts_to.name))
     return op
 
 
@@ -312,7 +318,8 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
 
         # the input node needs to be mapped to the outmost inbound keras node.
         for idx_, in_ in enumerate(list_input_tensors(top_kenode)):
-            _create_model_input_mapping_operators(in_, list_input_tensors(inbound_nodes[0])[idx_], upper_prefix + prefix, upper_prefix,
+            _create_model_input_mapping_operators(in_, list_input_tensors(inbound_nodes[0])[idx_],
+                                                  upper_prefix + prefix, upper_prefix,
                                                   varset)
             ts_inputs.append(in_)
 
