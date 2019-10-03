@@ -235,7 +235,10 @@ keras_layer_to_operator = {
     _layer.Flatten: convert_keras_flatten,
     _layer.Reshape: convert_keras_reshape,
 
+    _layer.AlphaDropout: convert_keras_training_only_layer,
     _layer.Dropout: convert_keras_training_only_layer,
+    _layer.GaussianDropout: convert_keras_training_only_layer,
+    _layer.GaussianNoise: convert_keras_training_only_layer,
 
     _layer.SimpleRNN: convert_keras_simple_rnn,
     _layer.GRU: convert_keras_gru,

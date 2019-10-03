@@ -19,6 +19,7 @@ K = keras.backend
 Activation = keras.layers.Activation
 Add = keras.layers.Add
 advanced_activations = keras.layers.advanced_activations
+AlphaDropout = keras.layers.AlphaDropout
 Average = keras.layers.Average
 AveragePooling1D = keras.layers.AveragePooling1D
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -40,6 +41,8 @@ dot = keras.layers.dot
 Dropout = keras.layers.Dropout
 Embedding = keras.layers.Embedding
 Flatten = keras.layers.Flatten
+GaussianDropout = keras.layers.GaussianDropout
+GaussianNoise = keras.layers.GaussianNoise
 GlobalAveragePooling2D = keras.layers.GlobalAveragePooling2D
 GRU = keras.layers.GRU
 Input = keras.layers.Input
@@ -669,6 +672,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict([data1, data2])
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [data1, data2], expected, self.model_files))
+
+    def test_training_layer(self):
+        model = keras.Sequential()
+        model.add(Dense(32, input_shape=(2, 3)))
+        model.add(GaussianNoise(0.1))
+        model.add(Activation('relu'))
+        model.add(GaussianDropout(0.1))
+        model.add(AlphaDropout(0.1))
+        model.add(Dense(1))
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(2, 2, 3).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def _batch_norm_helper(self, data, gamma, beta, scale, center, axis):
         model = keras.Sequential()
