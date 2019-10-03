@@ -176,7 +176,7 @@ class TestPixelDA(unittest.TestCase):
         x = np.random.rand(5, 32, 32, 3).astype(np.float32)
         expected = keras_model.predict([x])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files, atol=1.e-5))
 
 
 if __name__ == "__main__":
