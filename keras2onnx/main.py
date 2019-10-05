@@ -3,21 +3,18 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import os
 import logging
 import tensorflow as tf
-import tf2onnx
-from tf2onnx import tfonnx
 from .proto import keras, is_tf_keras
+from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
-from .common import with_variable
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
 from .subgraph import is_placeholder_node
-from ._builtin import set_converter, tf2onnx_builtin_conversion
+from ._builtin import set_converter
 
 
 class KerasTfModelContainer(object):
@@ -50,17 +47,6 @@ class KerasTfModelContainer(object):
         return [name for name in self._output_raw_names]
 
 
-@with_variable('pb_visual_writer')
-def get_tensorboard_writer():
-    _tb_log_dir = os.environ.get('TB_LOG_DIR')
-    if _tb_log_dir:
-        from tensorflow.python.summary import summary
-        pb_visual_writer = summary.FileWriter(_tb_log_dir)
-        return pb_visual_writer
-
-    return None
-
-
 def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
                   custom_op_conversions=None):
     # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
@@ -75,7 +61,6 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
-    tf2onnx.logging.set_level(logging.DEBUG if debug_mode else logging.INFO)
 
     if isinstance(model, tf.keras.Model) and not is_tf_keras:
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
@@ -87,15 +72,14 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
 
     static_set_ke2onnx_converters(set_converter)
 
-    sess = keras.backend.get_session()
-    if get_tensorboard_writer() is not None:
-        get_tensorboard_writer().add_graph(sess.graph)
-    raw_model_container = KerasTfModelContainer(sess.graph, model)
+    tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
+    dump_graph_into_tensorboard(tf_graph)
+    raw_model_container = KerasTfModelContainer(tf_graph, model)
     topology = Topology(raw_model_container,
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
-    parse_graph(topology, sess.graph, target_opset, output_names)
+    parse_graph(topology, tf_graph, target_opset, output_names)
     topology.compile()
 
     return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
@@ -149,7 +133,7 @@ def _collect_input_nodes(graph, outputs):
     return input_nodes, nodes_to_keep
 
 
-def convert_tensorflow(graph_def,
+def convert_tensorflow(frozen_graph_def,
                        name=None, input_names=None, output_names=None,
                        doc_string='',
                        target_opset=None,
@@ -168,6 +152,7 @@ def convert_tensorflow(graph_def,
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
+    from .wrapper import tf2onnx, tf2onnx_builtin_conversion
 
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
@@ -175,25 +160,24 @@ def convert_tensorflow(graph_def,
     if not doc_string:
         doc_string = "converted from {}".format(name)
 
-    # tf_graph_def = tfonnx.tf_optimize(input_names, output_names, graph_def, True)
-    tf_graph_def = graph_def
+    tf_graph_def = tf2onnx.tfonnx.tf_optimize(input_names, output_names, frozen_graph_def, True)
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(tf_graph_def, name='')
 
     custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
     if custom_op_conversions:
         custom_op_handlers.update(custom_op_conversions)
-    with tf.Session(graph=tf_graph):
+    with tf.compat.v1.Session(graph=tf_graph):
         if not input_names:
             input_nodes = list(_collect_input_nodes(tf_graph, output_names)[0])
             input_names = [nd_.outputs[0].name for nd_ in input_nodes]
-        g = tfonnx.process_tf_graph(tf_graph,
-                                    continue_on_error=debug_mode,
-                                    opset=target_opset,
-                                    custom_op_handlers=custom_op_handlers,
-                                    inputs_as_nchw=channel_first_inputs,
-                                    output_names=output_names,
-                                    input_names=input_names)
+        g = tf2onnx.tfonnx.process_tf_graph(tf_graph,
+                                            continue_on_error=debug_mode,
+                                            opset=target_opset,
+                                            custom_op_handlers=custom_op_handlers,
+                                            inputs_as_nchw=channel_first_inputs,
+                                            output_names=output_names,
+                                            input_names=input_names)
 
         onnx_graph = tf2onnx.optimizer.optimize_graph(g)
         model_proto = onnx_graph.make_model(doc_string)

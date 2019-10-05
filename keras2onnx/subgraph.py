@@ -13,7 +13,8 @@ from tensorflow.python.framework import tensor_util
 
 
 def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
+    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault'] and \
+           node.outputs[0].dtype.name != 'resource'
 
 
 def tsname_to_node(name):
@@ -152,7 +153,7 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
                     output_node.attr["dtype"].CopyFrom(input_node.attr["DstT"])
                 else:
                     raise RuntimeError("Can't get the node data type for %s" % input_node.name)
-            ts_shape = tf.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
+            ts_shape = tf.compat.v1.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
             if len(ts_shape) == 0:
                 ts_shape = tf_graph.get_operation_by_name(input_node.name).node_def.attr['shape'].shape
             else:

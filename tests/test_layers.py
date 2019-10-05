@@ -8,12 +8,9 @@ import unittest
 import tensorflow as tf
 import keras2onnx
 import numpy as np
+from keras2onnx.proto.tfcompat import is_tf2
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
 from test_utils import run_onnx_runtime
-
-import importlib
-
-importlib.import_module('test_utils')
 
 K = keras.backend
 Activation = keras.layers.Activation
@@ -71,6 +68,10 @@ ZeroPadding2D = keras.layers.ZeroPadding2D
 if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
+debug_mode = False
+if os.environ.get('debug_mode', '0') != '0':
+    debug_mode = True
+
 
 class TestKerasTF2ONNX(unittest.TestCase):
 
@@ -85,6 +86,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def asarray(*a):
         return np.array([a], dtype='f')
 
+    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_keras_with_tf2onnx(self):
         model = Sequential()
         model.add(Dense(units=4, input_shape=(10,), activation='relu'))
@@ -95,6 +97,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('ktf2onnx_test', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_keras_lambda(self):
         model = Sequential()
         model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
@@ -103,7 +106,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.compile(optimizer='sgd', loss='mse')
 
         _custom_op_handlers = {
-            'Round': keras2onnx.main.tf2onnx_builtin_conversion(10)['Round']}
+            'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(10)['Round']}
         onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
         data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
         expected = model.predict(data)
@@ -140,12 +143,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_stridedslice(self):
         for opset_ in [9, 10]:
             self._test_stridedslice_with_version(opset_)
             self._test_stridedslice_ellipsis_mask_with_version(opset_)
             self._test_stridedslice_shrink_mask_with_version(opset_)
 
+    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_any_all(self):
         for l_ in [keras.backend.any, keras.backend.all]:
             for axis in [1, -1]:
@@ -595,6 +600,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         layer = Cropping2D(cropping=((1, 2), (2, 3)), data_format='channels_last')
         self._misc_conv_helper(layer, ishape, opset_)
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_upsample(self):
         if is_keras_later_than('2.1.6'):
             ishape = (20, 5)
@@ -646,6 +652,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._dot_helper(False, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
         self._dot_helper(True, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_dot2(self):
         input_1_shapes = [[32, 20, 1], [2, 3, 5], [2, 3, 5], [4, 3, 5], [2, 7], [2, 3, 4, 12, 3], [1, 3]]
         input_2_shapes = [[32, 30, 20], [2, 3, 5], [2, 3, 5], [4, 5], [2, 7, 5], [2, 3, 4, 15, 3], [1, 3]]
@@ -1146,35 +1153,35 @@ class TestKerasTF2ONNX(unittest.TestCase):
             if strides > 1:
                 x = ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(x)
 
-            x = Conv2D(filters // 2, (1, 1), padding='same', name='bottleneck_'+str(block_id)+'_conv_0',
-                          use_bias=False, data_format=K.image_data_format())(x)
+            x = Conv2D(filters // 2, (1, 1), padding='same', name='bottleneck_' + str(block_id) + '_conv_0',
+                       use_bias=False, data_format=K.image_data_format())(x)
 
-            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_0')(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_' + str(block_id) + '_bnorm_0')(x)
 
             if activation == 'relu':
-                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_0')(x)
+                x = ReLU(name='bottleneck_' + str(block_id) + '_relu_0')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_0')(x)
+                x = LeakyReLU(name='bottleneck_' + str(block_id) + '_leaky_0')(x)
             else:
                 assert False
 
-            x = Conv2D(filters // 2, (3, 3), padding=padding, name='bottleneck_'+str(block_id)+'_conv_1',
-                          strides=strides, use_bias=False, data_format=K.image_data_format())(x)
-            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_1')(x)
+            x = Conv2D(filters // 2, (3, 3), padding=padding, name='bottleneck_' + str(block_id) + '_conv_1',
+                       strides=strides, use_bias=False, data_format=K.image_data_format())(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_' + str(block_id) + '_bnorm_1')(x)
             if activation == 'relu':
-                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_1')(x)
+                x = ReLU(name='bottleneck_' + str(block_id) + '_relu_1')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_1')(x)
+                x = LeakyReLU(name='bottleneck_' + str(block_id) + '_leaky_1')(x)
             else:
                 assert False
 
-            x = Conv2D(filters, (1, 1), padding='same', name='bottleneck_'+str(block_id)+'_conv_2',
-                          use_bias=False, data_format=K.image_data_format())(x)
-            x = BatchNormalization(axis=ch_axis, name='bottleneck_'+str(block_id)+'_bnorm_2')(x)
+            x = Conv2D(filters, (1, 1), padding='same', name='bottleneck_' + str(block_id) + '_conv_2',
+                       use_bias=False, data_format=K.image_data_format())(x)
+            x = BatchNormalization(axis=ch_axis, name='bottleneck_' + str(block_id) + '_bnorm_2')(x)
             if activation == 'relu':
-                x = ReLU(name='bottleneck_'+str(block_id)+'_relu_2')(x)
+                x = ReLU(name='bottleneck_' + str(block_id) + '_relu_2')(x)
             elif activation == 'leaky':
-                x = LeakyReLU(name='bottleneck_'+str(block_id)+'_leaky_2')(x)
+                x = LeakyReLU(name='bottleneck_' + str(block_id) + '_leaky_2')(x)
             else:
                 assert False
 
@@ -1309,7 +1316,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             output = Concatenate(name="output")(outputs)
             output = IdentityLayer()(output)
             model1 = Model(image_input, output)
-            onnx_model = keras2onnx.convert_keras(model1, model1.name, target_opset=7)
+            onnx_model = keras2onnx.convert_keras(model1, model1.name, target_opset=7, debug_mode=debug_mode)
             x = np.random.rand(2, 700, 420, 1).astype(np.float32)
             expected = model1.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
