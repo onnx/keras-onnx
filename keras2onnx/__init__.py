@@ -20,8 +20,10 @@ try:
     import os.path
     from os.path import dirname, abspath
     import tensorflow
+    from distutils.version import StrictVersion
 
-    tensorflow.compat.v1.disable_tensor_equality()
+    if StrictVersion(tensorflow.__version__.split('-')[0]) >= StrictVersion('2.0.0'):
+        tensorflow.compat.v1.disable_tensor_equality()
     sys.path.insert(0, os.path.join(dirname(abspath(__file__)), 'ktf2onnx'))
 except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
