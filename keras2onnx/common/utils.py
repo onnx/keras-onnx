@@ -9,7 +9,6 @@ from __future__ import print_function
 
 import logging
 import functools
-import tensorflow as tf
 
 
 class FunctionStaticVariable(object):
@@ -39,7 +38,6 @@ def k2o_logger():  # type: () -> logging.Logger
         ch.setLevel(logging.WARNING)
         logger.addHandler(ch)
     logger.setLevel(logging.WARNING)
-    tf.logging.set_verbosity(tf.logging.WARN)
     return logger
 
 

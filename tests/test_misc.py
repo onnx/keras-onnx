@@ -1,8 +1,8 @@
 import unittest
-import tensorflow as tf
 import numpy as np
 
 from keras2onnx.subgraph import create_subgraph
+from keras2onnx.proto.tfcompat import tensorflow as tf
 import keras2onnx.common as _cmn
 import keras2onnx.proto as _proto
 

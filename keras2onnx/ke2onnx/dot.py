@@ -7,6 +7,7 @@ import numbers
 import numpy as np
 
 from ..proto import is_keras_later_than
+from ..proto.tfcompat import is_tf2
 from ..common import cvtfunc
 from ..common.onnx_ops import OnnxOperatorBuilder
 
@@ -21,8 +22,9 @@ def _calculate_keras_dot_output_shapes(operator):
         op = operator.raw_operator
         shape = []
         for i in op.output.shape:
-            if isinstance(i.value, numbers.Integral):
-                shape.append(i.value)
+            n = i if is_tf2 else i.value
+            if isinstance(n, numbers.Integral):
+                shape.append(n)
             else:
                 shape.append(None)
         operator.outputs[0].type.shape = shape
@@ -69,7 +71,8 @@ def convert_keras_dot_224(scope, operator, container):
     normalized_input_names = []
     if op.normalize:
         for i_, tensor_name in enumerate(operator.input_full_names):
-            normalized_tensor_name = oopb.apply_normalization(tensor_name, name=operator.full_name+'_normalize', axis=axes[i_])
+            normalized_tensor_name = oopb.apply_normalization(tensor_name, name=operator.full_name + '_normalize',
+                                                              axis=axes[i_])
             normalized_input_names += normalized_tensor_name
     else:
         normalized_input_names = operator.input_full_names

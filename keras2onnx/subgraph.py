@@ -5,7 +5,7 @@
 ###############################################################################
 import six
 import copy
-import tensorflow as tf
+from .proto.tfcompat import tensorflow as tf
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.core.framework import graph_pb2
 from tensorflow.core.framework import node_def_pb2
@@ -13,7 +13,8 @@ from tensorflow.python.framework import tensor_util
 
 
 def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault']
+    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault'] and \
+           node.outputs[0].dtype.name != 'resource'
 
 
 def tsname_to_node(name):
