@@ -5,10 +5,9 @@
 ###############################################################################
 import os
 import unittest
-import tensorflow as tf
 import keras2onnx
 import numpy as np
-from keras2onnx.proto.tfcompat import is_tf2
+from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
 from test_utils import run_onnx_runtime
 

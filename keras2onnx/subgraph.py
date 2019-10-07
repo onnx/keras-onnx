@@ -5,7 +5,7 @@
 ###############################################################################
 import six
 import copy
-import tensorflow as tf
+from .proto.tfcompat import tensorflow as tf
 from tensorflow.core.framework import attr_value_pb2
 from tensorflow.core.framework import graph_pb2
 from tensorflow.core.framework import node_def_pb2
@@ -153,7 +153,7 @@ def create_subgraph(tf_graph, node_list, sess, dst_scope=None):
                     output_node.attr["dtype"].CopyFrom(input_node.attr["DstT"])
                 else:
                     raise RuntimeError("Can't get the node data type for %s" % input_node.name)
-            ts_shape = tf.compat.v1.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
+            ts_shape = tf.graph_util.tensor_shape_from_node_def_name(tf_graph, input_node.name)
             if len(ts_shape) == 0:
                 ts_shape = tf_graph.get_operation_by_name(input_node.name).node_def.attr['shape'].shape
             else:

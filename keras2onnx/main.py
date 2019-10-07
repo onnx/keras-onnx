@@ -4,8 +4,8 @@
 # license information.
 ###############################################################################
 import logging
-import tensorflow as tf
 from .proto import keras, is_tf_keras
+from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
@@ -167,7 +167,7 @@ def convert_tensorflow(frozen_graph_def,
     custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
     if custom_op_conversions:
         custom_op_handlers.update(custom_op_conversions)
-    with tf.compat.v1.Session(graph=tf_graph):
+    with tf.Session(graph=tf_graph):
         if not input_names:
             input_nodes = list(_collect_input_nodes(tf_graph, output_names)[0])
             input_names = [nd_.outputs[0].name for nd_ in input_nodes]

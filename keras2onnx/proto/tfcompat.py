@@ -31,3 +31,9 @@ def dump_graph_into_tensorboard(tf_graph):
             from tensorflow.python.summary import summary
             pb_visual_writer = summary.FileWriter(_tb_log_dir)
             pb_visual_writer.add_graph(tf_graph)
+
+
+if is_tf2:
+    tensorflow = _tf.compat.v1
+else:
+    tensorflow = _tf

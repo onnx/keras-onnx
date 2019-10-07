@@ -4,9 +4,9 @@
 # license information.
 ###############################################################################
 import six
-import tensorflow as tf
 from six.moves import queue
 from .proto import keras
+from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, normalize_tensor_shape
 from .common import k2o_logger, get_default_batch_size
 from .ke2onnx import extract_inbound_nodes, list_input_tensors, \
