@@ -5,7 +5,7 @@
 ###############################################################################
 import six
 from six.moves import queue
-from .proto import keras
+from .proto import keras, is_tf_keras
 from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, normalize_tensor_shape
 from .common import k2o_logger, get_default_batch_size
@@ -727,7 +727,7 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         q_overall.put_nowait(n_)
 
     visited = set()  # since the output could be shared among the successor nodes.
-    func_parse_node = _parse_nodes_v2 if is_tf2 else _parse_nodes
+    func_parse_node = _parse_nodes_v2 if is_tf2 and is_tf_keras else _parse_nodes
     inference_nodeset = _build_inference_nodeset(graph, model_outputs)
     keras_nodeset = _build_keras_nodeset(inference_nodeset, keras_node_dict)
     while not q_overall.empty():
