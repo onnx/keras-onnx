@@ -24,7 +24,12 @@ def convert_keras_pooling_core(scope, operator, container, n_dims,
     op_type_prefix = 'Global' if is_global else ''
     onnx_op_type = "AveragePool" if op_type == 'Avg' else 'MaxPool'
     attrs = {}
-    op_version = 10 if container.target_opset >= 10 else 7
+    if container.target_opset < 10:
+        op_version = 7
+    elif container.target_opset < 11:
+        op_version = 10
+    else:
+        op_version = 11
     if not is_global:
         attrs['strides'] = list(op.strides)
         attrs['kernel_shape'] = op.pool_size

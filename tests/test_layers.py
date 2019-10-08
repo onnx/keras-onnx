@@ -104,12 +104,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
-        _custom_op_handlers = {
-            'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(10)['Round']}
-        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
-        data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
+        # TODO: add opset_ = 11
+        for opset_ in [10]:
+            _custom_op_handlers = {
+                'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(opset_)['Round']}
+            onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
+            data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
     def _test_stridedslice_with_version(self, target_opset):
         for v1 in [-1, 1]:
@@ -144,6 +146,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_stridedslice(self):
+        # TODO: add opset_ = 11
         for opset_ in [9, 10]:
             self._test_stridedslice_with_version(opset_)
             self._test_stridedslice_ellipsis_mask_with_version(opset_)
@@ -578,6 +581,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_crop(self):
         # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
+        # TODO: add opset_ = 11
         for opset_ in [10]:
             ishape = (10, 20)
             for crop_v in [2, (1, 2)]:
@@ -908,7 +912,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             out = LSTM(lstm_dim, return_sequences=return_sequences, stateful=True)(inp)
             keras_model = keras.Model(inputs=inp, outputs=out)
 
-            onnx_model = keras2onnx.convert_keras(keras_model, target_opset=10)
+            onnx_model = keras2onnx.convert_keras(keras_model)
             expected = keras_model.predict(data)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
@@ -1138,7 +1142,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = _conv_layer(x, 16, 3)
         model = Model(inputs=[input], outputs=[x])
 
-        onnx_model = keras2onnx.convert_keras(model, model.name)
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=11)
         x = np.random.rand(2, 3, 320, 320).astype(np.float32)
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
