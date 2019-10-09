@@ -104,14 +104,13 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
-        # TODO: add opset_ = 11
-        for opset_ in [10]:
-            _custom_op_handlers = {
-                'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(opset_)['Round']}
-            onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
-            data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
-            expected = model.predict(data)
-            self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
+        opset_ = get_opset_number_from_onnx()
+        _custom_op_handlers = {
+            'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(opset_)['Round']}
+        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
+        data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
     def _test_stridedslice_with_version(self, target_opset):
         for v1 in [-1, 1]:
@@ -146,11 +145,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_stridedslice(self):
-        # TODO: add opset_ = 11
-        for opset_ in [9, 10]:
-            self._test_stridedslice_with_version(opset_)
-            self._test_stridedslice_ellipsis_mask_with_version(opset_)
-            self._test_stridedslice_shrink_mask_with_version(opset_)
+        opset_ = get_opset_number_from_onnx()
+        self._test_stridedslice_with_version(opset_)
+        self._test_stridedslice_ellipsis_mask_with_version(opset_)
+        self._test_stridedslice_shrink_mask_with_version(opset_)
 
     @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_any_all(self):
@@ -581,22 +579,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_crop(self):
         # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
-        # TODO: add opset_ = 11
-        for opset_ in [10]:
-            ishape = (10, 20)
-            for crop_v in [2, (1, 2)]:
-                layer = Cropping1D(cropping=crop_v)
-                self._misc_conv_helper(layer, ishape, opset_)
+        opset_ = get_opset_number_from_onnx()
+        ishape = (10, 20)
+        for crop_v in [2, (1, 2)]:
+            layer = Cropping1D(cropping=crop_v)
+            self._misc_conv_helper(layer, ishape, opset_)
 
-            for data_format_ in ['channels_last', 'channels_first']:
-                ishape = (20, 20, 1)
-                for crop_v in [2, (2, 2), ((1, 2), (2, 3))]:
-                    layer = Cropping2D(cropping=crop_v, data_format=data_format_)
-                    self._misc_conv_helper(layer, ishape, opset_)
-                ishape = (20, 20, 20, 1)
-                for crop_v in [2, (2, 3, 4), ((1, 2), (2, 3), (3, 5))]:
-                    layer = Cropping3D(cropping=crop_v, data_format=data_format_)
-                    self._misc_conv_helper(layer, ishape, opset_)
+        for data_format_ in ['channels_last', 'channels_first']:
+            ishape = (20, 20, 1)
+            for crop_v in [2, (2, 2), ((1, 2), (2, 3))]:
+                layer = Cropping2D(cropping=crop_v, data_format=data_format_)
+                self._misc_conv_helper(layer, ishape, opset_)
+            ishape = (20, 20, 20, 1)
+            for crop_v in [2, (2, 3, 4), ((1, 2), (2, 3), (3, 5))]:
+                layer = Cropping3D(cropping=crop_v, data_format=data_format_)
+                self._misc_conv_helper(layer, ishape, opset_)
 
         # TODO handle other cases for opset 8
         ishape = (20, 20, 1)
