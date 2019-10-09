@@ -180,7 +180,7 @@ class TestDiscoGAN(unittest.TestCase):
         y = np.random.rand(batch, 128, 128, 3).astype(np.float32)
         expected = keras_model.predict([x, y])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected, self.model_files, rtol=1.e-2, atol=5.e-3))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected, self.model_files, rtol=1.e-2, atol=1.e-2))
 
 
 if __name__ == "__main__":

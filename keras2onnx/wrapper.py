@@ -210,7 +210,7 @@ def on_StridedSlice_9(ctx, node, name, args):
     return nodes
 
 
-def on_Round(ctx, node, name, args):
+def on_Round_10(ctx, node, name, args):
     const_name = tf2onnx.utils.make_name(node.name)
     const_node = ctx.make_const(const_name, (-0.5 * np.ones((), dtype=np.float32)))
     cast_name = tf2onnx.utils.make_name(node.name)
@@ -223,6 +223,10 @@ def on_Round(ctx, node, name, args):
     node.input[0] = add_output_name
     node.type = "Ceil"
     return [const_node, add_node, node]
+
+
+def on_Round(ctx, node, name, args):
+    node.type = "Round"
 
 
 def on_TopKV2(ctx, node, name, args):
@@ -266,7 +270,7 @@ def on_AllAny(ctx, node, name, args):
 
 def tf2onnx_builtin_conversion(opset):
     return {
-        'Round': (on_Round, []),
+        'Round': (on_Round_10 if opset <= 10 else on_Round, []),
         'StridedSlice': (on_StridedSlice_9 if opset <= 9 else on_StridedSlice, []),
         'TopKV2': (on_TopKV2, []),
         'All': (on_AllAny, []),
