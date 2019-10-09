@@ -580,20 +580,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_crop(self):
         # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
         opset_ = get_opset_number_from_onnx()
-        ishape = (10, 20)
-        for crop_v in [2, (1, 2)]:
-            layer = Cropping1D(cropping=crop_v)
-            self._misc_conv_helper(layer, ishape, opset_)
+        if opset_ >= 10:
+            ishape = (10, 20)
+            for crop_v in [2, (1, 2)]:
+                layer = Cropping1D(cropping=crop_v)
+                self._misc_conv_helper(layer, ishape, opset_)
 
-        for data_format_ in ['channels_last', 'channels_first']:
-            ishape = (20, 20, 1)
-            for crop_v in [2, (2, 2), ((1, 2), (2, 3))]:
-                layer = Cropping2D(cropping=crop_v, data_format=data_format_)
-                self._misc_conv_helper(layer, ishape, opset_)
-            ishape = (20, 20, 20, 1)
-            for crop_v in [2, (2, 3, 4), ((1, 2), (2, 3), (3, 5))]:
-                layer = Cropping3D(cropping=crop_v, data_format=data_format_)
-                self._misc_conv_helper(layer, ishape, opset_)
+            for data_format_ in ['channels_last', 'channels_first']:
+                ishape = (20, 20, 1)
+                for crop_v in [2, (2, 2), ((1, 2), (2, 3))]:
+                    layer = Cropping2D(cropping=crop_v, data_format=data_format_)
+                    self._misc_conv_helper(layer, ishape, opset_)
+                ishape = (20, 20, 20, 1)
+                for crop_v in [2, (2, 3, 4), ((1, 2), (2, 3), (3, 5))]:
+                    layer = Cropping3D(cropping=crop_v, data_format=data_format_)
+                    self._misc_conv_helper(layer, ishape, opset_)
 
         # TODO handle other cases for opset 8
         ishape = (20, 20, 1)
