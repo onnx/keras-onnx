@@ -3,11 +3,11 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import numpy
+import numpy as np
 from .activation import activation_map
 from ..proto import keras
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
+from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose, OnnxOperatorBuilder
 
 activation_get = keras.activations.get
 SeparableConv2D = keras.layers.SeparableConv2D
@@ -57,7 +57,7 @@ def process_separable_conv_2nd(scope, operator, container, convolution_input_nam
                                   parameters[2].shape, parameters[2].flatten())
         convolution_input_names.append(bias_tensor_name)
 
-    all_ones = numpy.ones(n_dims, numpy.int8)
+    all_ones = np.ones(n_dims, np.int8)
     attrs['dilations'] = all_ones
     attrs['strides'] = all_ones
     attrs['kernel_shape'] = all_ones
@@ -111,13 +111,13 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
         shape = weight_params.shape
         # weight_params = weight_params.transpose(weight_perm_axes)
         new_shape = shape[:2] + (1, shape[2] * shape[3])
-        weight_params = numpy.reshape(weight_params, new_shape)
+        weight_params = np.reshape(weight_params, new_shape)
         weight_params = weight_params.transpose(weight_perm_axes)
     elif is_separable_conv:
         group = weight_params.shape[-2]
         shape = weight_params.shape
         new_shape = shape[:-2] + (1, shape[-2] * shape[-1])
-        weight_params = numpy.reshape(weight_params, new_shape).transpose(weight_perm_axes)
+        weight_params = np.reshape(weight_params, new_shape).transpose(weight_perm_axes)
     else:
         weight_params = weight_params.transpose(weight_perm_axes)
         group = 1
@@ -138,6 +138,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
 
     input_shape = op._input_shape if hasattr(op, '_input_shape') else op.input_shape
     output_shape = op._output_shape if hasattr(op, '_output_shape') else op.output_shape
+    padded_result = None
 
     if op.padding == 'valid':
         attrs['auto_pad'] = 'VALID'
@@ -161,12 +162,26 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                                                    op.dilation_rate,
                                                    list(range(
                                                        len(input_shape))) if channels_first else input_perm_axes)
+    elif op.padding == 'causal':
+        assert n_dims == 1
+        attrs['auto_pad'] = 'VALID'
+        left_pad = op.dilation_rate[0] * (op.kernel_size[0] - 1)
+        oopb = OnnxOperatorBuilder(container, scope)
+        padded_result = oopb.add_node('Pad',
+                                      [convolution_input_names[0],
+                                       ('_pad', oopb.int64, np.array([0, 0, left_pad, 0, 0, 0], dtype='int64'))],
+                                      operator.output_full_names[0] + '_padded_result',
+                                      op_domain='com.microsoft' if container.target_opset < 11 else '')
     else:
         raise RuntimeError("Unsupported padding type '{}'".format(op.padding))
 
     intermediate_output_name = scope.get_unique_variable_name('convolution_output')
-    container.add_node(op_type, convolution_input_names,
-                       intermediate_output_name, **attrs)
+    if padded_result:
+        container.add_node(op_type, [padded_result, convolution_input_names[1]],
+                           intermediate_output_name, **attrs)
+    else:
+        container.add_node(op_type, convolution_input_names,
+                           intermediate_output_name, **attrs)
 
     if is_separable_conv:
         intermediate_output_name = process_separable_conv_2nd(scope, operator, container, [intermediate_output_name],
