@@ -7,7 +7,7 @@ import numpy
 from .activation import activation_map
 from ..proto import keras
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_identity, apply_softmax, apply_transpose
+from ..common.onnx_ops import apply_identity, apply_pad, apply_softmax, apply_transpose
 
 activation_get = keras.activations.get
 SeparableConv2D = keras.layers.SeparableConv2D
@@ -138,6 +138,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
 
     input_shape = op._input_shape if hasattr(op, '_input_shape') else op.input_shape
     output_shape = op._output_shape if hasattr(op, '_output_shape') else op.output_shape
+    padded_result = None
 
     if op.padding == 'valid':
         attrs['auto_pad'] = 'VALID'
@@ -161,12 +162,22 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
                                                    op.dilation_rate,
                                                    list(range(
                                                        len(input_shape))) if channels_first else input_perm_axes)
+    elif op.padding == 'causal':
+        assert n_dims == 1
+        attrs['auto_pad'] = 'VALID'
+        left_pad = op.dilation_rate[0] * (op.kernel_size[0] - 1)
+        padded_result = scope.get_unique_variable_name('padded_result')
+        apply_pad(scope, convolution_input_names[0], padded_result, container, pads=[0, 0, left_pad, 0, 0, 0], value=0.)
     else:
         raise RuntimeError("Unsupported padding type '{}'".format(op.padding))
 
     intermediate_output_name = scope.get_unique_variable_name('convolution_output')
-    container.add_node(op_type, convolution_input_names,
-                       intermediate_output_name, **attrs)
+    if padded_result:
+        container.add_node(op_type, [padded_result, convolution_input_names[1]],
+                           intermediate_output_name, **attrs)
+    else:
+        container.add_node(op_type, convolution_input_names,
+                           intermediate_output_name, **attrs)
 
     if is_separable_conv:
         intermediate_output_name = process_separable_conv_2nd(scope, operator, container, [intermediate_output_name],
