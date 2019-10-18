@@ -622,11 +622,11 @@ def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_o
             q_overall.put_nowait(predecessor)
 
 
-def _visit_nodelist(activated_keras_nodes, input_nodes,
+def _visit_nodelist(activated_keras_nodes, input_nodes, layer_key,
                     keras_node_dict, node, nodelist, q_overall, visited):
     subgraph = list()
     i_subgraph = set()
-    for ot_ in (_get_output_nodes(activated_keras_nodes, None, node
+    for ot_ in (_get_output_nodes(activated_keras_nodes, layer_key, node
                                   ) if activated_keras_nodes else [node]):
         if ot_ not in nodelist:
             visited.add(ot_)
@@ -662,7 +662,7 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, ker
         else:
             activated_keras_nodes = _create_keras_nodelist(layer_key, inference_nodeset, node)
 
-    _visit_nodelist(activated_keras_nodes, graph_inputs, keras_node_dict, node, nodelist,
+    _visit_nodelist(activated_keras_nodes, graph_inputs, None, keras_node_dict, node, nodelist,
                     q_overall, visited)
 
     return layer_key, None
@@ -691,7 +691,7 @@ def _parse_nodes(graph, inference_nodeset, graph_inputs, keras_node_dict, keras_
     else:
         activated_keras_nodes = _general_nodelist_closure(node, inference_nodeset, keras_nodeset)
 
-    _visit_nodelist(activated_keras_nodes, graph_inputs,
+    _visit_nodelist(activated_keras_nodes, graph_inputs, layer_key_,
                     keras_node_dict, node, nodelist, q_overall, visited)
 
     return layer_key_, model_
