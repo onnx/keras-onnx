@@ -693,6 +693,7 @@ def _parse_nodes(graph, inference_nodeset, graph_inputs, keras_node_dict, keras_
 
     _visit_nodelist(activated_keras_nodes, graph_inputs, layer_key_,
                     keras_node_dict, node, nodelist, q_overall, visited)
+
     return layer_key_, model_
 
 
