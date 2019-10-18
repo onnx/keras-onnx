@@ -275,9 +275,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._conv1_helper(4, 5, 3, 1, 15)
         self._conv1_helper(4, 5, 3, 2, 15)
 
-    def test_conv1d_padding_same(self):
+    def test_conv1d_padding(self):
         self._conv1_helper(4, 5, 3, 1, 15, padding='same')
-        # Not sure about 'causal'.
+
+        test_causal = False
+        if is_tf_keras:
+            import tensorflow
+            from distutils.version import StrictVersion
+            if StrictVersion(tensorflow.__version__.split('-')[0]) >= StrictVersion('1.12.0'):
+                test_causal = True
+        else:
+            test_causal = True
+
+        if test_causal:
+            self._conv1_helper(4, 5, 3, 1, 15, padding='causal')
 
     def test_conv1d_activation(self):
         self._conv1_helper(4, 5, 3, 1, 15, activation='sigmoid')
