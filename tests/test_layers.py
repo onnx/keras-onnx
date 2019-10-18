@@ -277,7 +277,17 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_conv1d_padding(self):
         self._conv1_helper(4, 5, 3, 1, 15, padding='same')
-        if not (is_tf_keras and is_keras_older_than('2.2.4')):
+
+        test_causal = False
+        if is_tf_keras:
+            import tensorflow
+            from distutils.version import StrictVersion
+            if StrictVersion(tensorflow.__version__.split('-')[0]) >= StrictVersion('1.12.0'):
+                test_causal = True
+        else:
+            test_causal = True
+
+        if test_causal:
             self._conv1_helper(4, 5, 3, 1, 15, padding='causal')
 
     def test_conv1d_activation(self):
