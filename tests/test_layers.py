@@ -261,6 +261,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                              dilation_rate=1, activation=activation, use_bias=bias, **kwargs))
         data = np.random.uniform(-0.5, 0.5, size=(1,) + input_shape).astype(np.float32)
         onnx_model = keras2onnx.convert_keras(model, model.name)
+
         expected = model.predict(data)
         self.assertTrue(
             run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files, rtol=rtol, atol=atol))
