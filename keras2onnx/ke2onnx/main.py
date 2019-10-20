@@ -6,32 +6,32 @@
 from collections.abc import Iterable
 
 import numpy as np
+from ..proto import keras, is_tf_keras, is_keras_older_than
+from ..proto.tfcompat import is_tf2
+from ..common import with_variable, k2o_logger
+from ..common.onnx_ops import apply_identity, apply_tile
+from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
-from .bidirectional import convert_bidirectional
+from .merge import convert_keras_merge_layer
+from .dense import convert_keras_dense
+from .dot import convert_keras_dot
+from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
 from .conv import convert_keras_conv1d, convert_keras_conv2d, convert_keras_conv3d
 from .conv import convert_keras_conv_transpose_2d, convert_keras_conv_transpose_3d, convert_keras_depthwise_conv_2d
 from .conv import convert_keras_separable_conv1d, convert_keras_separable_conv2d
+from .pooling import convert_keras_max_pooling_1d, convert_keras_max_pooling_2d, convert_keras_max_pooling_3d
+from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, \
+    convert_keras_average_pooling_3d
 from .crop import convert_keras_crop_1d, convert_keras_crop_2d, convert_keras_crop_3d
-from .dense import convert_keras_dense
-from .dot import convert_keras_dot
+from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
 from .embedding import convert_keras_embed
+from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
 from .lstm import convert_keras_lstm
-from .merge import convert_keras_merge_layer
-from .pooling import (convert_keras_average_pooling_1d, convert_keras_average_pooling_2d,
-                      convert_keras_average_pooling_3d, convert_keras_max_pooling_1d, convert_keras_max_pooling_2d,
-                      convert_keras_max_pooling_3d)
-from .simplernn import convert_keras_simple_rnn
-from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
-from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
-from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_identity, apply_tile
-from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
-from ..proto import keras, is_tf_keras, is_keras_older_than
-from ..proto.tfcompat import is_tf2
+from .bidirectional import convert_bidirectional
 
 
 def extract_inbound_nodes(layer):
