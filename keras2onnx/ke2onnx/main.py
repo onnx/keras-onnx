@@ -91,12 +91,8 @@ def convert_keras_concat(scope, operator, container):
 
 def convert_keras_flatten(scope, operator, container):
     iop = operator.raw_operator
-    target_shape = 1
-    for idx, val in enumerate(iop.output_shape):
-        if idx > 0:
-            target_shape = target_shape * val
-    target_shape = (-1, target_shape)
     shape_len = len(iop.input_shape)
+
     if iop.data_format == 'channels_last' or shape_len < 3:
         _apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                        operator_name=operator.raw_operator.name)
@@ -106,8 +102,8 @@ def convert_keras_flatten(scope, operator, container):
         input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
         apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container,
                         operator_name=operator.raw_operator.name + "_transpose", perm=perm)
-        apply_reshape(scope, input_tensor_name, operator.outputs[0].full_name, container,
-                      operator_name=operator.raw_operator.name, desired_shape=target_shape)
+        _apply_flatten(scope, input_tensor_name, operator.outputs[0].full_name, container,
+                       operator_name=operator.raw_operator.name)
 
 
 # TODO: This function should be moved to onnxconverter_common.onnx_ops
