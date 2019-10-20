@@ -6,32 +6,32 @@
 from collections.abc import Iterable
 
 import numpy as np
-from ..proto import keras, is_tf_keras, is_keras_older_than
-from ..proto.tfcompat import is_tf2
-from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_identity, apply_tile
-from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
 from .batch_norm import convert_keras_batch_normalization
-from .merge import convert_keras_merge_layer
-from .dense import convert_keras_dense
-from .dot import convert_keras_dot
-from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
+from .bidirectional import convert_bidirectional
 from .conv import convert_keras_conv1d, convert_keras_conv2d, convert_keras_conv3d
 from .conv import convert_keras_conv_transpose_2d, convert_keras_conv_transpose_3d, convert_keras_depthwise_conv_2d
 from .conv import convert_keras_separable_conv1d, convert_keras_separable_conv2d
-from .pooling import convert_keras_max_pooling_1d, convert_keras_max_pooling_2d, convert_keras_max_pooling_3d
-from .pooling import convert_keras_average_pooling_1d, convert_keras_average_pooling_2d, \
-    convert_keras_average_pooling_3d
 from .crop import convert_keras_crop_1d, convert_keras_crop_2d, convert_keras_crop_3d
-from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
+from .dense import convert_keras_dense
+from .dot import convert_keras_dot
 from .embedding import convert_keras_embed
-from .simplernn import convert_keras_simple_rnn
 from .gru import convert_keras_gru
 from .lstm import convert_keras_lstm
-from .bidirectional import convert_bidirectional
+from .merge import convert_keras_merge_layer
+from .pooling import (convert_keras_average_pooling_1d, convert_keras_average_pooling_2d,
+                      convert_keras_average_pooling_3d, convert_keras_max_pooling_1d, convert_keras_max_pooling_2d,
+                      convert_keras_max_pooling_3d)
+from .simplernn import convert_keras_simple_rnn
+from .upsample import convert_keras_upsample_1d, convert_keras_upsample_2d, convert_keras_upsample_3d
+from .zeropad import convert_keras_zero_pad_1d, convert_keras_zero_pad_2d, convert_keras_zero_pad_3d
+from ..common import with_variable, k2o_logger
+from ..common.onnx_ops import apply_identity, apply_tile
+from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
+from ..proto import keras, is_tf_keras, is_keras_older_than
+from ..proto.tfcompat import is_tf2
 
 
 def extract_inbound_nodes(layer):
@@ -98,8 +98,8 @@ def convert_keras_flatten(scope, operator, container):
     target_shape = (-1, target_shape)
     shape_len = len(iop.input_shape)
     if iop.data_format == 'channels_last' or shape_len < 3:
-        apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                      operator_name=operator.raw_operator.name, desired_shape=target_shape)
+        _apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
+                       operator_name=operator.raw_operator.name)
     else:
         perm = list(range(2, shape_len))
         perm = [0] + perm + [1]
@@ -108,6 +108,13 @@ def convert_keras_flatten(scope, operator, container):
                         operator_name=operator.raw_operator.name + "_transpose", perm=perm)
         apply_reshape(scope, input_tensor_name, operator.outputs[0].full_name, container,
                       operator_name=operator.raw_operator.name, desired_shape=target_shape)
+
+
+# TODO: This function should be moved to onnxconverter_common.onnx_ops
+def _apply_flatten(scope, input_name, output_name, container, operator_name=None):
+    from onnxconverter_common.onnx_ops import _create_name_or_use_existing_one
+    name = _create_name_or_use_existing_one(scope, 'Flatten', operator_name)
+    container.add_node('Flatten', input_name, output_name, name=name)
 
 
 def _apply_not_equal(oopb, target_opset, operator):
