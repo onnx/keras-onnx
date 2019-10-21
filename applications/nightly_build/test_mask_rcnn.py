@@ -45,8 +45,6 @@ class TestMaskRCNN(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
         self.assertTrue(True)
 
-        # skip comparison for inference
-        '''
         import skimage
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         image = skimage.io.imread(img_path)
@@ -89,7 +87,6 @@ class TestMaskRCNN(unittest.TestCase):
                 print_mismatches(case_name, n_, expected_list, actual_list, atol, rtol)
 
         self.assertTrue(res)
-        '''
 
 
 if __name__ == "__main__":
