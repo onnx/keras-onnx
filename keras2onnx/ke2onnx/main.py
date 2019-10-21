@@ -10,7 +10,7 @@ from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
 from ..common import with_variable, k2o_logger
 from ..common.onnx_ops import apply_identity, apply_tile
-from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, apply_flatten, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -94,23 +94,16 @@ def convert_keras_flatten(scope, operator, container):
     shape_len = len(iop.input_shape)
 
     if iop.data_format == 'channels_last' or shape_len < 3:
-        _apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                       operator_name=operator.raw_operator.name)
+        apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
+                      operator_name=operator.raw_operator.name)
     else:
         perm = list(range(2, shape_len))
         perm = [0] + perm + [1]
         input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
         apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container,
                         operator_name=operator.raw_operator.name + "_transpose", perm=perm)
-        _apply_flatten(scope, input_tensor_name, operator.outputs[0].full_name, container,
-                       operator_name=operator.raw_operator.name)
-
-
-# TODO: This function should be moved to onnxconverter_common.onnx_ops
-def _apply_flatten(scope, input_name, output_name, container, operator_name=None):
-    from onnxconverter_common.onnx_ops import _create_name_or_use_existing_one
-    name = _create_name_or_use_existing_one(scope, 'Flatten', operator_name)
-    container.add_node('Flatten', input_name, output_name, name=name)
+        apply_flatten(scope, input_tensor_name, operator.outputs[0].full_name, container,
+                      operator_name=operator.raw_operator.name)
 
 
 def _apply_not_equal(oopb, target_opset, operator):
