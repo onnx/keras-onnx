@@ -6,9 +6,11 @@
 from collections.abc import Iterable
 
 import numpy as np
-from ..proto import keras, is_keras_older_than
+from ..proto import keras, is_tf_keras, is_keras_older_than
+from ..proto.tfcompat import is_tf2
 from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_identity, apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_identity, apply_tile
+from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation
@@ -146,6 +148,22 @@ def convert_keras_masking(scope, operator, container):
                               name=operator.outputs[0].full_name)
 
 
+def convert_keras_permute(scope, operator, container):
+    axes = [0] + list(operator.raw_operator.dims)
+    apply_transpose(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container, perm=axes)
+
+
+def convert_keras_repeat_vector(scope, operator, container):
+    op = operator.raw_operator
+
+    intermediate_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_reshaped')
+    apply_reshape(scope, operator.inputs[0].full_name, intermediate_tensor_name, container,
+                  desired_shape=[-1, 1, op.input_shape[1]])
+
+    repeats = [1, int(op.n), 1]
+    apply_tile(scope, intermediate_tensor_name, operator.outputs[0].full_name, container, repeats=repeats)
+
+
 def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
@@ -234,8 +252,13 @@ keras_layer_to_operator = {
 
     _layer.Flatten: convert_keras_flatten,
     _layer.Reshape: convert_keras_reshape,
+    _layer.Permute: convert_keras_permute,
+    _layer.RepeatVector: convert_keras_repeat_vector,
 
+    _layer.AlphaDropout: convert_keras_training_only_layer,
     _layer.Dropout: convert_keras_training_only_layer,
+    _layer.GaussianDropout: convert_keras_training_only_layer,
+    _layer.GaussianNoise: convert_keras_training_only_layer,
 
     _layer.SimpleRNN: convert_keras_simple_rnn,
     _layer.GRU: convert_keras_gru,
@@ -251,6 +274,11 @@ if not is_keras_older_than('2.1.3'):
 if not is_keras_older_than('2.2.0'):
     keras_layer_to_operator.update({
         _adv_activations.ReLU: convert_keras_advanced_activation,
+    })
+
+if is_tf_keras and is_tf2:
+    keras_layer_to_operator.update({
+        _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
 
 

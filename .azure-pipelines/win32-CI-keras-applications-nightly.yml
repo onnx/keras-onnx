@@ -75,6 +75,7 @@ jobs:
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
+      pytest tests --doctest-modules --junitxml=junit/test-results.xml
       cd applications/nightly_build
       python run_all.py --exclude "test_mask_rcnn.py"
     displayName: 'pytest'

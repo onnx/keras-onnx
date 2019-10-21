@@ -12,9 +12,6 @@ from keras2onnx.proto import keras, is_tf_keras
 from test_utils import run_onnx_runtime
 from distutils.version import StrictVersion
 
-import importlib
-importlib.import_module('test_utils')
-
 Activation = keras.layers.Activation
 BatchNormalization = keras.layers.BatchNormalization
 Conv2D = keras.layers.Conv2D
@@ -30,6 +27,7 @@ UpSampling2D = keras.layers.UpSampling2D
 
 Sequential = keras.models.Sequential
 Model = keras.models.Model
+
 
 # From https://github.com/eriklindernoren/Keras-GAN/blob/master/cgan/cgan.py
 class CGAN():
@@ -69,7 +67,6 @@ class CGAN():
         return self.combined
 
     def build_generator(self):
-
         model = Sequential()
 
         model.add(Dense(256, input_dim=self.latent_dim))
@@ -96,7 +93,6 @@ class CGAN():
         return Model([noise, label], img)
 
     def build_discriminator(self):
-
         model = Sequential()
 
         model.add(Dense(512, input_dim=np.prod(self.img_shape)))
@@ -142,7 +138,9 @@ class TestCGAN(unittest.TestCase):
         y = np.random.rand(batch, 1).astype(np.float32)
         expected = keras_model.predict([x, y])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected, self.model_files))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model,
+                                         {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected,
+                                         self.model_files))
 
 
 if __name__ == "__main__":

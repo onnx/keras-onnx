@@ -66,7 +66,8 @@ class Operator:
         self.inputs.append(var)
 
     def add_output(self, var):
-        assert var.op_from is None
+        if var.op_from is not None:
+            assert False, "Tensor {} already processed".format(var.full_name)
         var.op_from = self
         self.outputs.append(var)
 

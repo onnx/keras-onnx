@@ -76,6 +76,7 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
+      pytest tests --doctest-modules --junitxml=junit/test-results.xml
       cd applications/nightly_build
       python run_all.py
     displayName: 'pytest'

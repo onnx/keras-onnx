@@ -16,11 +16,12 @@ from onnx import helper
 def get_opset_number_from_onnx():
     return onnx.defs.onnx_opset_version()
 
+
 def _check_onnx_version():
     import pkg_resources
     min_required_version = pkg_resources.parse_version('1.0.1')
     current_version = pkg_resources.get_distribution('onnx').parsed_version
-    assert current_version >= min_required_version , 'Keras2ONNX requires ONNX version 1.0.1 or a newer one'
+    assert current_version >= min_required_version, 'Keras2ONNX requires ONNX version 1.0.1 or a newer one'
 
 
 _check_onnx_version()

@@ -7,7 +7,7 @@
 keras2onnx
 This package converts keras models into ONNX for use with any inference engine supporting ONNX
 """
-__version__ = "1.5.2"
+__version__ = "1.6.0"
 __author__ = "Microsoft Corporation"
 __producer__ = "keras2onnx"
 
@@ -20,10 +20,13 @@ try:
     import os.path
     from os.path import dirname, abspath
     import tensorflow
+    from distutils.version import StrictVersion
+
+    if StrictVersion(tensorflow.__version__.split('-')[0]) >= StrictVersion('2.0.0'):
+        tensorflow.compat.v1.disable_tensor_equality()
     sys.path.insert(0, os.path.join(dirname(abspath(__file__)), 'ktf2onnx'))
 except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
-
 
 from .common import Variable, cvtfunc, set_logger_level
 from .funcbook import set_converter

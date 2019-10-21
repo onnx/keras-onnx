@@ -18,16 +18,19 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
+        TENSORFLOW_PATH: tensorflow==1.11.0
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras==2.2.5
+        TENSORFLOW_PATH: tensorflow==1.14.0
 
       Python37:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
+        TENSORFLOW_PATH: tensorflow
 
     maxParallel: 3
 
@@ -46,7 +49,7 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
-      pip install tensorflow==1.14.0
+      pip install $(TENSORFLOW_PATH)
       pip install $(KERAS)
       pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
