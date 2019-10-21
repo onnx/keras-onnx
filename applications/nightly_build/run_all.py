@@ -11,6 +11,7 @@ exclude_set = set(args.exclude.split()) if args.exclude is not None else set()
 mypath = '.'
 files = [f for f in listdir(mypath) if isfile(join(mypath, f)) and f.find("test_") == 0]
 files.sort()
+files = ['test_keras_applications.py']
 
 res_final = True
 for f_ in files:
