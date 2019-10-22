@@ -123,6 +123,20 @@ class TestKerasApplications(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    def test_tcn(self):
+        from tcn import TCN
+        batch_size, timesteps, input_dim = None, 20, 1
+        i = Input(batch_shape=(batch_size, timesteps, input_dim))
+        for return_sequences in [True, False]:
+            o = TCN(return_sequences=return_sequences)(i)  # The TCN layers are here.
+            o = Dense(1)(o)
+            model = keras.models.Model(inputs=[i], outputs=[o])
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            batch_size = 3
+            data = np.random.rand(batch_size, timesteps, input_dim).astype(np.float32).reshape((batch_size, timesteps, input_dim))
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+
 
 if __name__ == "__main__":
     unittest.main()
