@@ -22,13 +22,13 @@ jobs:
 
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: onnx==1.5.0
         KERAS: keras==2.2.5
         TENSORFLOW_PATH: tensorflow==1.14.0
 
       Python37:
         python.version: '3.7.3'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: onnx==1.5.0
         KERAS: keras
         TENSORFLOW_PATH: tensorflow
 
@@ -57,7 +57,6 @@ jobs:
       pip install -e .
       cd ..
       pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly
     displayName: 'Install dependencies'
 
   - script: |
