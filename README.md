@@ -44,6 +44,7 @@ We converted successfully for all the keras application models, and several othe
 | [Segnet, VGG-Segnet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py) | Computer Vision |
 | [UNet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/unet.py) | Computer Vision |
 | [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
+| [Temporal Convolutional Network](https://github.com/philipperemy/keras-tcn) | Time sequence |
 | [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
 | [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
 | [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
