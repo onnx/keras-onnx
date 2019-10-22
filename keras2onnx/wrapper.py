@@ -225,6 +225,59 @@ def on_Round_10(ctx, node, name, args):
     return [const_node, add_node, node]
 
 
+def on_Resize_11(ctx, node, name, args):
+    from onnx import onnx_pb
+    from tf2onnx.graph_builder import GraphBuilder
+    from tf2onnx import constants
+
+    # float32 out = ResizeBilinear/ResizeNearestNeighbor(T images, int size)
+    # https://www.tensorflow.org/api_docs/python/tf/image/resize_nearest_neighbor
+    # wants the input to be NHWC - adjust target_shape to this.
+    mode = "linear" if node.type == "ResizeBilinear" else "nearest"
+
+    # first create "scales" info for onnx upsample
+    # if shape of input and output known then  "scale" is calculated statically and set as a const node
+    shape = ctx.get_shape(node.input[0])
+    if shape and shape[2] != -1 and shape[1] != -1 and node.inputs[1].is_const():
+        target_shape = node.inputs[1].get_tensor_value()
+        n, h, w, c = shape
+        nh, nw = target_shape
+        # scales is nchw
+        # the reason not storing data at raw field is because of the bug: https://github.com/onnx/onnx/issues/1852
+        scale_val = np.array([1.0, 1.0, float(nh) / h, float(nw) / w]).astype(np.float32)
+        scales = ctx.make_const(tf2onnx.utils.make_name("scales"), scale_val, raw=False)
+    else:
+        ori_shape = ctx.make_node("Shape", [node.input[0]])
+        attr = {"axes": [0], "starts": [1], "ends": [3]}
+        inputs_map = {"data": ori_shape.output[0], **attr}
+        ori_shape_hw = GraphBuilder(ctx).make_slice(inputs_map)
+        ori_shape_hw_float = ctx.make_node("Cast", [ori_shape_hw], attr={"to": onnx_pb.TensorProto.FLOAT})
+
+        target_hw = node.inputs[1]
+        target_hw_float = ctx.make_node("Cast", target_hw.output, attr={"to": onnx_pb.TensorProto.FLOAT})
+
+        scales_hw = ctx.make_node("Div", [target_hw_float.output[0], ori_shape_hw_float.output[0]])
+
+        const_one_array = ctx.make_const(tf2onnx.utils.make_name("one"), np.array([1.0, 1.0]).astype(np.float32))
+        # scales is nchw
+        scales = ctx.make_node("Concat", [const_one_array.output[0], scales_hw.output[0]], {"axis": 0})
+    # because onnxruntime only supports to scale the last two dims so transpose is inserted
+    input_nchw = ctx.make_node("Transpose", [node.input[0]], {"perm": constants.NHWC_TO_NCHW})
+    roi = ctx.make_const(tf2onnx.utils.make_name("roi"), np.array([]).astype(np.float32))
+    attrs = {"mode": mode}
+    attrs['coordinate_transformation_mode'] = 'asymmetric'
+    if attrs['mode'] == 'nearest':
+        attrs['nearest_mode'] = 'floor'
+
+    upsample = ctx.make_node("Resize", [input_nchw.output[0], roi.output[0], scales.output[0]],
+                             attr=attrs)
+
+    shapes = node.output_shapes
+    dtypes = node.output_dtypes
+    ctx.remove_node(node.name)
+    ctx.make_node("Transpose", upsample.output, {"perm": constants.NCHW_TO_NHWC},
+                  name=node.name, outputs=node.output, shapes=shapes, dtypes=dtypes)
+
 def on_Round(ctx, node, name, args):
     node.type = "Round"
 
@@ -269,13 +322,17 @@ def on_AllAny(ctx, node, name, args):
 
 
 def tf2onnx_builtin_conversion(opset):
-    return {
+    builtin_dict = {
         'Round': (on_Round_10 if opset <= 10 else on_Round, []),
         'StridedSlice': (on_StridedSlice_9 if opset <= 9 else on_StridedSlice, []),
         'TopKV2': (on_TopKV2, []),
         'All': (on_AllAny, []),
         'Any': (on_AllAny, []),
     }
+    if opset >= 11:
+        builtin_dict['ResizeBilinear'] = (on_Resize_11, [])
+        builtin_dict['ResizeNearestNeighbor'] = (on_Resize_11, [])
+    return builtin_dict
 
 
 def tf2onnx_wrap(topo, graph, outputs, target_opset):
