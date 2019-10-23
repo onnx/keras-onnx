@@ -2,5 +2,5 @@ numpy
 protobuf
 requests
 onnx
-onnxconverter-common>=1.5.3
+onnxconverter-common>=1.6.0
 fire
