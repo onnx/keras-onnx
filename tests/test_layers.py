@@ -1328,7 +1328,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             output = Concatenate(name="output")(outputs)
             output = IdentityLayer()(output)
             model1 = Model(image_input, output)
-            onnx_model = keras2onnx.convert_keras(model1, model1.name, target_opset=7, debug_mode=debug_mode)
+            onnx_model = keras2onnx.convert_keras(model1, model1.name)
             x = np.random.rand(2, 700, 420, 1).astype(np.float32)
             expected = model1.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))

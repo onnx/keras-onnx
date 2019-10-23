@@ -58,8 +58,7 @@ class TestYoloV3(unittest.TestCase):
         my_yolo = YOLO(yolo3_yolo3_dir)
         my_yolo.load_model(yolo_weights)
         case_name = 'yolov3'
-        target_opset = 10
-        onnx_model = keras2onnx.convert_keras(my_yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'])
+        onnx_model = keras2onnx.convert_keras(my_yolo.final_model, channel_first_inputs=['input_1'])
 
         if not os.path.exists(tmp_path):
             os.mkdir(tmp_path)
