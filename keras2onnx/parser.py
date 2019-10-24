@@ -708,12 +708,9 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
     :return: The whole topology of the intermediate objects.
     """
     input_nodes = set()
-    raw_model_container = topology.raw_model
 
     # build the node in the working scope.
     varset = topology.declare_scope('curr_', top_scope)
-    for name in output_names:
-        raw_model_container.add_output_name(name)
 
     model_outputs = []
     for name in output_names:
@@ -796,5 +793,31 @@ def parse_graph(topo, graph, target_opset, output_names):
             op.add_input(var0)
             op.add_output(var1)
         topo.raw_model.add_input_name(str_value)
+
+    # Only support single output case, because two outputs may have same model output name.
+    if len(topo.raw_model.model.outputs) == 1:
+        for idx_, ts_ in enumerate(topo.raw_model.model.outputs):
+            op = top_level.declare_local_operator(TYPES.Identity)
+            output_ts = topo.raw_model.model.outputs[idx_]
+            var_type = _adjust_input_batch_size(_infer_variable_type(output_ts, target_opset))
+            str_value = output_ts.name
+            var0 = None
+            if hasattr(topo.raw_model.model, 'output_names'):
+                str_value = topo.raw_model.model.output_names[idx_]
+            elif topo.raw_model.model.outputs[idx_].name.endswith(':0'):
+                str_value = topo.raw_model.model.outputs[idx_].name[:-2]
+            else:
+                # if there is no difference between output tensor name and model output name
+                # skip it.
+                var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
+            if not var0:
+                var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
+                var1 = top_level.get_local_variable_or_declare_one(topo.raw_model.model.outputs[idx_].name, var_type)
+                op.add_input(var1)
+                op.add_output(var0)
+            topo.raw_model.add_output_name(str_value)
+    else:
+        for name in output_names:
+            topo.raw_model.add_output_name(name)
 
     return _parse_graph_core(graph, keras_layer_ts_map, topo, top_level, output_names)
