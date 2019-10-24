@@ -812,8 +812,8 @@ def parse_graph(topo, graph, target_opset, output_names):
 
         if str_value in output_name_dict:
             cur_count = output_name_dict[str_value]
-            str_value = str_value + ':' + str(cur_count)
             output_name_dict[str_value] = cur_count + 1
+            str_value = str_value + ':' + str(cur_count)
         else:
             output_name_dict[str_value] = 1
 
