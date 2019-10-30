@@ -14,37 +14,7 @@ from .parser import parse_graph, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
 from .subgraph import is_placeholder_node
-from ._builtin import set_converter
-
-
-class KerasTfModelContainer(object):
-    def __init__(self, graph, model=None):
-        self._input_raw_names = list()
-        self._output_raw_names = list()
-        self.tf_graph = graph
-        self.model = model
-
-    @property
-    def raw_model(self):
-        return self.tf_graph
-
-    def add_input_name(self, name):
-        # The order of adding strings matters. The final model's input names are sequentially added as this list
-        if name not in self._input_raw_names:
-            self._input_raw_names.append(name)
-
-    def add_output_name(self, name):
-        # The order of adding strings matters. The final model's output names are sequentially added as this list
-        if name not in self._output_raw_names:
-            self._output_raw_names.append(name)
-
-    @property
-    def input_names(self):
-        return [name for name in self._input_raw_names]
-
-    @property
-    def output_names(self):
-        return [name for name in self._output_raw_names]
+from .funcbook import set_converter
 
 
 def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
@@ -74,8 +44,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
 
     tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
     dump_graph_into_tensorboard(tf_graph)
-    raw_model_container = KerasTfModelContainer(tf_graph, model)
-    topology = Topology(raw_model_container,
+    topology = Topology(model, tf_graph,
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode

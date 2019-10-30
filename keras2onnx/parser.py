@@ -361,6 +361,7 @@ def _check_tfnode_converter_availability(nodelist):
     for n_ in nodelist:
         cvt = get_converter(n_.type)
         if cvt is None:
+            k2o_logger().warning("{} can be converted, fall back to tf2onnx".format(n_.name))
             return False
 
     return True
@@ -457,7 +458,8 @@ def _finalize_const_graph(topology, top_level, varset):
     # this is const sub-graph list, which will be not traveled.
     const_iop = [op_ for op_ in varset.operators.values() if not op_.input_full_names]
     for op_ in const_iop:
-        _finalize_tf2onnx_op(topology, op_, varset)
+        if hasattr(op_, 'subgraph'):
+            _finalize_tf2onnx_op(topology, op_, varset)
 
 
 def _infer_graph_shape(topology, top_level, varset):

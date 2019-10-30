@@ -7,7 +7,6 @@ from uuid import uuid4
 import re
 import six
 
-
 _converters = {}
 fb_key, fb_id, fb_additional = range(3)
 
@@ -28,3 +27,16 @@ def create_pattern_dict():
             dict_p[re.compile(v_.patterns[0])] = (k_, uuid4(), [re.compile(p) for p in v_.patterns[1:]])
 
     return dict_p
+
+
+def set_converters(op_conv_dict):
+    _converters.update(op_conv_dict)
+
+
+def converter_func(*types):
+    def my_func(func):
+        for type in types:
+            set_converter(type, func)
+        return func
+
+    return my_func

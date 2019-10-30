@@ -96,7 +96,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('ktf2onnx_test', onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_keras_lambda(self):
         model = Sequential()
         model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
@@ -104,10 +103,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
-        opset_ = get_opset_number_from_onnx()
-        _custom_op_handlers = {
-            'Round': keras2onnx.wrapper.tf2onnx_builtin_conversion(opset_)['Round']}
-        onnx_model = keras2onnx.convert_keras(model, 'test', custom_op_conversions=_custom_op_handlers)
+        onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda')
         data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
@@ -150,7 +146,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._test_stridedslice_ellipsis_mask_with_version(opset_)
         self._test_stridedslice_shrink_mask_with_version(opset_)
 
-    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
     def test_any_all(self):
         for l_ in [keras.backend.any, keras.backend.all]:
             for axis in [1, -1]:
