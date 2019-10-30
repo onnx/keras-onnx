@@ -99,7 +99,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_keras_lambda(self):
         model = Sequential()
         model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
-        model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
+        if get_opset_number_from_onnx() >= 11:
+            model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
         model.add(Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
 
@@ -146,6 +147,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._test_stridedslice_ellipsis_mask_with_version(opset_)
         self._test_stridedslice_shrink_mask_with_version(opset_)
 
+    @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
     def test_any_all(self):
         for l_ in [keras.backend.any, keras.backend.all]:
             for axis in [1, -1]:
