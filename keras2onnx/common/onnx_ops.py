@@ -80,3 +80,11 @@ class OnnxOperatorBuilder:
         ox_inputs = self._process_inputs(inputs, name)
         apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)
         return outputs
+
+    def apply_op_with_output(self, apply_func_name, inputs, outputs, name, **attrs):
+        apply_operations = onnxconverter_common.onnx_ops.__dict__
+        apply_func = apply_operations[apply_func_name]
+        assert apply_func is not None, "{} not implemented in onnx_ops.py.".format(apply_func_name)
+        ox_inputs = self._process_inputs(inputs, name)
+        apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)
+

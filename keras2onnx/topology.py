@@ -10,9 +10,39 @@ from .funcbook import get_converter
 from .proto import helper, onnx_proto
 
 
+class KerasTfModelContainer(object):
+    def __init__(self, model, graph):
+        self._input_raw_names = list()
+        self._output_raw_names = list()
+        self.tf_graph = graph
+        self.model = model
+
+    @property
+    def raw_model(self):
+        return self.tf_graph
+
+    def add_input_name(self, name):
+        # The order of adding strings matters. The final model's input names are sequentially added as this list
+        if name not in self._input_raw_names:
+            self._input_raw_names.append(name)
+
+    def add_output_name(self, name):
+        # The order of adding strings matters. The final model's output names are sequentially added as this list
+        if name not in self._output_raw_names:
+            self._output_raw_names.append(name)
+
+    @property
+    def input_names(self):
+        return [name for name in self._input_raw_names]
+
+    @property
+    def output_names(self):
+        return [name for name in self._output_raw_names]
+
+
 class Topology:
 
-    def __init__(self, model, target_opset=None, custom_op_dict=None,
+    def __init__(self, model, graph, target_opset=None, custom_op_dict=None,
                  reserved_variable_names=None, reserved_operator_names=None):
         """
         Initialize a Topology object, which is an intermediate representation of a computational graph.
@@ -26,7 +56,7 @@ class Topology:
         :param reserved_operator_names: A set of strings which are not allowed to be used as a operator name
         """
         self.scopes = []
-        self.raw_model = model
+        self.raw_model = KerasTfModelContainer(model, graph)
         self.scope_names = set()
         self.variable_name_set = reserved_variable_names if reserved_variable_names is not None else set()
         self.operator_name_set = reserved_operator_names if reserved_operator_names is not None else set()
@@ -292,10 +322,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         i += 1
         if container.target_opset < op_version:
             raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
-                               'which requires at least opset %d.') % (container.target_opset, op_version))
+                                'which requires at least opset %d.') % (container.target_opset, op_version))
         elif container.target_opset > op_version:
             k2o_logger().warning('The maximum opset needed by this model is only %d.' % op_version)
-
 
     # Add extra information
     onnx_model.ir_version = onnx_proto.IR_VERSION
