@@ -42,8 +42,8 @@ class YOLOEvaluationLayer(keras.layers.Layer):
 
     def call(self, inputs, **kwargs):
         """Evaluate YOLO model on given input and return filtered boxes."""
-        yolo_outputs = inputs[0:3]
-        input_image_shape = K.squeeze(inputs[3], axis=0)
+        yolo_outputs = inputs[0:-1]
+        input_image_shape = K.squeeze(inputs[-1], axis=0)
         num_layers = len(yolo_outputs)
         anchor_mask = [[6, 7, 8], [3, 4, 5], [0, 1, 2]] if num_layers == 3 else [[3, 4, 5],
                                                                                  [1, 2, 3]]  # default setting
@@ -129,10 +129,10 @@ class YOLONMSLayer(keras.layers.Layer):
 
 
 class YOLO(object):
-    def __init__(self, yolo3_dir=None):
+    def __init__(self, model_path='model_data/yolo.h5', anchors_path='model_data/yolo_anchors.txt', yolo3_dir=None):
         self.yolo3_dir = yolo3_dir
-        self.model_path = 'model_data/yolo.h5'  # model path or trained weights path
-        self.anchors_path = 'model_data/yolo_anchors.txt'
+        self.model_path = model_path
+        self.anchors_path = anchors_path
         self.classes_path = 'model_data/coco_classes.txt'
         self.score = 0.3
         self.iou = 0.45
@@ -202,11 +202,11 @@ class YOLO(object):
 
         input_image_shape = keras.Input(shape=(2,), name='image_shape')
         image_input = keras.Input((None, None, 3), dtype='float32', name='input_1')
-        y1, y2, y3 = self.yolo_model(image_input)
+        y = list(self.yolo_model(image_input))
+        y.append(input_image_shape)
 
         boxes, box_scores = \
-            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(
-                inputs=[y1, y2, y3, input_image_shape])
+            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(inputs=y)
 
         out_boxes, out_scores, out_indices = \
             YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
@@ -357,10 +357,19 @@ if __name__ == '__main__':
         print("Need an image file for object detection.")
         exit(-1)
 
-    model_file_name = 'model_data/yolov3.onnx'
     target_opset = 10
 
+    model_file_name = 'model_data/yolov3.onnx'
+    model_path = 'model_data/yolo.h5'  # model path or trained weights path
+    anchors_path = 'model_data/yolo_anchors.txt'
+    '''
+    # For tiny yolov3 case, use:
+    model_file_name = 'model_data/yolov3-tiny.onnx'
+    model_path = 'model_data/yolo-tiny.h5'
+    anchors_path = 'model_data/tiny_yolo_anchors.txt'
+    '''
+
     if not os.path.exists(model_file_name):
-        onnxmodel = convert_model(YOLO(), model_file_name, target_opset)
+        onnxmodel = convert_model(YOLO(model_path, anchors_path), model_file_name, target_opset)
 
     detect_img(YOLO(), sys.argv[1], model_file_name)

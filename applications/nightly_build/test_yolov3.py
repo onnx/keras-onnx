@@ -16,6 +16,8 @@ from keras.models import load_model
 import urllib.request
 YOLOV3_WEIGHTS_PATH = r'https://lotus.blob.core.windows.net/converter-models/yolov3.h5'
 model_file_name = 'yolov3.h5'
+YOLOV3_TINY_WEIGHTS_PATH = r'https://lotus.blob.core.windows.net/converter-models/yolov3-tiny.h5'
+tiny_model_file_name = 'yolov3-tiny.h5'
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../yolov3'))
 from yolov3 import YOLO
@@ -50,44 +52,56 @@ class TestYoloV3(unittest.TestCase):
     def test_yolov3(self):
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
         yolo3_yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3/yolo3')
-
-        if not os.path.exists(model_file_name):
-            urllib.request.urlretrieve(YOLOV3_WEIGHTS_PATH, model_file_name)
-
-        yolo_weights = load_model(model_file_name)
-        my_yolo = YOLO(yolo3_yolo3_dir)
-        my_yolo.load_model(yolo_weights)
-        case_name = 'yolov3'
-        onnx_model = keras2onnx.convert_keras(my_yolo.final_model, channel_first_inputs=['input_1'])
-
-        if not os.path.exists(tmp_path):
-            os.mkdir(tmp_path)
-        temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
-        onnx.save_model(onnx_model, temp_model_file)
-
         try:
             import onnxruntime
-            sess = onnxruntime.InferenceSession(temp_model_file)
         except ImportError:
             return True
 
         from PIL import Image
-        image = Image.open(img_path)
-        image_data = my_yolo.prepare_keras_data(image)
 
-        all_boxes_k, all_scores_k, indices_k = my_yolo.final_model.predict([image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2)])
+        for is_tiny_yolo in [True, False]:
+            if is_tiny_yolo:
+                if not os.path.exists(tiny_model_file_name):
+                    urllib.request.urlretrieve(YOLOV3_TINY_WEIGHTS_PATH, tiny_model_file_name)
+                yolo_weights = load_model(tiny_model_file_name)
+                model_path = tiny_model_file_name  # model path or trained weights path
+                anchors_path = 'model_data/tiny_yolo_anchors.txt'
+                case_name = 'yolov3-tiny'
+            else:
+                if not os.path.exists(model_file_name):
+                    urllib.request.urlretrieve(YOLOV3_WEIGHTS_PATH, model_file_name)
+                yolo_weights = load_model(model_file_name)
+                model_path = model_file_name  # model path or trained weights path
+                anchors_path = 'model_data/yolo_anchors.txt'
+                case_name = 'yolov3'
 
-        image_data_onnx = np.transpose(image_data, [0, 3, 1, 2])
+            my_yolo = YOLO(model_path, anchors_path, yolo3_yolo3_dir)
+            my_yolo.load_model(yolo_weights)
+            onnx_model = keras2onnx.convert_keras(my_yolo.final_model, channel_first_inputs=['input_1'])
 
-        feed_f = dict(zip(['input_1', 'image_shape'],
-                          (image_data_onnx, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
-        all_boxes, all_scores, indices = sess.run(None, input_feed=feed_f)
+            if not os.path.exists(tmp_path):
+                os.mkdir(tmp_path)
+            temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
+            onnx.save_model(onnx_model, temp_model_file)
 
-        expected = self.post_compute(all_boxes_k, all_scores_k, indices_k)
-        actual = self.post_compute(all_boxes, all_scores, indices)
+            sess = onnxruntime.InferenceSession(temp_model_file)
 
-        res = all(np.allclose(expected[n_], actual[n_]) for n_ in range(3))
-        self.assertTrue(res)
+            image = Image.open(img_path)
+            image_data = my_yolo.prepare_keras_data(image)
+
+            all_boxes_k, all_scores_k, indices_k = my_yolo.final_model.predict([image_data, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2)])
+
+            image_data_onnx = np.transpose(image_data, [0, 3, 1, 2])
+
+            feed_f = dict(zip(['input_1', 'image_shape'],
+                              (image_data_onnx, np.array([image.size[1], image.size[0]], dtype='float32').reshape(1, 2))))
+            all_boxes, all_scores, indices = sess.run(None, input_feed=feed_f)
+
+            expected = self.post_compute(all_boxes_k, all_scores_k, indices_k)
+            actual = self.post_compute(all_boxes, all_scores, indices)
+
+            res = all(np.allclose(expected[n_], actual[n_]) for n_ in range(3))
+            self.assertTrue(res)
 
 
 if __name__ == "__main__":
