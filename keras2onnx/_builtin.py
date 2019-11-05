@@ -20,7 +20,9 @@ class TYPES:
     Any = 'Any'
     All = 'All'
     Cast = 'Cast'
+    Round = 'Round'
     StridedSlice = 'StridedSlice'
+    TopKV2 = 'TopKV2'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
@@ -90,6 +92,47 @@ def convert_tf_any_all(scope, operator, container):
                               operator.output_full_names,
                               name=operator.full_name,
                               op_version=9)
+
+
+@converter_func(TYPES.Round)
+def convert_tf_round(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    if operator.target_opset < 11:
+        add_output_name = oopb.add_node('Add',
+                                        [operator.inputs[0].full_name,
+                                         ('_add', oopb.float, np.array(-0.5, dtype=np.float32))
+                                        ],
+                                        operator.inputs[0].full_name + '_add')
+        cast_0 = oopb.add_node('Cast',
+                               add_output_name,
+                               operator.inputs[0].full_name + '_0_cast', to=onnx_proto.TensorProto.FLOAT)
+        oopb.add_node_with_output("Ceil",
+                                  cast_0,
+                                  operator.output_full_names,
+                                  name=operator.full_name)
+    else:
+        oopb.add_node_with_output("Round",
+                                  operator.input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name)
+
+
+@converter_func(TYPES.TopKV2)
+def convert_tf_topkv2(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    cast_0 = oopb.add_node('Cast',
+                           operator.inputs[0].full_name,
+                           operator.inputs[0].full_name + '_0_cast', to=onnx_proto.TensorProto.FLOAT)
+    cast_1 = oopb.add_node('Cast',
+                           operator.inputs[1].full_name,
+                           operator.inputs[1].full_name + '_1_cast', to=onnx_proto.TensorProto.INT64)
+    unsqueeze = oopb.add_node('Unsqueeze',
+                              cast_1,
+                              operator.inputs[1].full_name + '_unsqueeze', axes=[0])
+    oopb.add_node_with_output("TopK",
+                              [cast_0, unsqueeze],
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 @converter_func(TYPES.Cast)
@@ -274,7 +317,6 @@ direct_ops = {"Abs": ("apply_abs",),
               "Pow": ("apply_pow",),
               "Reciprocal": ("apply_reciprocal",),
               "Relu": ("apply_relu",),
-              "Round": 11,
               "Sigmoid": ("apply_sigmoid",),
               "Sin": 7,
               "Sinh": 9,
