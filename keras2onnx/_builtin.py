@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import sys
 import numbers
 import numpy as np
 from onnx import numpy_helper, mapping
@@ -19,14 +20,19 @@ class TYPES:
     Any = 'Any'
     All = 'All'
     Cast = 'Cast'
+    StridedSlice = 'StridedSlice'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
 
 
+def _is_tensor_const(tensor):
+    return tensor.op.type in ["Const", "ConstV2"]
+
+
 def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
     node = tensor.op
-    assert node.type in ["Const", "ConstV2"], "{} has to be a constant".format(node.name)
+    assert _is_tensor_const(tensor), "{} has to be a constant".format(node.name)
     make_ndarray = tensorflow.make_ndarray
     np_arr = make_ndarray(node.get_attr("value"))
     return np_arr
@@ -97,6 +103,147 @@ def convert_tf_case(scope, operator, container):
                               name=operator.full_name,
                               to=to)
 
+
+def process_begin_end(new_begin, new_end, stride):
+    if stride >= 0:
+        new_begin.append(0)
+        new_end.append(sys.maxsize)
+    else:
+        new_begin.append(-1)
+        new_end.append(-sys.maxsize)
+
+
+def _prepare_StridedSlice(node, target_opset):
+    max_size = sys.maxsize
+    begin = _cal_tensor_value(node.inputs[1]) if _is_tensor_const(node.inputs[1]) else [0] * node.inputs[1].shape[0]
+    end = _cal_tensor_value(node.inputs[2]) if _is_tensor_const(node.inputs[2]) else [max_size] * \
+                                                                              node.inputs[2].shape[0]
+    strides = _cal_tensor_value(node.inputs[3]) if _is_tensor_const(node.inputs[3]) else [1] * node.inputs[3].shape[0]
+    begin_mask = node.get_attr("begin_mask")
+    begin_mask = begin_mask if begin_mask is not None else 0
+    end_mask = node.get_attr("end_mask")
+    end_mask = end_mask if end_mask is not None else 0
+    new_axis_mask = node.get_attr("new_axis_mask")
+    new_axis_mask = new_axis_mask if new_axis_mask is not None else 0
+    shrink_axis_mask = node.get_attr("shrink_axis_mask")
+    shrink_axis_mask = shrink_axis_mask if shrink_axis_mask is not None else 0
+    ellipsis_mask = node.get_attr("ellipsis_mask")
+    ellipsis_mask = ellipsis_mask if ellipsis_mask is not None else 0
+    extra_mask = new_axis_mask or shrink_axis_mask or ellipsis_mask
+    new_begin = []
+    new_end = []
+    axes = []
+    steps = []
+    # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
+    needs_squeeze = []
+    ellipsis_gap = 0
+    data_input_shape = node.inputs[0].shape
+    for idx, begin_item in enumerate(begin):
+        if target_opset < 10 and strides[idx] != 1:
+            raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
+
+        if (ellipsis_mask >> idx) & 1:
+            input_shape = node.inputs[0].shape # ctx.get_shape(node.input[0])
+            if input_shape is None:
+                raise ValueError("StridedSlice op {} requires the shape of input".format(node.name))
+            ellipsis_gap = len(input_shape) - len(begin)
+            continue
+
+        end_item = end[idx]
+        axes.append(idx + ellipsis_gap)
+        steps.append(strides[idx])
+
+        if (begin_mask >> idx) & 1 != 0 and (end_mask >> idx) & 1 != 0:
+            process_begin_end(new_begin, new_end, strides[idx])
+            continue
+
+        if begin_item == 0 and end_item == 0:
+            process_begin_end(new_begin, new_end, strides[idx])
+            continue
+
+        shrink_mask = (shrink_axis_mask >> idx) & 1
+        if shrink_mask != 0:
+            shrink_begin = begin_item + data_input_shape[idx].value if begin_item < 0 else begin_item
+            new_begin.append(shrink_begin)
+            new_end.append(shrink_begin + 1)
+            needs_squeeze.append(idx + ellipsis_gap)
+            continue
+
+        if (begin_mask >> idx) & 1 != 0:
+            new_begin.append(0) if strides[idx] >= 0 else new_begin.append(-1)
+            new_end.append(end_item)
+            continue
+
+        if (end_mask >> idx) & 1 != 0:
+            new_begin.append(begin_item)
+            new_end.append(max_size) if strides[idx] >= 0 else new_begin.append(-max_size)
+            continue
+
+        new_begin.append(begin_item)
+        new_end.append(end_item)
+
+    return new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask
+
+
+@converter_func(TYPES.StridedSlice)
+def convert_tf_strided_slice(scope, operator, container):
+    node = operator.raw_operator
+    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask = _prepare_StridedSlice(
+        node, operator.target_opset)
+    oopb = OnnxOperatorBuilder(container, scope)
+    if operator.target_opset >= 10:
+        if extra_mask or begin_mask:
+            cast_node_begin = True
+        else:
+            start_cast = oopb.add_node('Cast',
+                                       operator.inputs[1].full_name,
+                                       operator.inputs[1].full_name + '_start_cast', to=7)
+            cast_node_begin = False
+
+        if extra_mask or end_mask:
+            cast_node_end = True
+        else:
+            end_cast = oopb.add_node('Cast',
+                                     operator.inputs[2].full_name,
+                                     operator.inputs[2].full_name + '_end_cast', to=7)
+            cast_node_begin = False
+
+        new_axis_axes = []
+        cur_idx = 0
+        while new_axis_mask > 0:
+            if new_axis_mask & 1:
+                new_axis_axes.append(cur_idx)
+            new_axis_mask = new_axis_mask >> 1
+            cur_idx = cur_idx + 1
+
+        if len(new_axis_axes) > 0:
+            new_axis_unsqueeze = oopb.add_node('Unsqueeze',
+                                               operator.inputs[0].full_name,
+                                               operator.inputs[0].full_name + '_unsqueeze',
+                                               axes=new_axis_axes)
+        else:
+            new_axis_unsqueeze = operator.inputs[0].full_name
+
+        cropped_tensor_name = oopb.add_node('Slice',
+                                            [new_axis_unsqueeze,
+                                             ('_start', oopb.int64, np.array(new_begin, dtype=np.int64)) if cast_node_begin else start_cast,
+                                             ('_end', oopb.int64, np.array(new_end, dtype=np.int64)) if cast_node_end else end_cast,
+                                             ('_axes', oopb.int64, np.array(axes, dtype=np.int64)),
+                                             ('_steps', oopb.int64, np.array(steps, dtype=np.int64))
+                                             ],
+                                            operator.inputs[0].full_name + '_cropping')
+
+        if needs_squeeze:
+            oopb.add_node_with_output('Squeeze',
+                                       cropped_tensor_name,
+                                       operator.output_full_names,
+                                       operator.inputs[0].full_name + '_squeeze',
+                                       axes=needs_squeeze)
+        else:
+            oopb.add_node_with_output('Identity',
+                                      cropped_tensor_name,
+                                      operator.output_full_names,
+                                      operator.inputs[0].full_name + '_identity')
 
 direct_ops = {"Abs": ("apply_abs",),
               "Acos": 7,
