@@ -30,7 +30,7 @@ class TYPES:
 
 def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
     node = tensor.op
-    if node.type in ["Const", "ConstV2"]:
+    if node.type not in ["Const", "ConstV2"]:
         return None
     make_ndarray = tensorflow.make_ndarray
     np_arr = make_ndarray(node.get_attr("value"))
