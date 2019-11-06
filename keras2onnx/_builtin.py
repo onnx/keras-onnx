@@ -28,13 +28,10 @@ class TYPES:
     TD_Reshape = '_reshape_timedistributed'
 
 
-def _is_tensor_const(tensor):
-    return tensor.op.type in ["Const", "ConstV2"]
-
-
 def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
     node = tensor.op
-    assert _is_tensor_const(tensor), "{} has to be a constant".format(node.name)
+    if node.type in ["Const", "ConstV2"]:
+        return None
     make_ndarray = tensorflow.make_ndarray
     np_arr = make_ndarray(node.get_attr("value"))
     return np_arr
@@ -158,10 +155,15 @@ def _process_begin_end(new_begin, new_end, stride):
 
 def _prepare_StridedSlice(node, target_opset):
     max_size = sys.maxsize
-    begin = _cal_tensor_value(node.inputs[1]) if _is_tensor_const(node.inputs[1]) else [0] * node.inputs[1].shape[0]
-    end = _cal_tensor_value(node.inputs[2]) if _is_tensor_const(node.inputs[2]) else [max_size] * \
-                                                                              node.inputs[2].shape[0]
-    strides = _cal_tensor_value(node.inputs[3]) if _is_tensor_const(node.inputs[3]) else [1] * node.inputs[3].shape[0]
+    begin = _cal_tensor_value(node.inputs[1])
+    if begin is None:
+        begin = [0] * node.inputs[1].shape[0]
+    end = _cal_tensor_value(node.inputs[2])
+    if end is None:
+        end = [max_size] * node.inputs[2].shape[0]
+    strides = _cal_tensor_value(node.inputs[3])
+    if strides is None:
+        strides = [1] * node.inputs[3].shape[0]
     begin_mask = node.get_attr("begin_mask")
     begin_mask = begin_mask if begin_mask is not None else 0
     end_mask = node.get_attr("end_mask")
