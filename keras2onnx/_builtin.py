@@ -153,7 +153,13 @@ def _convert_tf_resize(scope, operator, container, mode):
     else:
         op_type = 'Resize'
 
-    if operator.target_opset < 11:
+    if operator.target_opset < 8:
+        attrs = {"mode": mode, "scales": [1.0, 1.0, float(nh) / h, float(nw) / w]}
+        upsample = oopb.add_node(op_type,
+                                 input_nchw,
+                                 operator.inputs[0].full_name + '_upsample',
+                                 **attrs)
+    elif operator.target_opset < 11:
         upsample = oopb.add_node(op_type,
                                  [input_nchw,
                                   scales],
