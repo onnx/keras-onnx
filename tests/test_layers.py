@@ -111,7 +111,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_tf_resize(self):
         target_opset = get_opset_number_from_onnx()
-        target_opset = 11
         shape_list = [10, None] if target_opset >= 10 else [10]
         size_list = [[5, 10], [20, 30]] if target_opset >= 10 else [[20, 30]]
         for g in [tf.image.resize_bilinear, tf.image.resize_nearest_neighbor]:

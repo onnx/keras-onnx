@@ -40,7 +40,10 @@ def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
 
 
 def _cal_tensor_shape(tensor):
-    return [x.value for x in tensor.shape]
+    if len(tensor.shape) > 0 and hasattr(tensor.shape[0], 'value'):
+        return [x.value for x in tensor.shape]
+    else:
+        return list(tensor.shape)
 
 
 def _to_onnx_type(dt_type):
