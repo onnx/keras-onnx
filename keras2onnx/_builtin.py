@@ -6,7 +6,7 @@
 import sys
 import numbers
 import numpy as np
-from onnx import numpy_helper, mapping
+from onnx import numpy_helper, mapping, onnx_pb
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
 from .proto import onnx_proto
@@ -20,6 +20,8 @@ class TYPES:
     Any = 'Any'
     All = 'All'
     Cast = 'Cast'
+    ResizeBilinear = 'ResizeBilinear'
+    ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
     StridedSlice = 'StridedSlice'
     TopKV2 = 'TopKV2'
@@ -35,6 +37,10 @@ def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
     make_ndarray = tensorflow.make_ndarray
     np_arr = make_ndarray(node.get_attr("value"))
     return np_arr
+
+
+def _cal_tensor_shape(tensor):
+    return [x.value for x in tensor.shape]
 
 
 def _to_onnx_type(dt_type):
@@ -89,6 +95,89 @@ def convert_tf_any_all(scope, operator, container):
                               operator.output_full_names,
                               name=operator.full_name,
                               op_version=9)
+
+
+def _convert_tf_resize(scope, operator, container, mode):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    shape = _cal_tensor_shape(node.inputs[0])
+    target_shape = _cal_tensor_value(node.inputs[1])
+
+    if shape and shape[1] is not None and shape[2] is not None and target_shape is not None:
+        n, h, w, c = shape
+        nh, nw = target_shape
+        scale_val = np.array([1.0, 1.0, float(nh) / h, float(nw) / w]).astype(np.float32)
+        scales = ('_scale', oopb.float, scale_val)
+    else:
+        if operator.target_opset < 10:
+            raise ValueError("dynamic shape is not supported for Upsample when opset = " + str(operator.target_opset))
+        input_shape = oopb.add_node('Shape',
+                                    operator.inputs[0].full_name,
+                                    operator.inputs[0].full_name + '_input_shape')
+        sliced_score = oopb.add_node('Slice',
+                                     [input_shape,
+                                      ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                      ('_end', oopb.int64, np.array([3], dtype='int64')),
+                                      ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                      ],
+                                     operator.inputs[0].full_name + '_sliced')
+        ori_cast = oopb.add_node('Cast',
+                                 sliced_score,
+                                 operator.inputs[0].full_name + '_ori_cast', to=onnx_pb.TensorProto.FLOAT)
+        target_cast = oopb.add_node('Cast',
+                                 operator.inputs[1].full_name,
+                                 operator.inputs[1].full_name + '_target_cast', to=onnx_pb.TensorProto.FLOAT)
+        scales_hw = oopb.add_node('Div',
+                                 [target_cast, ori_cast],
+                                 operator.inputs[1].full_name + '_scales_hw')
+        scales = oopb.add_node('Concat',
+                               [('_concat', oopb.float, np.array([1.0, 1.0], dtype='float32')),
+                               scales_hw
+                               ],
+                               operator.inputs[0].full_name + '_concat',
+                               axis=0)
+
+    input_nchw = oopb.add_node('Transpose',
+                               operator.inputs[0].full_name,
+                               operator.inputs[0].full_name + '_transpose',
+                               perm=[0, 3, 1, 2])
+    attrs = {"mode": mode}
+    attrs['coordinate_transformation_mode'] = 'asymmetric'
+    if attrs['mode'] == 'nearest':
+        attrs['nearest_mode'] = 'floor'
+    if operator.target_opset < 10:
+        op_type = 'Upsample'
+    else:
+        op_type = 'Resize'
+
+    if operator.target_opset < 11:
+        upsample = oopb.add_node(op_type,
+                                 [input_nchw,
+                                  scales],
+                                 operator.inputs[0].full_name + '_upsample',
+                                 mode=mode)
+    else:
+        upsample = oopb.add_node(op_type,
+                                 [input_nchw,
+                                  ('_rois', oopb.float, np.array([0.0, 0.0, 1.0, 1.0], dtype='float32')),
+                                  scales],
+                                 operator.inputs[0].full_name + '_upsample',
+                                 **attrs)
+    oopb.add_node_with_output('Transpose',
+                               upsample,
+                               operator.output_full_names,
+                               name=operator.inputs[0].full_name + '_transpose_2',
+                               perm=[0, 2, 3, 1])
+
+
+@converter_func(TYPES.ResizeBilinear)
+def convert_tf_resize_bilinear(scope, operator, container):
+    _convert_tf_resize(scope, operator, container, "linear")
+
+
+@converter_func(TYPES.ResizeNearestNeighbor)
+def convert_tf_resize_nearest_neighbor(scope, operator, container):
+    _convert_tf_resize(scope, operator, container, "nearest")
 
 
 @converter_func(TYPES.Round)
