@@ -9,7 +9,6 @@ import numpy as np
 from onnx import numpy_helper, mapping, onnx_pb
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
-from .proto import onnx_proto
 from .proto.tfcompat import tensorflow
 
 
@@ -245,7 +244,7 @@ def convert_tf_any_all(scope, operator, container):
 
     # It is fine to have nagative reduce_dim.
     cast_op = oopb.apply_cast(operator.input_full_names[0],
-                              to=onnx_proto.TensorProto.FLOAT,
+                              to=oopb.float,
                               name=operator.full_name + '_cast')
     keepdims = node.get_attr("keep_dims")
     op_type = "ReduceMin" if node.type == "All" else "ReduceSum"

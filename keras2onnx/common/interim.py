@@ -4,10 +4,7 @@
 # license information.
 ###############################################################################
 # the interim objects for the model conversion.
-import re
 import six
-import functools
-
 from ..proto import helper
 from .intop import Operator
 
@@ -38,133 +35,6 @@ class OnnxObjectContainer(object):
         self.target_opset = target_opset
         # ONNX node name list
         self.node_names = {}
-        self.bind_all_ops()
-
-    def bind_all_ops(self):
-        oplist = ['Abs',
-                  'Acos',
-                  'Acosh',
-                  'Add',
-                  'And',
-                  'ArgMax',
-                  'ArgMin',
-                  'Asin',
-                  'Asinh',
-                  'Atan',
-                  'Atanh',
-                  'AveragePool',
-                  'BatchNormalization',
-                  'Cast',
-                  'Ceil',
-                  'Clip',
-                  'Compress',
-                  'Concat',
-                  'Constant',
-                  'ConstantOfShape',
-                  'Conv',
-                  'ConvTranspose',
-                  'Cos',
-                  'Cosh',
-                  'DepthToSpace',
-                  'Div',
-                  'Dropout',
-                  'Elu',
-                  'Equal',
-                  'Erf',
-                  'Exp',
-                  'Expand',
-                  'EyeLike',
-                  'Flatten',
-                  'Floor',
-                  'GRU',
-                  'Gather',
-                  'Gemm',
-                  'GlobalAveragePool',
-                  'GlobalLpPool',
-                  'GlobalMaxPool',
-                  'Greater',
-                  'HardSigmoid',
-                  'Hardmax',
-                  'Identity',
-                  'If',
-                  'InstanceNormalization',
-                  'IsNaN',
-                  'LRN',
-                  'LSTM',
-                  'LeakyRelu',
-                  'Less',
-                  'Log',
-                  'LogSoftmax',
-                  'Loop',
-                  'LpNormalization',
-                  'LpPool',
-                  'MatMul',
-                  'Max',
-                  'MaxPool',
-                  'MaxRoiPool',
-                  'MaxUnpool',
-                  'Mean',
-                  'Min',
-                  'Mul',
-                  'Multinomial',
-                  'Neg',
-                  'Not',
-                  'OneHot',
-                  'Or',
-                  'PRelu',
-                  'Pad',
-                  'Pow',
-                  'RNN',
-                  'RandomNormal',
-                  'RandomNormalLike',
-                  'RandomUniform',
-                  'RandomUniformLike',
-                  'Reciprocal',
-                  'ReduceL1',
-                  'ReduceL2',
-                  'ReduceLogSum',
-                  'ReduceLogSumExp',
-                  'ReduceMax',
-                  'ReduceMean',
-                  'ReduceMin',
-                  'ReduceProd',
-                  'ReduceSum',
-                  'ReduceSumSquare',
-                  'Relu',
-                  'Reshape',
-                  'Scan',
-                  'Scatter',
-                  'Selu',
-                  'Shape',
-                  'Shrink',
-                  'Sigmoid',
-                  'Sign',
-                  'Sin',
-                  'Sinh',
-                  'Size',
-                  'Slice',
-                  'Softmax',
-                  'Softplus',
-                  'Softsign',
-                  'SpaceToDepth',
-                  'Split',
-                  'Sqrt',
-                  'Squeeze',
-                  'Sub',
-                  'Sum',
-                  'Tan',
-                  'Tanh',
-                  'Tile',
-                  'TopK',
-                  'Transpose',
-                  'Unsqueeze',
-                  'Upsample',
-                  'Where',
-                  'Xor'
-                  ]
-
-        for op_ in oplist:
-            setattr(self, op_, functools.partial(self.add_node, op_))
 
     @staticmethod
     def _make_value_info(variable):
@@ -418,6 +288,7 @@ class Variable:
     """
     The tensor or other data types
     """
+
     def __init__(self, raw_name, onnx_name, scope, type=None):
         """
         :param raw_name: A string indicating the variable's name in the original model. Usually, it's the seed string
