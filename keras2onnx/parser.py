@@ -361,7 +361,7 @@ def _check_tfnode_converter_availability(nodelist):
     for n_ in nodelist:
         cvt = get_converter(n_.type)
         if cvt is None:
-            k2o_logger().warning("{} can be converted, fall back to tf2onnx".format(n_.name))
+            k2o_logger().warning("node {} of type {} cannot be converted, fall back to tf2onnx".format(n_.name, n_.type))
             return False
 
     return True
