@@ -109,6 +109,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
+    def test_tf_resize(self):
+        target_opset = get_opset_number_from_onnx()
+        shape_list = [10, None] if target_opset >= 10 else [10]
+        size_list = [[5, 10], [20, 30]] if target_opset >= 10 else [[20, 30]]
+        for g in [tf.image.resize_bilinear, tf.image.resize_nearest_neighbor]:
+            for shape_1_dim in shape_list:
+                for size in size_list:
+                    model = Sequential()
+                    model.add(Lambda(lambda x: g(x, size=size), input_shape=[shape_1_dim, 20, 3]))
+
+                    onnx_model = keras2onnx.convert_keras(model, 'test_tf_resize', target_opset=target_opset)
+                    data = np.random.rand(2, 10, 20, 3).astype(np.float32)
+                    expected = model.predict(data)
+                    self.assertTrue(run_onnx_runtime('onnx_resize', onnx_model, data, expected, self.model_files))
+
     def _test_stridedslice_with_version(self, target_opset):
         for v1 in [-1, 1]:
             for v2 in [-1, 2]:
