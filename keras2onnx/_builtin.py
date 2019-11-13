@@ -23,6 +23,7 @@ class TYPES:
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
+    Shape = 'Shape'
     StridedSlice = 'StridedSlice'
     TopKV2 = 'TopKV2'
 
@@ -212,6 +213,27 @@ def convert_tf_round(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.Shape)
+def convert_tf_shape(scope, operator, container):
+    node = operator.raw_operator
+    dtype = _to_onnx_type(node.outputs[0].dtype)
+    oopb = OnnxOperatorBuilder(container, scope)
+    shape_node = oopb.add_node('Shape',
+                               operator.input_full_names[0],
+                               operator.input_full_names[0] + '_shape')
+    if dtype == onnx_pb.TensorProto.INT64:
+        oopb.add_node_with_output('Identity',
+                                  shape_node,
+                                  operator.output_full_names,
+                                  operator.inputs[0].full_name + '_identity')
+    else:
+        oopb.apply_op_with_output("apply_cast",
+                                  shape_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_cast',
+                                  to=dtype)
+
+
 @converter_func(TYPES.TopKV2)
 def convert_tf_topkv2(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -372,7 +394,7 @@ def convert_tf_strided_slice(scope, operator, container):
             end_cast = oopb.add_node('Cast',
                                      operator.inputs[2].full_name,
                                      operator.inputs[2].full_name + '_end_cast', to=7)
-            cast_node_begin = False
+            cast_node_end = False
 
         cropped_tensor_name = oopb.add_node('Slice',
                                             [new_axis_unsqueeze,
