@@ -7,6 +7,7 @@ import sys
 import numbers
 import numpy as np
 from onnx import numpy_helper, mapping, onnx_pb
+from tensorflow.core.framework import types_pb2
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
 from .proto import onnx_proto
@@ -23,6 +24,7 @@ class TYPES:
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
+    Shape = 'Shape'
     StridedSlice = 'StridedSlice'
     TopKV2 = 'TopKV2'
 
@@ -73,6 +75,47 @@ def convert_reshape_timedistributed(scope, operator, container):
     target_shape = operator.get_attr('target_shape')
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.full_name, desired_shape=target_shape)
+
+#
+#  mapping dtypes from tensorflow to onnx
+#
+TF_TO_ONNX_DTYPE = {
+    types_pb2.DT_FLOAT: onnx_pb.TensorProto.FLOAT,
+    types_pb2.DT_HALF: onnx_pb.TensorProto.FLOAT16,
+    types_pb2.DT_DOUBLE: onnx_pb.TensorProto.DOUBLE,
+    types_pb2.DT_INT32: onnx_pb.TensorProto.INT32,
+    types_pb2.DT_INT16: onnx_pb.TensorProto.INT16,
+    types_pb2.DT_INT8: onnx_pb.TensorProto.INT8,
+    types_pb2.DT_UINT8: onnx_pb.TensorProto.UINT8,
+    types_pb2.DT_UINT16: onnx_pb.TensorProto.UINT16,
+    types_pb2.DT_INT64: onnx_pb.TensorProto.INT64,
+    types_pb2.DT_STRING: onnx_pb.TensorProto.STRING,
+    types_pb2.DT_COMPLEX64: onnx_pb.TensorProto.COMPLEX64,
+    types_pb2.DT_COMPLEX128: onnx_pb.TensorProto.COMPLEX128,
+    types_pb2.DT_BOOL: onnx_pb.TensorProto.BOOL,
+    types_pb2.DT_RESOURCE: onnx_pb.TensorProto.INT64,  # TODO: hack to allow processing on control flow
+    types_pb2.DT_QUINT8: onnx_pb.TensorProto.UINT8,  # TODO: map quint8 to  uint8 for now
+}
+
+@converter_func(TYPES.Shape)
+def convert_tf_shape(scope, operator, container):
+    node = operator.raw_operator
+    dtype = TF_TO_ONNX_DTYPE[node.outputs[0].dtype]
+    oopb = OnnxOperatorBuilder(container, scope)
+    shape_node = oopb.add_node('Shape',
+                               operator.input_full_names[0],
+                               operator.input_full_names[0] + '_shape')
+    if dtype == onnx_pb.TensorProto.INT64:
+        oopb.add_node_with_output('Identity',
+                                  shape_node,
+                                  operator.output_full_names,
+                                  operator.inputs[0].full_name + '_identity')
+    else:
+        oopb.add_node_with_output("Cast",
+                                  shape_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_cast',
+                                  to=dtype)
 
 
 @converter_func(TYPES.All, TYPES.Any)
@@ -372,7 +415,7 @@ def convert_tf_strided_slice(scope, operator, container):
             end_cast = oopb.add_node('Cast',
                                      operator.inputs[2].full_name,
                                      operator.inputs[2].full_name + '_end_cast', to=7)
-            cast_node_begin = False
+            cast_node_end = False
 
         cropped_tensor_name = oopb.add_node('Slice',
                                             [new_axis_unsqueeze,
