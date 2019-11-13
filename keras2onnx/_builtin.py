@@ -214,43 +214,23 @@ def convert_tf_round(scope, operator, container):
                                   name=operator.full_name)
 
 
-#
-#  mapping dtypes from tensorflow to onnx
-#
-TF_TO_ONNX_DTYPE = {
-    types_pb2.DT_FLOAT: onnx_pb.TensorProto.FLOAT,
-    types_pb2.DT_HALF: onnx_pb.TensorProto.FLOAT16,
-    types_pb2.DT_DOUBLE: onnx_pb.TensorProto.DOUBLE,
-    types_pb2.DT_INT32: onnx_pb.TensorProto.INT32,
-    types_pb2.DT_INT16: onnx_pb.TensorProto.INT16,
-    types_pb2.DT_INT8: onnx_pb.TensorProto.INT8,
-    types_pb2.DT_UINT8: onnx_pb.TensorProto.UINT8,
-    types_pb2.DT_UINT16: onnx_pb.TensorProto.UINT16,
-    types_pb2.DT_INT64: onnx_pb.TensorProto.INT64,
-    types_pb2.DT_STRING: onnx_pb.TensorProto.STRING,
-    types_pb2.DT_COMPLEX64: onnx_pb.TensorProto.COMPLEX64,
-    types_pb2.DT_COMPLEX128: onnx_pb.TensorProto.COMPLEX128,
-    types_pb2.DT_BOOL: onnx_pb.TensorProto.BOOL,
-    types_pb2.DT_RESOURCE: onnx_pb.TensorProto.INT64,  # TODO: hack to allow processing on control flow
-    types_pb2.DT_QUINT8: onnx_pb.TensorProto.UINT8,  # TODO: map quint8 to  uint8 for now
-}
-
-
 @converter_func(TYPES.Shape)
 def convert_tf_shape(scope, operator, container):
     node = operator.raw_operator
-    dtype = TF_TO_ONNX_DTYPE[node.outputs[0].dtype]
+    # dtype = TF_TO_ONNX_DTYPE[node.outputs[0].dtype]
+    dtype = _to_onnx_type(node.outputs[0].dtype)
     oopb = OnnxOperatorBuilder(container, scope)
     shape_node = oopb.add_node('Shape',
                                operator.input_full_names[0],
                                operator.input_full_names[0] + '_shape')
+
     if dtype == onnx_pb.TensorProto.INT64:
         oopb.add_node_with_output('Identity',
                                   shape_node,
                                   operator.output_full_names,
                                   operator.inputs[0].full_name + '_identity')
     else:
-        oopb.add_node_with_output("Cast",
+        oopb.apply_op_with_output("apply_cast",
                                   shape_node,
                                   operator.output_full_names,
                                   name=operator.full_name + '_cast',
