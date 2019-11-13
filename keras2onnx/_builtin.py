@@ -7,7 +7,6 @@ import sys
 import numbers
 import numpy as np
 from onnx import numpy_helper, mapping, onnx_pb
-from tensorflow.core.framework import types_pb2
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
 from .proto import onnx_proto
@@ -217,7 +216,6 @@ def convert_tf_round(scope, operator, container):
 @converter_func(TYPES.Shape)
 def convert_tf_shape(scope, operator, container):
     node = operator.raw_operator
-    # dtype = TF_TO_ONNX_DTYPE[node.outputs[0].dtype]
     dtype = _to_onnx_type(node.outputs[0].dtype)
     oopb = OnnxOperatorBuilder(container, scope)
     shape_node = oopb.add_node('Shape',
