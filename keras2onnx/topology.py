@@ -188,6 +188,20 @@ class Topology:
         self._check_structure()
 
 
+def _remove_unused_initializers(nodes, initializers):
+    adjusted_initializers = []
+    nodes_input_set = set()
+    for n_ in nodes:
+        for input_name_ in n_.input:
+            nodes_input_set.add(input_name_)
+
+    for initializers_ in initializers:
+        if initializers_.name in nodes_input_set:
+            adjusted_initializers.append(initializers_)
+
+    return adjusted_initializers
+
+
 def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
     This function is used to convert our Topology object defined in _parser.py into a ONNX model (type: ModelProto).
@@ -291,8 +305,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
                                   container.outputs, container.initializers)
     else:
+        adjusted_initializers = _remove_unused_initializers(nodes, container.initializers)
         graph = helper.make_graph(nodes, model_name, container.inputs,
-                                  container.outputs, container.initializers)
+                                  container.outputs, adjusted_initializers)
 
     # Add extra information related to the graph
     graph.value_info.extend(container.value_info)
