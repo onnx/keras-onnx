@@ -301,11 +301,12 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         nodes = container.nodes
 
     # Create a graph from its main components
+    adjusted_initializers = _remove_unused_initializers(nodes, container.initializers)
+    adjusted_extra_inputs = _remove_unused_initializers(nodes, extra_inputs)
     if target_opset < 9:
-        graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
-                                  container.outputs, container.initializers)
+        graph = helper.make_graph(nodes, model_name, container.inputs + adjusted_extra_inputs,
+                                  container.outputs, adjusted_initializers)
     else:
-        adjusted_initializers = _remove_unused_initializers(nodes, container.initializers)
         graph = helper.make_graph(nodes, model_name, container.inputs,
                                   container.outputs, adjusted_initializers)
 
