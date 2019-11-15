@@ -9,7 +9,7 @@ from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
-from .ke2onnx import static_set_ke2onnx_converters
+from .ke2onnx import static_set_ke2onnx_converters, build_layer_outputs, outputs_to_dict
 from .parser import parse_graph, tsname_to_node
 from .topology import Topology
 from .common.utils import set_logger_level
@@ -30,25 +30,69 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
     :param custom_op_conversions: the handler for custom operator conversion
     :return an ONNX ModelProto
     """
-    set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
-
     if isinstance(model, tf.keras.Model) and not is_tf_keras:
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
                         " Please set environment variable TF_KERAS = 1.")
 
+    set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
+    if debug_mode:
+        print(model.summary())
+
+    output_names = []
+    output_dict = None
+    if is_tf2:
+        if (model._is_graph_network or  # pylint:disable=protected-access
+                isinstance(model, keras.engine.sequential.Sequential)):
+            tf_graph = model.outputs[0].graph
+        else:
+            from tensorflow.core.protobuf import config_pb2
+            from tensorflow.python.keras.saving import saving_utils as _saving_utils
+            from tensorflow.lite.python.util import run_graph_optimizations as _run_graph_optimizations
+            from tensorflow.python.framework import convert_to_constants as _convert_to_constants
+
+            function = _saving_utils.trace_model_call(model)
+            concrete_func = function.get_concrete_function()
+            output_names = [ts_.name for ts_ in concrete_func.outputs]
+            tf_graph = concrete_func._first_order_tape_functions.forward.graph
+            output_dict = build_layer_outputs(model, tf_graph, concrete_func.outputs)
+            frozen_func = _convert_to_constants.convert_variables_to_constants_v2(
+                concrete_func, lower_control_flow=True)
+
+            input_tensors = [
+                tensor for tensor in frozen_func.inputs
+                if tensor.dtype != tf.dtypes.resource
+            ]
+            output_tensors = frozen_func.outputs
+            graph_def = frozen_func.graph.as_graph_def()
+
+            config = config_pb2.ConfigProto()
+            rewrite_options = config.graph_options.rewrite_options
+            rewrite_options.constant_folding = rewrite_options.ON
+
+            graph_def = _run_graph_optimizations(
+                graph_def,
+                input_tensors,
+                output_tensors,
+                config=config,
+                graph=frozen_func.graph)
+
+            with tf.Graph().as_default() as tf_graph:
+                tf.import_graph_def(graph_def, name='')
+    else:
+        tf_graph = keras.backend.get_session().graph
+
     name = name or model.name
     target_opset = target_opset or get_opset_number_from_onnx()
-    output_names = [n.name for n in model.outputs]
+    output_names = output_names or [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
 
-    tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
     dump_graph_into_tensorboard(tf_graph)
     topology = Topology(model, tf_graph,
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
-    parse_graph(topology, tf_graph, target_opset, output_names)
+    parse_graph(topology, tf_graph, target_opset, output_names, outputs_to_dict(tf_graph, output_dict))
     topology.compile()
 
     return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)

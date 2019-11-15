@@ -29,7 +29,7 @@ except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
 
 from .common import Variable, cvtfunc, set_logger_level
-from .funcbook import set_converter
+from .funcbook import set_converter, set_converters
 
 from .main import convert_keras
 from .main import export_tf_frozen_graph
