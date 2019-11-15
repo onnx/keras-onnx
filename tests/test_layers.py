@@ -109,6 +109,31 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
+    def test_tf_concat(self):
+
+        def myFunc1(x):
+            return tf.concat([x[0], x[1]], 1)
+
+        def myFunc2(x):
+            return tf.concat([x[0], x[1]], -1)
+
+        input1_shape = [(2, 3), (3, 2)]
+        input2_shape = [(4, 3), (3, 4)]
+        myFunc = [myFunc1, myFunc2]
+        for idx_ in range(2):
+            input1 = Input(shape=input1_shape[idx_])
+            input2 = Input(shape=input2_shape[idx_])
+            added = Lambda(myFunc[idx_])([input1, input2])
+            model = keras.models.Model(inputs=[input1, input2], outputs=added)
+
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_concat')
+            batch_data1_shape = (2,) + input1_shape[idx_]
+            batch_data2_shape = (2,) + input2_shape[idx_]
+            data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+            data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+            expected = model.predict([data1, data2])
+            self.assertTrue(run_onnx_runtime('onnx_concat', onnx_model, [data1, data2], expected, self.model_files))
+
     def test_tf_resize(self):
         target_opset = get_opset_number_from_onnx()
         shape_list = [10, None] if target_opset >= 10 else [10]

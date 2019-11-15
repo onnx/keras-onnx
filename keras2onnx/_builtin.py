@@ -20,6 +20,7 @@ class TYPES:
     Any = 'Any'
     All = 'All'
     Cast = 'Cast'
+    ConcatV2 = 'ConcatV2'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
@@ -59,6 +60,47 @@ def default_convert(scope, operator, container):
 @converter_func(TYPES.Identity)
 def convert_tf_identity(scope, operator, container):
     default_convert(scope, operator, container)
+
+
+@converter_func(TYPES.ConcatV2)
+def convert_tf_concat_v2(scope, operator, container):
+    node = operator.raw_operator
+    input_name_idx = []
+    original_input_number = len(operator.input_full_names) - 1
+    for idx in range(original_input_number):
+        val = _cal_tensor_value(node.inputs[idx])
+        if not (val is not None and len(val) == 0):
+            input_name_idx.append(idx)
+
+    input_full_names = [ operator.input_full_names[idx] for idx in input_name_idx ]
+
+    axis_val = _cal_tensor_value(node.inputs[-1]).tolist()
+    if axis_val < 0 and operator.target_opset < 11:
+        input_shape = _cal_tensor_shape(node.inputs[0])
+        axis_val = len(input_shape) + axis_val
+
+    oopb = OnnxOperatorBuilder(container, scope)
+    need_casting = False
+    if operator.target_opset < 8:
+        supported_types = [onnx_pb.TensorProto.FLOAT, onnx_pb.TensorProto.FLOAT16]
+        dtype = _to_onnx_type(node.outputs[0].dtype)
+        need_casting = dtype not in supported_types
+
+    if need_casting:
+        concat_node = oopb.apply_concat(input_full_names,
+                                        name=operator.full_name + '_concat',
+                                        axis=axis_val)
+        oopb.apply_op_with_output("apply_cast",
+                                  concat_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_cast',
+                                  to=onnx_pb.TensorProto.FLOAT)
+    else:
+        oopb.apply_op_with_output("apply_concat",
+                                  input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_concat',
+                                  axis=axis_val)
 
 
 @converter_func(TYPES.Const)
