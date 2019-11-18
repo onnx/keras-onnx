@@ -134,6 +134,41 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict([data1, data2])
             self.assertTrue(run_onnx_runtime('onnx_concat', onnx_model, [data1, data2], expected, self.model_files))
 
+    def test_tf_realdiv(self):
+        def myFunc(x):
+            return tf.realdiv(x[0], x[1])
+
+        input1_shape = [(2, 3), (2, 3)]
+        input2_shape = [(2, 3), (3,)]
+        for idx_ in range(2):
+            input1 = Input(shape=input1_shape[idx_])
+            input2 = Input(shape=input2_shape[idx_])
+            added = Lambda(myFunc)([input1, input2])
+            model = keras.models.Model(inputs=[input1, input2], outputs=added)
+
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_realdiv')
+            batch_data1_shape = (2,) + input1_shape[idx_]
+            batch_data2_shape = (2,) + input2_shape[idx_]
+            data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+            data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+            expected = model.predict([data1, data2])
+            self.assertTrue(run_onnx_runtime('onnx_realdiv', onnx_model, [data1, data2], expected, self.model_files))
+
+    def test_tf_reshape(self):
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.reshape(x, [-1, 2, 4]), input_shape=[2, 2, 2]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_reshape_float')
+        data = np.random.rand(3, 2, 2, 2).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_reshape_float', onnx_model, data, expected, self.model_files))
+
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.reshape(x, [-1, 2, 4]), input_shape=[2, 2, 2], dtype=tf.int32))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_reshape_int')
+        data = np.random.randint(5, size=(3, 2, 2, 2)).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_reshape_int', onnx_model, data, expected, self.model_files))
+
     def test_tf_resize(self):
         target_opset = get_opset_number_from_onnx()
         shape_list = [10, None] if target_opset >= 10 else [10]
@@ -148,6 +183,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
                     data = np.random.rand(2, 10, 20, 3).astype(np.float32)
                     expected = model.predict(data)
                     self.assertTrue(run_onnx_runtime('onnx_resize', onnx_model, data, expected, self.model_files))
+
+    def test_tf_squeeze(self):
+        for func_ in [lambda x: tf.squeeze(x, [1]), lambda x: tf.squeeze(x), lambda x: tf.squeeze(x, [-2])]:
+            model = Sequential()
+            model.add(Lambda(func_, input_shape=[1, 2, 1, 2]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_squeeze')
+            data = np.random.rand(3, 1, 2, 1, 2).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_squeeze', onnx_model, data, expected, self.model_files))
 
     def _test_stridedslice_with_version(self, target_opset):
         for v1 in [-1, 1]:

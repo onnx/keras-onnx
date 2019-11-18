@@ -21,10 +21,12 @@ class TYPES:
     All = 'All'
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
+    Reshape = 'Reshape'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
     Shape = 'Shape'
+    Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
     TopKV2 = 'TopKV2'
 
@@ -141,6 +143,20 @@ def convert_tf_any_all(scope, operator, container):
                               operator.output_full_names,
                               name=operator.full_name,
                               op_version=9)
+
+
+@converter_func(TYPES.Reshape)
+def convert_tf_reshape(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    shape_value = _cal_tensor_value(node.inputs[1]).tolist()
+    if shape_value is None:
+        raise ValueError("Reshape on node {} does not have a const shape".format(node.name))
+    oopb.apply_op_with_output("apply_reshape",
+                              operator.inputs[0].full_name,
+                              operator.outputs[0].full_name,
+                              name=operator.full_name + '_reshape',
+                              desired_shape=shape_value)
 
 
 def _convert_tf_resize(scope, operator, container, mode):
@@ -274,6 +290,31 @@ def convert_tf_shape(scope, operator, container):
                                   operator.output_full_names,
                                   name=operator.full_name + '_cast',
                                   to=dtype)
+
+
+@converter_func(TYPES.Squeeze)
+def convert_tf_squeeze(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    shape = _cal_tensor_shape(node.inputs[0])
+    axis = node.get_attr('squeeze_dims')
+
+    if axis:
+        neg_axis = any([val < 0 for val in axis])
+        if neg_axis and operator.target_opset < 11:
+            shape_len = len(shape)
+            axis = [a + shape_len if a < 0 else a for a in axis]
+    else:
+        axis = [i for i, j in enumerate(shape) if j == 1]
+
+    if shape is None:
+        raise ValueError("Squeeze input shape cannot be None for node {}".format(node.name))
+
+    oopb.add_node_with_output('Squeeze',
+                              operator.input_full_names[0],
+                              operator.output_full_names,
+                              operator.inputs[0].full_name + '_squeeze',
+                              axes=axis)
 
 
 @converter_func(TYPES.TopKV2)
@@ -479,6 +520,7 @@ direct_ops = {"Abs": ("apply_abs",),
               "Mul": ("apply_mul",),
               "Neg": ("apply_neg",),
               "Pow": ("apply_pow",),
+              "RealDiv": ("apply_div",),
               "Reciprocal": ("apply_reciprocal",),
               "Relu": ("apply_relu",),
               "Sigmoid": ("apply_sigmoid",),
