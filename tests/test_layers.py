@@ -165,7 +165,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = Sequential()
         model.add(Lambda(lambda x: tf.reshape(x, [-1, 2, 4]), input_shape=[2, 2, 2], dtype=tf.int32))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_reshape_int')
-        data = np.random.randint(5, size=(3, 2, 2, 2)).astype(np.float32)
+        data = np.random.randint(5, size=(3, 2, 2, 2)).astype(np.int32)
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_reshape_int', onnx_model, data, expected, self.model_files))
 
