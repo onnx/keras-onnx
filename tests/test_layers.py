@@ -111,15 +111,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_tf_concat(self):
 
-        def myFunc1(x):
+        def my_func_1(x):
             return tf.concat([x[0], x[1]], 1)
 
-        def myFunc2(x):
+        def my_func_2(x):
             return tf.concat([x[0], x[1]], -1)
 
         input1_shape = [(2, 3), (3, 2)]
         input2_shape = [(4, 3), (3, 4)]
-        myFunc = [myFunc1, myFunc2]
+        myFunc = [my_func_1, my_func_2]
         for idx_ in range(2):
             input1 = Input(shape=input1_shape[idx_])
             input2 = Input(shape=input2_shape[idx_])
@@ -153,6 +153,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
             data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
             expected = model.predict([data1, data2])
             self.assertTrue(run_onnx_runtime('onnx_realdiv', onnx_model, [data1, data2], expected, self.model_files))
+
+    def test_tf_reduce_op(self):
+        reduce_name = ['tf_min', 'tf_max', 'tf_mean', 'tf_sum', 'tf_prod']
+        reduce_ops = [K.min, K.max, K.mean, K.sum, K.prod]
+        axis_list = [1] if is_tf2 and is_tf_keras else [1, None]
+        keepdims_val = [True] if is_tf_keras else [True, False]
+        for idx, reduce_op in enumerate(reduce_ops):
+            for axis in axis_list:
+                for keepdims in keepdims_val:
+                    model = Sequential()
+                    model.add(Lambda(lambda x: reduce_op(x, axis=axis, keepdims=keepdims), input_shape=[2, 2]))
+                    onnx_model = keras2onnx.convert_keras(model, 'test_'+reduce_name[idx])
+                    data = np.random.rand(3, 2, 2).astype(np.float32)
+                    expected = model.predict(data)
+                    self.assertTrue(run_onnx_runtime('onnx_'+reduce_name[idx], onnx_model, data, expected, self.model_files))
 
     def test_tf_reshape(self):
         model = Sequential()
@@ -193,6 +208,29 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_squeeze', onnx_model, data, expected, self.model_files))
 
+    def test_tf_stack(self):
+        def my_func_1(x):
+            return tf.stack([x[0], x[1], x[2]], axis=1)
+
+        def my_func_2(x):
+            return tf.stack([x[0], x[1], x[2]], axis=-1)
+
+        for myFunc in [my_func_1, my_func_2]:
+            input_shape = (2, 3)
+            input1 = Input(shape=input_shape)
+            input2 = Input(shape=input_shape)
+            input3 = Input(shape=input_shape)
+            added = Lambda(myFunc)([input1, input2, input3])
+            model = keras.models.Model(inputs=[input1, input2, input3], outputs=added)
+
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_stack')
+            batch_data_shape = (1,) + input_shape
+            data1 = np.random.rand(*batch_data_shape).astype(np.float32)
+            data2 = np.random.rand(*batch_data_shape).astype(np.float32)
+            data3 = np.random.rand(*batch_data_shape).astype(np.float32)
+            expected = model.predict([data1, data2, data3])
+            self.assertTrue(run_onnx_runtime('onnx_stack', onnx_model, [data1, data2, data3], expected, self.model_files))
+
     def _test_stridedslice_with_version(self, target_opset):
         for v1 in [-1, 1]:
             for v2 in [-1, 2]:
@@ -230,6 +268,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self._test_stridedslice_with_version(opset_)
         self._test_stridedslice_ellipsis_mask_with_version(opset_)
         self._test_stridedslice_shrink_mask_with_version(opset_)
+
+    def test_tf_tile(self):
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.tile(x, [1, 1, 3]), input_shape=[2, 2]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_tile')
+        data = np.random.rand(3, 2, 2).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_tile', onnx_model, data, expected, self.model_files))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
     def test_any_all(self):
