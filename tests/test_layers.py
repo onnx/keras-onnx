@@ -157,9 +157,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_tf_reduce_op(self):
         reduce_name = ['tf_min', 'tf_max', 'tf_mean', 'tf_sum', 'tf_prod']
         reduce_ops = [K.min, K.max, K.mean, K.sum, K.prod]
+        axis_list = [1] if is_tf2 and is_tf_keras else [1, None]
+        keepdims_val = [True] if is_tf_keras else [True, False]
         for idx, reduce_op in enumerate(reduce_ops):
-            for axis in [None, 1]:
-                keepdims_val = [True] if is_tf_keras else [True, False]
+            for axis in axis_list:
                 for keepdims in keepdims_val:
                     model = Sequential()
                     model.add(Lambda(lambda x: reduce_op(x, axis=axis, keepdims=keepdims), input_shape=[2, 2]))
