@@ -219,7 +219,7 @@ def _convert_tf_pad(scope, operator, container):
     if operator.target_opset < 11:
         attrs['pads'] = paddings
         if mode in [None, "constant"] and len(node.inputs) == 3:
-            const_val = _cal_tensor_value(node.inputs[2])
+            const_val = _cal_tensor_value(node.inputs[2]).tolist()
             attrs['value'] = const_val
         pad_node =  oopb.add_node("Pad",
                                   cast_op,
