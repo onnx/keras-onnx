@@ -154,7 +154,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for my_func in [my_func_1, my_func_2]:
             model = Sequential()
             model.add(Lambda(lambda x: my_func(x), input_shape=[2, 2]))
-            onnx_model = keras2onnx.convert_keras(model, 'test_tf_pad', target_opset=2)
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_pad')
             data = np.random.rand(3, 2, 2).astype(np.float32)
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_pad', onnx_model, data, expected, self.model_files))
