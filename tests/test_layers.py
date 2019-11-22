@@ -134,6 +134,31 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict([data1, data2])
             self.assertTrue(run_onnx_runtime('onnx_concat', onnx_model, [data1, data2], expected, self.model_files))
 
+    def test_tf_gather(self):
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.gather(x, [1, 1], axis=1), input_shape=[5, 5]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_gather')
+        data = np.random.rand(3, 5, 5).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_tf_gather', onnx_model, data, expected, self.model_files))
+
+    def test_tf_pad(self):
+        def my_func_1(x):
+            paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
+            return tf.pad(x, paddings, mode='CONSTANT')
+
+        def my_func_2(x):
+            paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
+            return tf.pad(x, paddings, mode='CONSTANT', constant_values=1)
+
+        for my_func in [my_func_1, my_func_2]:
+            model = Sequential()
+            model.add(Lambda(lambda x: my_func(x), input_shape=[2, 2]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_pad')
+            data = np.random.rand(3, 2, 2).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_pad', onnx_model, data, expected, self.model_files))
+
     def test_tf_realdiv(self):
         def myFunc(x):
             return tf.realdiv(x[0], x[1])
