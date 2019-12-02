@@ -69,7 +69,7 @@ jobs:
       git clone https://github.com/qqwweee/keras-yolo3
       %INSTALL_KERAS_RESNET%
       pip install git+https://www.github.com/keras-team/keras-contrib.git
-      pip install keras-tcn
+      pip install keras-tcn==2.8.3
     displayName: 'Install dependencies'
 
   - script: |
