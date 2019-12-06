@@ -175,7 +175,9 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
                                       to=onnx_proto.TensorProto.INT64,
                                       name=operator.full_name + '_trip_cnt')
     loop_inputs = [trip_count_node[0],
-                   ('_cond', onnx_proto.TensorProto.BOOL, np.array(True, dtype='bool')),
+                   # TENSOR_TYPE_TO_STORAGE_TENSOR_TYPE maps BOOL to INT32
+                   # so we need change np.array(True, dtype='bool') to int32 here
+                   ('_cond', onnx_proto.TensorProto.BOOL, np.array(1, dtype='int32')),
                    start.name]
     from onnx import helper
     n1 = helper.make_node("Identity", ["cond"], ["cond_out"], name="n1")
