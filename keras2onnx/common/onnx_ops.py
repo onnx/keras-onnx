@@ -21,6 +21,7 @@ class OnnxOperatorBuilder:
         self.int64 = onnx_proto.TensorProto.INT64
         self.float = onnx_proto.TensorProto.FLOAT
         self.double = onnx_proto.TensorProto.DOUBLE
+        self.bool = onnx_proto.TensorProto.BOOL
 
         apply_operations = onnxconverter_common.onnx_ops.__dict__
         for k_, m_ in apply_operations.items():
@@ -63,10 +64,10 @@ class OnnxOperatorBuilder:
         outputs = [self._scope.get_unique_variable_name(name + str(i_)) for i_ in range(outputs_num)]
         ox_inputs = self._process_inputs(inputs, name)
         self._container.add_node(op_type, ox_inputs, outputs, op_domain, op_version, name=name, **attrs)
-        return outputs
+        return outputs if outputs_num > 1 else outputs[0]
 
     def add_node(self, op_type, inputs, name, op_domain='', op_version=None, **attrs):
-        return self.add_node_all(op_type, inputs, name, 1, op_domain, op_version, **attrs)[0]
+        return self.add_node_all(op_type, inputs, name, 1, op_domain, op_version, **attrs)
 
     def add_node_with_output(self, op_type, inputs, outputs, name, op_domain='', op_version=None, **attrs):
         if op_version is None:
@@ -79,7 +80,7 @@ class OnnxOperatorBuilder:
         outputs = [self._scope.get_unique_variable_name(name + str(i_)) for i_ in range(outputs_num)]
         ox_inputs = self._process_inputs(inputs, name)
         apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)
-        return outputs
+        return outputs if outputs_num > 1 else outputs[0]
 
     def apply_op_with_output(self, apply_func_name, inputs, outputs, name, **attrs):
         apply_operations = onnxconverter_common.onnx_ops.__dict__

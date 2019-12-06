@@ -29,6 +29,7 @@ class TYPES:
     Pad = 'Pad'
     PadV2 = 'PadV2'
     Prod = 'Prod'
+    Range = 'Range'
     Reshape = 'Reshape'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
@@ -138,6 +139,92 @@ def convert_tf_gather_v2(scope, operator, container):
                               name=operator.full_name,
                               op_version=op_version,
                               axis=axis)
+
+
+def _make_range_const(scope, operator, container, start, limit, delta, output, onnx_type):
+    start = _cal_tensor_value(start).tolist()
+    limit = _cal_tensor_value(limit).tolist()
+    delta = _cal_tensor_value(delta).tolist()
+    val = np.arange(start, limit, delta)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.add_node_with_output('Identity',
+                             [('_start', onnx_type, val)],
+                             operator.outputs[0].full_name,
+                             name=operator.full_name + '_range')
+
+
+def _make_range_non_const(scope, operator, container, start, limit, delta, output, onnx_type):
+    oopb = OnnxOperatorBuilder(container, scope)
+    diff_node = oopb.apply_sub([limit.name, start.name],
+                               name=operator.full_name + '_diff')
+    delta_cast = delta.name
+    if onnx_type in [onnx_proto.TensorProto.INT32, onnx_proto.TensorProto.INT64]:
+        diff_output = oopb.apply_cast(diff_node,
+                                    to=onnx_proto.TensorProto.FLOAT,
+                                    name=operator.full_name + '_cast_diff')
+        delta_cast = oopb.apply_cast(delta.name,
+                                     to=onnx_proto.TensorProto.FLOAT,
+                                     name=operator.full_name + '_cast_delta')
+
+    div_node = oopb.apply_div([diff_output, delta_cast],
+                               name=operator.full_name + '_div')
+    ceil_node = oopb.add_node("Ceil",
+                               div_node,
+                               name=operator.full_name + '_ceil')
+    trip_count_node = oopb.apply_cast(ceil_node,
+                                      to=onnx_proto.TensorProto.INT64,
+                                      name=operator.full_name + '_trip_cnt')
+    loop_inputs = [trip_count_node,
+                   ('_cond', onnx_proto.TensorProto.BOOL, np.array(True, dtype='bool')),
+                   start.name]
+    from onnx import helper
+    n1 = helper.make_node("Identity", ["cond"], ["cond_out"], name="n1")
+    n2 = helper.make_node("Add", ["prev", delta.name], ["current"], name="n2")
+    n3 = helper.make_node("Identity", ["prev"], ["range"], name="n3")
+
+    graph_proto = helper.make_graph(
+        nodes=[n1, n2, n3],
+        name="test",
+        inputs=[helper.make_tensor_value_info("i", onnx_proto.TensorProto.INT64, []),
+                helper.make_tensor_value_info("cond", onnx_proto.TensorProto.BOOL, []),
+                helper.make_tensor_value_info("prev", onnx_type, [])],
+        outputs=[helper.make_tensor_value_info("cond_out", onnx_proto.TensorProto.BOOL, []),
+                 helper.make_tensor_value_info("current", onnx_type, []),
+                 helper.make_tensor_value_info("range", onnx_type, [])],
+        initializer=[]
+    )
+    loop_node = oopb.add_node_all("Loop",
+                                  loop_inputs,
+                                  name=operator.full_name + '_loop',
+                                  outputs_num=2,
+                                  body=graph_proto)
+    oopb.apply_op_with_output("apply_identity",
+                              loop_node[1],
+                              operator.output_full_names,
+                              name=operator.full_name + '_identity')
+
+
+def _make_range(scope, operator, container, start, limit, delta, output, onnx_type):
+    if all(_cal_tensor_value(n) is not None for n in [start, limit, delta]) is True:
+        _make_range_const(scope, operator, container, start, limit, delta, output, onnx_type)
+    else:
+        _make_range_non_const(scope, operator, container, start, limit, delta, output, onnx_type)
+
+
+@converter_func(TYPES.Range)
+def convert_tf_range(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    if operator.target_opset < 11:
+        onnx_type = _to_onnx_type(node.outputs[0].dtype)
+        _make_range(scope, operator, container, node.inputs[0], node.inputs[1], node.inputs[2], node.outputs[0], onnx_type)
+    else:
+        op_version = 11
+        oopb.add_node_with_output("Range",
+                                  operator.input_full_names,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_range',
+                                  op_version=op_version)
 
 
 @converter_func(TYPES.TD_Reshape)
@@ -314,9 +401,17 @@ def convert_tf_prod(scope, operator, container):
 def convert_tf_reshape(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
-    shape_value = _cal_tensor_value(node.inputs[1]).tolist()
-    if shape_value is None:
-        raise ValueError("Reshape on node {} does not have a const shape".format(node.name))
+    if _cal_tensor_value(node.inputs[1]) is None:
+        temp_shape_value = node.inputs[1].name
+        shape_value = temp_shape_value
+        shape_dtype = _to_onnx_type(node.inputs[0].dtype)
+        if shape_dtype != onnx_pb.TensorProto.INT64:
+            shape_value = oopb.apply_cast(temp_shape_value,
+                                          to=onnx_proto.TensorProto.INT64,
+                                          name=operator.full_name + '_cast')
+    else:
+        shape_value = _cal_tensor_value(node.inputs[1]).tolist()
+
     oopb.apply_op_with_output("apply_reshape",
                               operator.inputs[0].full_name,
                               operator.outputs[0].full_name,
