@@ -44,9 +44,6 @@ class OnnxOperatorBuilder:
                 )
             elif isinstance(i_, (tuple, list)):
                 ox_n = self._scope.get_unique_variable_name(name + i_[0])
-                print('op_name=' + name)
-                print('instance type='+str(i_[1]))
-                print('flatten_value=' + str(i_[2].flatten()))
                 self._container.add_initializer(
                     ox_n,
                     i_[1],
