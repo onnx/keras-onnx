@@ -9,6 +9,7 @@ class Operator:
     """
     The intermediate object to store the information for the final ONNX operator generation.
     """
+
     def __init__(self, onnx_name, scope, type, raw_operator, target_opset):
         """
         :param onnx_name: A unique ID, which is a string
@@ -87,8 +88,11 @@ class Operator:
     def get_attr(self, key):
         return self.attrs.get(key, None)
 
-    def get_input_shapes(self):
-        return self.attrs.get('input_shapes', None)
+    def get_input_shape(self):
+        input_shape = self.inputs[0].type.shape
+        if input_shape is None:
+            input_shape = self.raw_operator.input_shape
+        return input_shape
 
     def get_output_shape(self):
         output_shape = self.outputs[0].type.shape

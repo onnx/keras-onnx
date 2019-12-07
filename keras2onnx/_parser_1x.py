@@ -3,19 +3,14 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common import k2o_logger, get_default_batch_size
+from typing import Iterable
+
+from .common import k2o_logger
 from .funcbook import get_converter
-from .ke2onnx import list_input_tensors, list_output_tensors
-from ._parse_tf import _infer_variable_type
+from ._parse_tf import infer_variable_type, tsname_to_node, adjust_input_batch_size
 
 
-def adjust_input_batch_size(var_type):
-    if len(var_type.shape) > 0 and var_type.shape[0] is None:
-        var_type.shape = [get_default_batch_size()] + var_type.shape[1:]
-    return var_type
-
-
-def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefix=None):
+def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
@@ -31,7 +26,7 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
     for i_ in inputs:
         iname = prefix + i_.name
         k2o_logger().debug('input : ' + iname)
-        var_type = adjust_input_batch_size(_infer_variable_type(i_, varset.target_opset))
+        var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset))
         i0 = varset.get_local_variable_or_declare_one(iname, var_type)
         operator.add_input(i0)
 
@@ -40,13 +35,13 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         for im_ in [m_ for m_ in in_mask if m_ is not None]:
             mts_name = im_.name  # input mask in a shared model is not supported yet, why is it needed?
             k2o_logger().debug('input mask: ' + mts_name)
-            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(im_, varset.target_opset))
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(im_, varset.target_opset))
             operator.add_input_mask(mts_var)
 
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
-        o1 = varset.get_local_variable_or_declare_one(oname, _infer_variable_type(o_, varset.target_opset))
+        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
@@ -54,7 +49,7 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         for om_ in [m_ for m_ in out_mask if m_ is not None]:
             mts_name = prefix + om_.name
             k2o_logger().debug('output mask: ' + mts_name)
-            mts_var = varset.get_local_variable_or_declare_one(mts_name, _infer_variable_type(om_, varset.target_opset))
+            mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(om_, varset.target_opset))
             operator.add_output_mask(mts_var)
 
     cvt = get_converter(operator.type)
@@ -62,3 +57,64 @@ def _on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, pref
         operator.shape_infer = cvt.shape_infer
 
     return operator
+
+
+def extract_inbound_nodes(layer):
+    if hasattr(layer, 'inbound_nodes'):
+        return layer.inbound_nodes
+    elif hasattr(layer, '_inbound_nodes'):
+        return layer._inbound_nodes
+    else:
+        raise ValueError("Failed to find inbound_nodes and _inbound_nodes when parsing %s" % layer.name)
+
+
+def list_input_tensors(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.input_tensors may not be a list, though the word is plural.
+    """
+    return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
+
+
+def list_output_tensors(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
+    """
+    return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
+
+
+def list_input_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
+    """
+    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
+
+
+def list_output_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
+    """
+    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
+
+
+def build_opdict_from_keras(model):
+    # type: (keras.Model) -> {}
+
+    output_dict = {}
+    for l_ in model.layers:
+        if hasattr(l_, 'layers'):
+            submodel_dict = build_opdict_from_keras(l_)
+            shared_layer = False
+            for node_ in extract_inbound_nodes(l_):
+                shared_layer |= any(
+                    ts_.name not in submodel_dict for ts_ in list_output_tensors(node_))
+                if shared_layer:
+                    break
+            if not shared_layer:  # shared layer(model) will be processed as a whole.
+                output_dict.update(submodel_dict)
+                continue
+
+        for node_ in extract_inbound_nodes(l_):
+            for ts_ in list_output_tensors(node_):
+                output_dict[ts_.name] = (l_, model)
+
+    return {tsname_to_node(n_): v_ for n_, v_ in output_dict.items()}

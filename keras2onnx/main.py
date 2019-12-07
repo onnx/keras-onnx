@@ -9,16 +9,17 @@ from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
-from .ke2onnx import static_set_ke2onnx_converters, build_layer_outputs, outputs_to_dict
-from .parser import parse_graph, tsname_to_node
+from .ke2onnx import static_set_ke2onnx_converters
+from .parser import parse_graph
 from .topology import Topology
 from .common.utils import set_logger_level
-from .subgraph import is_placeholder_node
 from .funcbook import set_converter
+from ._parse_tf import is_placeholder_node, tsname_to_node, extract_outputs_from_subclassing_model
+from ._parser_1x import build_opdict_from_keras
 
 
-def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
-                  custom_op_conversions=None):
+def convert_keras(model, name=None, doc_string='', target_opset=None,
+                  channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
     # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
     """
     :param model: keras model
@@ -39,47 +40,12 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
         print(model.summary())
 
     output_names = []
-    output_dict = None
+    output_dict = {}
     if is_tf2:
-        if (model._is_graph_network or  # pylint:disable=protected-access
-                isinstance(model, keras.engine.sequential.Sequential)):
-            tf_graph = model.outputs[0].graph
-        else:
-            from tensorflow.core.protobuf import config_pb2
-            from tensorflow.python.keras.saving import saving_utils as _saving_utils
-            from tensorflow.lite.python.util import run_graph_optimizations as _run_graph_optimizations
-            from tensorflow.python.framework import convert_to_constants as _convert_to_constants
-
-            function = _saving_utils.trace_model_call(model)
-            concrete_func = function.get_concrete_function()
-            output_names = [ts_.name for ts_ in concrete_func.outputs]
-            tf_graph = concrete_func._first_order_tape_functions.forward.graph
-            output_dict = build_layer_outputs(model, tf_graph, concrete_func.outputs)
-            frozen_func = _convert_to_constants.convert_variables_to_constants_v2(
-                concrete_func, lower_control_flow=True)
-
-            input_tensors = [
-                tensor for tensor in frozen_func.inputs
-                if tensor.dtype != tf.dtypes.resource
-            ]
-            output_tensors = frozen_func.outputs
-            graph_def = frozen_func.graph.as_graph_def()
-
-            config = config_pb2.ConfigProto()
-            rewrite_options = config.graph_options.rewrite_options
-            rewrite_options.constant_folding = rewrite_options.ON
-
-            graph_def = _run_graph_optimizations(
-                graph_def,
-                input_tensors,
-                output_tensors,
-                config=config,
-                graph=frozen_func.graph)
-
-            with tf.Graph().as_default() as tf_graph:
-                tf.import_graph_def(graph_def, name='')
+        tf_graph = extract_outputs_from_subclassing_model(model, output_dict, output_names)
     else:
         tf_graph = keras.backend.get_session().graph
+        output_dict = build_opdict_from_keras(model)
 
     name = name or model.name
     target_opset = target_opset or get_opset_number_from_onnx()
@@ -92,7 +58,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
-    parse_graph(topology, tf_graph, target_opset, output_names, outputs_to_dict(tf_graph, output_dict))
+    parse_graph(topology, tf_graph, target_opset, output_names, output_dict)
     topology.compile()
 
     return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
@@ -120,7 +86,6 @@ def _freeze_graph(session, keep_var_names=None, output_names=None):
 def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
     """
     Freezes internal tensorflow graph for the specified keras model.
-
     :return The frozen graph object.
     """
     output_names = output_names or \
