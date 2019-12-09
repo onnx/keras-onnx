@@ -163,12 +163,12 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
     diff_node = oopb.apply_sub([limit.name, start.name],
                                name=operator.full_name + '_diff')
     delta_cast = delta.name
-    if onnx_type in [onnx_proto.TensorProto.INT32, onnx_proto.TensorProto.INT64]:
+    if onnx_type in [oopb.int32, oopb.int64]:
         diff_output = oopb.apply_cast(diff_node,
-                                    to=onnx_proto.TensorProto.FLOAT,
+                                    to=oopb.float,
                                     name=operator.full_name + '_cast_diff')
         delta_cast = oopb.apply_cast(delta.name,
-                                     to=onnx_proto.TensorProto.FLOAT,
+                                     to=oopb.float,
                                      name=operator.full_name + '_cast_delta')
 
     div_node = oopb.apply_div(diff_output + delta_cast,
@@ -177,12 +177,12 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
                                div_node,
                                name=operator.full_name + '_ceil')
     trip_count_node = oopb.apply_cast(ceil_node,
-                                      to=onnx_proto.TensorProto.INT64,
+                                      to=oopb.int64,
                                       name=operator.full_name + '_trip_cnt')
     loop_inputs = [trip_count_node[0],
                    # TENSOR_TYPE_TO_STORAGE_TENSOR_TYPE maps BOOL to INT32
                    # so we need change np.array(True, dtype='bool') to int32 here
-                   ('_cond', onnx_proto.TensorProto.BOOL, np.array(1, dtype='int32')),
+                   ('_cond', oopb.bool, np.array(1, dtype='int32')),
                    start.name]
     from onnx import helper
     n1 = helper.make_node("Identity", ["cond"], ["cond_out"], name="n1")
@@ -192,10 +192,10 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
     graph_proto = helper.make_graph(
         nodes=[n1, n2, n3],
         name="test",
-        inputs=[helper.make_tensor_value_info("i", onnx_proto.TensorProto.INT64, []),
-                helper.make_tensor_value_info("cond", onnx_proto.TensorProto.BOOL, []),
+        inputs=[helper.make_tensor_value_info("i", oopb.int64, []),
+                helper.make_tensor_value_info("cond", oopb.bool, []),
                 helper.make_tensor_value_info("prev", onnx_type, [])],
-        outputs=[helper.make_tensor_value_info("cond_out", onnx_proto.TensorProto.BOOL, []),
+        outputs=[helper.make_tensor_value_info("cond_out", oopb.bool, []),
                  helper.make_tensor_value_info("current", onnx_type, []),
                  helper.make_tensor_value_info("range", onnx_type, [])],
         initializer=[]
@@ -412,9 +412,9 @@ def convert_tf_reshape(scope, operator, container):
         temp_shape_value = node.inputs[1].name
         shape_value = temp_shape_value
         shape_dtype = _to_onnx_type(node.inputs[0].dtype)
-        if shape_dtype != onnx_pb.TensorProto.INT64:
+        if shape_dtype != oopb.int64:
             shape_value = oopb.apply_cast(temp_shape_value,
-                                          to=onnx_proto.TensorProto.INT64,
+                                          to=oopb.int64,
                                           name=operator.full_name + '_cast')[0]
     else:
         shape_value = _cal_tensor_value(node.inputs[1]).tolist()
@@ -806,7 +806,6 @@ direct_ops = {"Abs": ("apply_abs",),
               "RealDiv": ("apply_div",),
               "Reciprocal": ("apply_reciprocal",),
               "Relu": ("apply_relu",),
-              "Reshape": ("apply_reshape",),
               "Sigmoid": ("apply_sigmoid",),
               "Sin": 7,
               "Sinh": 9,

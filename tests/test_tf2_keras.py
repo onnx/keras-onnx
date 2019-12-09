@@ -29,6 +29,7 @@ class LeNet(tf.keras.Model):
         return self.out(x)
 
 
+@unittest.skipIf(not keras2onnx.proto.tfcompat.is_tf2, "Tensorflow 2.0 only tests.")
 class TestTF2Keras2ONNX(unittest.TestCase):
     def test_tf2_keras_model(self):
         lenet = LeNet()
