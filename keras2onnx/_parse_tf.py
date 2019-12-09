@@ -72,14 +72,14 @@ class LayerInfo(object):
         graph = node.graph
         layer_info = LayerInfo(layer)
         # find the output
-        visited = set()
+        next_itr = set()
         for nn_, layer_info_ in outputs_map.items():
             if layer_info_[0] == layer and _get_layer_name(nn_) == _get_layer_name(node.name):
                 op_node = graph.get_operation_by_name(tsname_to_node(nn_))
-                visited.add(op_node)
+                next_itr.add(op_node)
                 layer_info.outputs.extend(op_node.outputs)
 
-        next_itr = set(visited)
+        visited = set()
         while next_itr:
             visited |= next_itr
             next_itr.clear()
@@ -87,7 +87,7 @@ class LayerInfo(object):
                 for i_ in n_.inputs:
                     if i_.op in visited or i_.op not in inference_nodeset:
                         continue
-                    if (not is_placeholder_node(i_.op)) and i_ in outputs_map:
+                    if (not is_placeholder_node(i_.op)) and i_.op.name in outputs_map:
                         continue
                     next_itr.add(i_.op)
 

@@ -9,8 +9,6 @@ from .proto import keras
 from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2
 from .common import k2o_logger
-from ._parser_1x import (extract_inbound_nodes, list_input_tensors,
-                         list_output_tensors, list_input_shapes, list_output_shapes)
 from .topology import Topology
 from .subgraph import create_subgraph
 from .funcbook import get_converter
@@ -18,7 +16,8 @@ from .wrapper import tf2onnx_wrap, TFNODES
 from ._builtin import TYPES
 from ._parse_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
-from ._parser_1x import on_parsing_keras_layer
+from ._parser_1x import (extract_inbound_nodes, list_input_tensors,
+                         list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
 
 
 def _find_node(nodes, name):

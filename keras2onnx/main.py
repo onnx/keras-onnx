@@ -14,7 +14,7 @@ from .parser import parse_graph
 from .topology import Topology
 from .common.utils import set_logger_level
 from .funcbook import set_converter
-from ._parse_tf import is_placeholder_node, tsname_to_node, extract_outputs_from_subclassing_model
+from ._parse_tf import is_placeholder_node, is_subclassing, tsname_to_node, extract_outputs_from_subclassing_model
 from ._parser_1x import build_opdict_from_keras
 
 
@@ -42,7 +42,11 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     output_names = []
     output_dict = {}
     if is_tf2:
-        tf_graph = extract_outputs_from_subclassing_model(model, output_dict, output_names)
+        if is_subclassing(model):
+            tf_graph = extract_outputs_from_subclassing_model(model, output_dict, output_names)
+        else:
+            tf_graph = model.outputs[0].graph
+            output_dict = build_opdict_from_keras(model)
     else:
         tf_graph = keras.backend.get_session().graph
         output_dict = build_opdict_from_keras(model)
