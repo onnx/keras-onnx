@@ -29,7 +29,8 @@ class LeNet(tf.keras.Model):
         return self.out(x)
 
 
-@unittest.skipIf(not keras2onnx.proto.tfcompat.is_tf2, "Tensorflow 2.0 only tests.")
+@unittest.skipIf((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2),
+                 "Tensorflow 2.0 only tests.")
 class TestTF2Keras2ONNX(unittest.TestCase):
     def test_lenet(self):
         tf.keras.backend.clear_session()

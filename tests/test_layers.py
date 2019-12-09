@@ -1041,6 +1041,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected,
                                              self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_LSTM(self):
         inputs1 = keras.Input(shape=(3, 5))
         data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
@@ -1053,6 +1054,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(data)
                 self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_LSTM_with_bias(self):
         inputs1 = keras.Input(shape=(1, 1))
         cls = LSTM(units=1, return_state=True, return_sequences=True)
@@ -1328,7 +1330,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime('recursive_and_shared', onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
+    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras or is_tf2,
                      "Low keras version is not supported.")
     def test_shared_model_2(self):
         K.set_learning_phase(0)
