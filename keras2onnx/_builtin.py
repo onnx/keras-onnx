@@ -19,6 +19,8 @@ class TYPES:
     Const = 'Const'
     Any = 'Any'
     All = 'All'
+    BiasAdd = 'BiasAdd'
+    BiasAddV1 = 'BiasAdd'
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
     GatherV2 = 'GatherV2'
@@ -72,6 +74,30 @@ def default_convert(scope, operator, container):
 @converter_func(TYPES.Identity)
 def convert_tf_identity(scope, operator, container):
     default_convert(scope, operator, container)
+
+
+@converter_func(TYPES.BiasAdd)
+def convert_tf_bias_add(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    if node.get_attr('data_format') != b'NHWC':
+        shape0 = _cal_tensor_shape(node.inputs[0])
+        shape1 = _cal_tensor_shape(node.inputs[1])
+        if node.inputs[1].op.type == 'Const':
+            new_broadcast_shape = [shape1[0]] + [1] * (len(shape0) - 2)
+            reshape_node = oopb.apply_reshape(operator.inputs[1].full_name,
+                                              name=operator.full_name + '_reshape',
+                                              desired_shape=new_broadcast_shape)
+            oopb.apply_op_with_output("apply_add",
+                                      [node.inputs[0].name, reshape_node[0]],
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_add')
+            return
+
+    oopb.apply_op_with_output("apply_add",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name + '_add')
 
 
 @converter_func(TYPES.ConcatV2)
