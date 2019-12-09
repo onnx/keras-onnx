@@ -31,12 +31,13 @@ class LeNet(tf.keras.Model):
 
 @unittest.skipIf(not keras2onnx.proto.tfcompat.is_tf2, "Tensorflow 2.0 only tests.")
 class TestTF2Keras2ONNX(unittest.TestCase):
-    def test_tf2_keras_model(self):
+    def test_lenet(self):
+        tf.keras.backend.clear_session()
         lenet = LeNet()
         data = np.random.rand(2 * 416 * 416 * 3).astype(np.float32).reshape(2, 416, 416, 3)
         expected = lenet(data)
         lenet._set_inputs(data)
-        oxml = keras2onnx.convert_keras(lenet, debug_mode=True)
+        oxml = keras2onnx.convert_keras(lenet)
         model_files = []
         self.assertTrue(run_onnx_runtime('lenet', oxml, data, expected, model_files))
 

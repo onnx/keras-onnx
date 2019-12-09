@@ -683,6 +683,8 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
                                    q_overall, visited)
     for input_ in layer_inputs:
         layer_info.inputs.extend(input_.outputs)
+
+    layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
     return layer_info
 
 

@@ -85,7 +85,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def asarray(*a):
         return np.array([a], dtype='f')
 
-    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_keras_with_tf2onnx(self):
         model = Sequential()
         model.add(Dense(units=4, input_shape=(10,), activation='relu'))
@@ -110,7 +110,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
     def test_tf_concat(self):
-
         def my_func_1(x):
             return tf.concat([x[0], x[1]], 1)
 
@@ -159,6 +158,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_pad', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_tf_range(self):
         def my_func_1(x):
             return x + tf.cast(tf.range(3, 18, 3), tf.float32)
@@ -187,6 +187,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict([data_1, data_2])
         self.assertTrue(run_onnx_runtime('onnx_range_2', onnx_model, [data_1, data_2], expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_tf_realdiv(self):
         def myFunc(x):
             return tf.realdiv(x[0], x[1])
@@ -222,6 +223,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                     expected = model.predict(data)
                     self.assertTrue(run_onnx_runtime('onnx_'+reduce_name[idx], onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_tf_reshape(self):
         model = Sequential()
         model.add(Lambda(lambda x: tf.reshape(x, [-1, 2, 4]), input_shape=[2, 2, 2]))
@@ -328,7 +330,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2, 'lambda/custom layer conversion not ready')
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_stridedslice(self):
         opset_ = get_opset_number_from_onnx()
         self._test_stridedslice_with_version(opset_)
@@ -417,6 +419,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.mergelayer_helper(Add, [1, 2, 3], [4, 5, 6])
         self.mergelayer_helper(Add, [1, 2, 3], [4, 5, 6], [-3, -1, 1.5])
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_sub(self):
         self.mergelayer_helper(Subtract, [1, 2, 3], [4, 5, 6])
 
@@ -429,10 +432,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_max(self):
         self.mergelayer_helper(Maximum, [1, -2, 3], [3, 1, 1])
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_concat(self):
         self.mergelayer_helper(lambda: Concatenate(), [1, 2, 3], [4, 5, 6, 7])
         self.mergelayer_helper(lambda: Concatenate(), [1, 2, 3], [4, 5, 6, 7])
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_concat_2d(self):
         self.mergelayer_helper(lambda: Concatenate(-1), [[1, 2], [3, 4]], [[4, 5], [6, 7]])
         self.mergelayer_helper(lambda: Concatenate(1), [[1, 2], [3, 4]], [[4, 5], [6, 7]])
@@ -966,6 +971,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_simpleRNN(self):
         K.clear_session()
         inputs1 = keras.Input(shape=(3, 1))
@@ -1007,6 +1013,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict([x, s])
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_GRU(self):
         inputs1 = keras.Input(shape=(3, 1))
 
@@ -1074,6 +1081,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('tf_lstm', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_LSTM_with_initializer(self):
         # batch_size = N
         # seq_length = H
@@ -1261,6 +1269,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict([x, y])
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, y], expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_recursive_model(self):
         keras.backend.set_learning_phase(0)
 
@@ -1287,6 +1296,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime('recursive', onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_recursive_and_shared_model(self):
         keras.backend.set_learning_phase(0)
         N, C, D = 2, 3, 3
@@ -1405,6 +1415,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_masking(self):
         timesteps, features = (3, 5)
         model = Sequential([
@@ -1417,6 +1428,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_timedistributed(self):
         keras_model = keras.Sequential()
         keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
@@ -1472,6 +1484,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
         self.assertTrue(run_onnx_runtime('channel_last_input', onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_sub_model(self):
         class IdentityLayer(Layer):
             def __init__(self, **kwargs):
