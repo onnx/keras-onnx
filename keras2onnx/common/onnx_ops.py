@@ -21,6 +21,7 @@ class OnnxOperatorBuilder:
         self.int64 = onnx_proto.TensorProto.INT64
         self.float = onnx_proto.TensorProto.FLOAT
         self.double = onnx_proto.TensorProto.DOUBLE
+        self.bool = onnx_proto.TensorProto.BOOL
 
         apply_operations = onnxconverter_common.onnx_ops.__dict__
         for k_, m_ in apply_operations.items():
