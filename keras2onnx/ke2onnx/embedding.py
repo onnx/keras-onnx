@@ -19,10 +19,11 @@ def convert_keras_embed(scope, operator, container):
         if container.target_opset >= 11:
             equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
                                       operator.full_name + 'mask')
-            container.add_node('Not', equal_out, operator.output_masks[0].full_name, name=operator.full_name + 'mask_not')
+            container.add_node('Not', equal_out, operator.output_masks[0].full_name,
+                               name=operator.full_name + 'mask_not')
         else:
             equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
-                                      operator.full_name + '_input_cast', to=6)
+                                          operator.full_name + '_input_cast', to=6)
             equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
                                       operator.full_name + 'mask')
             container.add_node('Not', equal_out, operator.output_masks[0].full_name,
@@ -44,4 +45,5 @@ def convert_keras_embed(scope, operator, container):
     embedding_tensor_name = container.add_initializer_by_name(scope, op.weights[0].name, onnx_proto.TensorProto.FLOAT,
                                                               [op.input_dim, op_output_shape_last_dim], weights)
     # Create a Gather operator to extract the latent representation of each index
-    container.Gather([embedding_tensor_name, cast_name], operator.output_full_names[0], name=operator.full_name)
+    container.add_node('Gather', [embedding_tensor_name, cast_name], operator.output_full_names[0],
+                       name=operator.full_name)

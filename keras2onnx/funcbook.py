@@ -35,8 +35,8 @@ def set_converters(op_conv_dict):
 
 def converter_func(*types):
     def my_func(func):
-        for type in types:
-            set_converter(type, func)
+        for type_ in types:
+            set_converter(type_, func)
         return func
 
     return my_func

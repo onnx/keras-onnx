@@ -128,6 +128,7 @@ class TestKerasApplications(unittest.TestCase):
         batch_size, timesteps, input_dim = None, 20, 1
         actual_batch_size = 3
         i = Input(batch_shape=(batch_size, timesteps, input_dim))
+        np.random.seed(1000)  # set the random seed to avoid the output result discrepancies.
         for return_sequences in [True, False]:
             o = TCN(return_sequences=return_sequences)(i)  # The TCN layers are here.
             o = Dense(1)(o)
