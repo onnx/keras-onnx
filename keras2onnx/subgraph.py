@@ -12,15 +12,6 @@ from tensorflow.core.framework import node_def_pb2
 from tensorflow.python.framework import tensor_util
 
 
-def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault'] and \
-           node.outputs[0].dtype.name != 'resource'
-
-
-def tsname_to_node(name):
-    return name.split(':')[0]
-
-
 def _node_name(n):
     if n.startswith("^"):
         return n[1:]
