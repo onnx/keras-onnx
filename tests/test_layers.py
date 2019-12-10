@@ -110,6 +110,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
+    def test_tf_bias_add(self):
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.nn.bias_add(x, tf.constant([100., -100.])), input_shape=[3, 4, 2]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_bias_add')
+        data = np.random.rand(5, 3, 4, 2).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_bias_add', onnx_model, data, expected, self.model_files))
+
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.nn.bias_add(x, tf.constant([100., -100.]), data_format='NCHW'), input_shape=[2, 3, 4]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_bias_add')
+        data = np.random.rand(5, 2, 3, 4).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_bias_add', onnx_model, data, expected, self.model_files))
+
     def test_tf_concat(self):
         def my_func_1(x):
             return tf.concat([x[0], x[1]], 1)
