@@ -193,6 +193,9 @@ keras_layer_to_operator = {
     _layer.Dropout: convert_keras_training_only_layer,
     _layer.GaussianDropout: convert_keras_training_only_layer,
     _layer.GaussianNoise: convert_keras_training_only_layer,
+    _layer.SpatialDropout1D: convert_keras_training_only_layer,
+    _layer.SpatialDropout2D: convert_keras_training_only_layer,
+    _layer.SpatialDropout3D: convert_keras_training_only_layer,
 
     _layer.SimpleRNN: convert_keras_simple_rnn,
     _layer.GRU: convert_keras_gru,

@@ -58,6 +58,7 @@ SeparableConv1D = keras.layers.SeparableConv1D
 SeparableConv2D = keras.layers.SeparableConv2D
 Sequential = keras.models.Sequential
 SimpleRNN = keras.layers.SimpleRNN
+SpatialDropout2D = keras.layers.SpatialDropout2D
 Subtract = keras.layers.Subtract
 TimeDistributed = keras.layers.TimeDistributed
 UpSampling1D = keras.layers.UpSampling1D
@@ -907,14 +908,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_training_layer(self):
         model = keras.Sequential()
-        model.add(Dense(32, input_shape=(2, 3)))
+        model.add(Dense(32, input_shape=(2, 3, 4)))
         model.add(GaussianNoise(0.1))
         model.add(Activation('relu'))
         model.add(GaussianDropout(0.1))
         model.add(AlphaDropout(0.1))
+        model.add(SpatialDropout2D(0.2))
         model.add(Dense(1))
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        data = np.random.rand(2, 2, 3).astype(np.float32)
+        data = np.random.rand(2, 2, 3, 4).astype(np.float32)
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
