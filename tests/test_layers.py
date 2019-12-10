@@ -180,6 +180,34 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_pad', onnx_model, data, expected, self.model_files))
 
+    def test_tf_range(self):
+        def my_func_1(x):
+            return x + tf.cast(tf.range(3, 18, 3), tf.float32)
+
+        def my_func_2(x):
+            return x + tf.range(2.3, 4.6, 0.8, dtype=tf.float32)
+
+        for my_func_ in [my_func_1, my_func_2]:
+            model = Sequential()
+            model.add(Lambda(lambda x: my_func_(x), input_shape=[1]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_range')
+            data = np.random.rand(3, 1).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_range_1', onnx_model, data, expected, self.model_files))
+
+        def my_func_3(x):
+            return x[0] + tf.cast(tf.range(3, 18, tf.cast(x[1][0, 0], tf.int32)), tf.float32)
+
+        input1 = Input(shape=(5,))
+        input2 = Input(shape=(1,))
+        added = Lambda(my_func_3)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_range')
+        data_1 = np.random.randint(1, 3, size=(1, 5)).astype(np.float32)
+        data_2 = np.array([3]).astype(np.float32).reshape(1, 1)
+        expected = model.predict([data_1, data_2])
+        self.assertTrue(run_onnx_runtime('onnx_range_2', onnx_model, [data_1, data_2], expected, self.model_files))
+
     def test_tf_realdiv(self):
         def myFunc(x):
             return tf.realdiv(x[0], x[1])
@@ -229,6 +257,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.random.randint(5, size=(3, 2, 2, 2)).astype(np.int32)
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_reshape_int', onnx_model, data, expected, self.model_files))
+
+        def my_func(x):
+            return tf.reshape(x[0][0], tf.cast(x[1][0], tf.int32))
+
+        input1 = Input(shape=(6,))
+        input2 = Input(shape=(3,))
+        added = Lambda(my_func)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_reshape_dynamic')
+        data_1 = np.random.rand(1, 6).astype(np.float32).reshape(1, 6)
+        data_2 = np.array([1, 2, 3]).astype(np.float32).reshape(1, 3)
+        expected = model.predict([data_1, data_2])
+        self.assertTrue(run_onnx_runtime('onnx_reshape_dynamic', onnx_model, [data_1, data_2], expected, self.model_files))
 
     def test_tf_resize(self):
         target_opset = get_opset_number_from_onnx()
