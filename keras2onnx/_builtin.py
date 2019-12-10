@@ -46,16 +46,19 @@ class TYPES:
 
 def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
     node = tensor.op
-    if node.type in ["Const", "ConstV2"]:
+    if node.type in ['Placeholder']:
+        return None
+    elif node.type in ["Const", "ConstV2"]:
         make_ndarray = tensorflow.make_ndarray
         np_arr = make_ndarray(node.get_attr("value"))
         return np_arr
     else:
         try:
-            with tensorflow.client.Session(node.graph) as sess:
+            cls_sess = tensorflow.Session if hasattr(tensorflow, 'Session') else tensorflow.compat.v1.Session
+            with cls_sess(graph=node.graph) as sess:
                 np_arr = sess.run(tensor)
                 return np_arr
-        except:
+        except (ValueError, tensorflow.errors.InvalidArgumentError) as e:
             return None
 
 

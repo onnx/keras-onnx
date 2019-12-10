@@ -111,7 +111,6 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset, p
     oname = prefix + o_.name
     k2o_logger().debug('td_layer output: ' + oname)
     o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
-    o1_reshape_shape = (-1,) + oshapes[0][2:]
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
     operator_reshape_1 = varset.declare_local_operator(TYPES.TD_Reshape,
                                                        op_name=layer.name + '_reshape_1', target_shape=oshapes1)
@@ -530,19 +529,19 @@ def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_o
     for input_ in cur_node.inputs:
         predecessor = input_.op
         if is_placeholder_node(predecessor):
-            inputs.add(predecessor)
+            inputs.append(predecessor)
             graph_inputs.add(predecessor)
         if predecessor in layer_nodes or len(layer_nodes) == 0:
             subgraph.append(predecessor)
         else:
-            inputs.add(predecessor)
+            inputs.append(predecessor)
             q_overall.put_nowait(predecessor)
 
 
 def _visit_nodelist(activated_keras_nodes, input_nodes, layer_key,
                     keras_node_dict, node, nodelist, q_overall, visited):
     subgraph = list()
-    i_subgraph = set()
+    i_subgraph = list()
     for ot_ in (_get_output_nodes(activated_keras_nodes, layer_key, node
                                   ) if activated_keras_nodes else [node]):
         if ot_ not in nodelist:
@@ -681,8 +680,11 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
                                    q_overall, visited)
+    inputs_set = set()
     for input_ in layer_inputs:
-        layer_info.inputs.extend(input_.outputs)
+        if input_ not in inputs_set:
+            inputs_set.add(input_)
+            layer_info.inputs.extend(input_.outputs)
 
     layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
     return layer_info
