@@ -16,9 +16,11 @@ try:
     tf2onnx = importlib.import_module('tf2onnx')
     process_tf_graph = tf2onnx.tfonnx.process_tf_graph
 except (ImportError, ModuleNotFoundError) as e:
-    tf2onnx = None
-    k2o_logger().warning(
-        "Can't import tf2onnx module, so the conversion on a model with any custom/lambda layer will fail!")
+    from .proto.tfcompat import is_tf2
+    if not is_tf2:
+        tf2onnx = None
+        k2o_logger().warning(
+            "Can't import tf2onnx module, so the conversion on a model with any custom/lambda layer will fail!")
 
 
 def process_begin_end(new_begin, new_end, stride):
