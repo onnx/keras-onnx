@@ -448,12 +448,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_max(self):
         self.mergelayer_helper(Maximum, [1, -2, 3], [3, 1, 1])
 
-    @unittest.skipIf(is_tf2, 'TODO')
     def test_concat(self):
         self.mergelayer_helper(lambda: Concatenate(), [1, 2, 3], [4, 5, 6, 7])
         self.mergelayer_helper(lambda: Concatenate(), [1, 2, 3], [4, 5, 6, 7])
 
-    @unittest.skipIf(is_tf2, 'TODO')
     def test_concat_2d(self):
         self.mergelayer_helper(lambda: Concatenate(-1), [[1, 2], [3, 4]], [[4, 5], [6, 7]])
         self.mergelayer_helper(lambda: Concatenate(1), [[1, 2], [3, 4]], [[4, 5], [6, 7]])
@@ -874,6 +872,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_dot(self):
         self._dot_helper(False, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
         self._dot_helper(True, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
@@ -1085,6 +1084,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_LSTM_reshape(self):
         input_dim = 7
         sequence_len = 3
@@ -1131,6 +1131,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs": x, 'state_h': sh, 'state_c': sc}, expected,
                              self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
     def test_LSTM_seqlen_none(self):
@@ -1204,6 +1205,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_seq_dynamic_batch_size(self):
         K.clear_session()
         data_dim = 4  # input_size

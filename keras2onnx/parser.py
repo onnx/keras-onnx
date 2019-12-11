@@ -529,19 +529,19 @@ def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_o
     for input_ in cur_node.inputs:
         predecessor = input_.op
         if is_placeholder_node(predecessor):
-            inputs.append(predecessor)
+            inputs.add(predecessor)
             graph_inputs.add(predecessor)
         if predecessor in layer_nodes or len(layer_nodes) == 0:
             subgraph.append(predecessor)
         else:
-            inputs.append(predecessor)
+            inputs.add(predecessor)
             q_overall.put_nowait(predecessor)
 
 
 def _visit_nodelist(activated_keras_nodes, input_nodes, layer_key,
                     keras_node_dict, node, nodelist, q_overall, visited):
     subgraph = list()
-    i_subgraph = list()
+    i_subgraph = set()
     for ot_ in (_get_output_nodes(activated_keras_nodes, layer_key, node
                                   ) if activated_keras_nodes else [node]):
         if ot_ not in nodelist:
@@ -649,6 +649,23 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
     return topology
 
 
+def _sorted_inputs(nodelist, outputs, inputs_set):
+    inputs = []
+    node_set = set(nodelist)
+
+    def travel(node):
+        for in_ts_ in node.inputs:
+            if in_ts_.op in inputs_set:
+                inputs.append(in_ts_.op)
+            elif in_ts_.op in node_set:
+                travel(in_ts_.op)
+
+    for ts_ in outputs:
+        travel(ts_.op)
+
+    return inputs
+
+
 def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, node, varset, visited, q_overall):
     layer_key = None
     if node.name in keras_node_dict:
@@ -680,11 +697,10 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
                                    q_overall, visited)
-    inputs_set = set()
-    for input_ in layer_inputs:
-        if input_ not in inputs_set:
-            inputs_set.add(input_)
-            layer_info.inputs.extend(input_.outputs)
+
+    sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
+    for input_ in sorted_inputs:
+        layer_info.inputs.extend(input_.outputs)
 
     layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
     return layer_info
@@ -754,7 +770,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
 
     # Create the onnx model input name before parsing to keep ...
     # ... the model input names are identical to the original Keras model.
-    for idx_, ts_ in enumerate(topo.raw_model.model.inputs):
+    for idx_ in range(len(topo.raw_model.model.inputs)):
         op = top_level.declare_local_operator(TYPES.Identity)
         input_ts = topo.raw_model.model.inputs[idx_]
         var_type = _adjust_input_batch_size(infer_variable_type(input_ts, target_opset))
