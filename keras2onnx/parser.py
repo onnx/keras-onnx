@@ -651,16 +651,17 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
 
 def _sorted_inputs(nodelist, outputs, inputs_set):
     inputs = []
-    nodeset = set(nodelist)
-    def travel(node, inputs_set):
+    node_set = set(nodelist)
+
+    def travel(node):
         for in_ts_ in node.inputs:
             if in_ts_.op in inputs_set:
                 inputs.append(in_ts_.op)
-            elif in_ts_.op in nodeset:
-                travel(in_ts_.op, inputs_set)
+            elif in_ts_.op in node_set:
+                travel(in_ts_.op)
 
-    for n_ in outputs:
-        travel(n_, inputs_set)
+    for ts_ in outputs:
+        travel(ts_.op)
 
     return inputs
 

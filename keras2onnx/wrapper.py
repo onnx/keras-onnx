@@ -12,15 +12,17 @@ from .common import k2o_logger
 from .funcbook import set_converter
 from .proto import onnx_proto, helper
 
+
 try:
     tf2onnx = importlib.import_module('tf2onnx')
     process_tf_graph = tf2onnx.tfonnx.process_tf_graph
 except (ImportError, ModuleNotFoundError) as e:
     from .proto.tfcompat import is_tf2
+
     if not is_tf2:
-        tf2onnx = None
         k2o_logger().warning(
             "Can't import tf2onnx module, so the conversion on a model with any custom/lambda layer will fail!")
+    tf2onnx = None
 
 
 def process_begin_end(new_begin, new_end, stride):
@@ -279,6 +281,7 @@ def on_Resize_11(ctx, node, name, args):
     ctx.remove_node(node.name)
     ctx.make_node("Transpose", upsample.output, {"perm": constants.NCHW_TO_NHWC},
                   name=node.name, outputs=node.output, shapes=shapes, dtypes=dtypes)
+
 
 def on_Round(ctx, node, name, args):
     node.type = "Round"
