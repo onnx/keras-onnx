@@ -693,7 +693,7 @@ def _prepare_StridedSlice(node, target_opset):
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
     ellipsis_gap = 0
-    data_input_shape = node.inputs[0].shape
+    data_input = node.inputs[0]
     for idx, begin_item in enumerate(begin):
         if target_opset < 10 and strides[idx] != 1:
             raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
@@ -719,7 +719,7 @@ def _prepare_StridedSlice(node, target_opset):
 
         shrink_mask = (shrink_axis_mask >> idx) & 1
         if shrink_mask != 0:
-            shrink_begin = begin_item + data_input_shape[idx].value if begin_item < 0 else begin_item
+            shrink_begin = begin_item + _cal_tensor_shape(data_input)[idx] if begin_item < 0 else begin_item
             new_begin.append(shrink_begin)
             new_end.append(shrink_begin + 1)
             needs_squeeze.append(idx + ellipsis_gap)

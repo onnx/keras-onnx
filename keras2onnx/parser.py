@@ -5,7 +5,7 @@
 ###############################################################################
 import queue
 
-from .proto import keras
+from .proto import keras, is_tf_keras
 from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2
 from .common import k2o_logger
@@ -668,6 +668,7 @@ def _sorted_inputs(nodelist, outputs, inputs_set):
 
 def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, node, varset, visited, q_overall):
     layer_key = None
+    current_layer_outputs = {}
     if node.name in keras_node_dict:
         layer_key = keras_node_dict[node.name][0]
     else:
@@ -675,6 +676,8 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
         kh_ = getattr(ts_out, '_keras_history', None)
         if kh_ is not None:
             layer_key = kh_.layer
+            kenode = extract_inbound_nodes(layer_key)[kh_.node_index]
+            current_layer_outputs.update({ts_.op.name: (layer_key, None) for ts_ in list_output_tensors(kenode)})
 
     if layer_key is None:
         info = LayerInfo(None)
@@ -692,7 +695,8 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
                 _advance_by_input(ts_.op, [ts_.op], list(), set(), graph_inputs, q_overall)
             return None
         else:
-            layer_info = LayerInfo.create(node, layer_key, keras_node_dict, inference_nodeset)
+            layer_info = LayerInfo.create(node, layer_key,
+                                          {**keras_node_dict, **current_layer_outputs}, inference_nodeset)
 
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
@@ -825,6 +829,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
 
         topo.raw_model.add_output_name(str_value)
 
-    return _parse_graph_core_v2(graph, keras_node_dict, topo, top_level,
-                                output_names, ) if is_tf2 else _parse_graph_core(graph, keras_node_dict, topo,
-                                                                                 top_level, output_names)
+    return _parse_graph_core_v2(
+        graph, keras_node_dict, topo, top_level, output_names
+    ) if is_tf2 and is_tf_keras else _parse_graph_core(
+        graph, keras_node_dict, topo, top_level, output_names)
