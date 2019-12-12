@@ -60,7 +60,7 @@ def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->np.ndarray
             with cls_sess(graph=node.graph) as sess:
                 np_arr = sess.run(tensor)
                 return np_arr
-        except (ValueError, tensorflow.errors.InvalidArgumentError) as e:
+        except (ValueError, tensorflow.errors.InvalidArgumentError, tensorflow.errors.OpError):
             return None
 
 
