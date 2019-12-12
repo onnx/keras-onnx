@@ -1310,7 +1310,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         mapped2_2 = sub_model2(input2)
         sub_sum = Add()([mapped1_2, mapped2_2])
         keras_model = keras.Model(inputs=[input1, input2], outputs=sub_sum)
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
 
         x = [x, 2 * x]
         expected = keras_model.predict(x)
