@@ -92,7 +92,7 @@ class Operator:
         input_shape = [ None if i == 'N' else i for i in self.inputs[0].type.shape ]
         if input_shape is None:
             input_shape = self.raw_operator.input_shape
-        else:
+        elif hasattr(self.raw_operator, 'input_shape'):
             num_None_1 = sum(i is None for i in input_shape)
             num_None_2 = sum(i is None for i in self.raw_operator.input_shape)
             if num_None_1 > num_None_2:
@@ -103,7 +103,7 @@ class Operator:
         output_shape = [ None if i == 'N' else i for i in self.outputs[0].type.shape ]
         if output_shape is None:
             output_shape = self.raw_operator.output_shape
-        else:
+        elif hasattr(self.raw_operator, 'output_shape'):
             num_None_1 = sum(i is None for i in output_shape)
             num_None_2 = sum(i is None for i in self.raw_operator.output_shape)
             if num_None_1 > num_None_2:
