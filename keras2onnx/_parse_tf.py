@@ -21,13 +21,16 @@ def tsname_to_node(name):
     return name.split(':')[0]
 
 
-def infer_variable_type(tensor, opset):
+def infer_variable_type(tensor, opset, inbound_node_shape=None):
     tensor_shape = []
-    if tensor.shape not in (tf.TensorShape(None), tf.TensorShape([])):
-        if opset > 8:
-            tensor_shape = normalize_tensor_shape(tensor.shape)
-        else:  # most inference engine has problem with unset dim param if they released around opset 8 publish
-            tensor_shape = ['None' if d is None else d for d in normalize_tensor_shape(tensor.shape)]
+    if inbound_node_shape is None:
+        if tensor.shape not in (tf.TensorShape(None), tf.TensorShape([])):
+            if opset > 8:
+                tensor_shape = normalize_tensor_shape(tensor.shape)
+            else:  # most inference engine has problem with unset dim param if they released around opset 8 publish
+                tensor_shape = ['None' if d is None else d for d in normalize_tensor_shape(tensor.shape)]
+    else:
+        tensor_shape = list(inbound_node_shape)
 
     # Determine the tensor's element type
     tensor_type = tensor.dtype
