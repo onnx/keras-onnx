@@ -213,8 +213,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = keras.models.Model(inputs=[input1, input2], outputs=comp)
 
         onnx_model = keras2onnx.convert_keras(model, 'tf_not_equal')
-        data1 = np.array([[1, 2, 3], [1, 2, 3]])
-        data2 = np.array([[1, 2, 3], [2, 1, 4]])
+        data1 = np.array([[1, 2, 3], [1, 2, 3]]).astype(np.int32)
+        data2 = np.array([[1, 2, 3], [2, 1, 4]]).astype(np.int32)
         expected = model.predict([data1, data2])
         self.assertTrue(run_onnx_runtime('tf_not_equal', onnx_model, [data1, data2], expected, self.model_files))
 
