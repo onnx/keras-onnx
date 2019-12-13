@@ -43,7 +43,7 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
-        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset, kenode_output_shape[n_]))
+        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset, kenode_output_shapes[n_]))
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
