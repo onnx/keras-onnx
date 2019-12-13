@@ -4,8 +4,8 @@
 # license information.
 ###############################################################################
 import numbers
-import collections
 import numpy as np
+from collections import Iterable
 from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto
@@ -14,7 +14,7 @@ from .common import extract_recurrent_activation
 
 def _calculate_keras_lstm_output_shapes(operator):
     op = operator.raw_operator
-    if isinstance(op.output_shape[0], collections.Iterable):
+    if isinstance(op.output_shape[0], Iterable):
         operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
                                               for i in op.output_shape[0])
     else:

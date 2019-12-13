@@ -23,10 +23,11 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
         prefix = ''
 
-    for i_ in inputs:
+    for n_, i_ in enumerate(inputs):
         iname = prefix + i_.name
         k2o_logger().debug('input : ' + iname)
-        var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset))
+        kenode_input_shape = kenode.input_shapes[n_] if isinstance(kenode.input_shapes, list) else kenode.input_shapes
+        var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset, kenode_input_shape))
         i0 = varset.get_local_variable_or_declare_one(iname, var_type)
         operator.add_input(i0)
 
@@ -41,7 +42,8 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
-        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
+        kenode_output_shape = kenode.output_shapes[n_] if isinstance(kenode.output_shapes, list) else kenode.output_shapes
+        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset, kenode_output_shape))
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
