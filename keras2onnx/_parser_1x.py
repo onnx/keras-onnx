@@ -11,15 +11,12 @@ from ._parse_tf import infer_variable_type, tsname_to_node, adjust_input_batch_s
 
 def fuse_operator_shape(tensor_shape, operator_shape):
     if tensor_shape is None:
-        return tensor_shape
+        return operator_shape
     tensor_shape = [None if isinstance(i, str) else i for i in tensor_shape]
-    if tensor_shape is None:
+    num_None_1 = sum(i is None for i in tensor_shape)
+    num_None_2 = sum(i is None for i in operator_shape)
+    if num_None_1 > num_None_2:
         tensor_shape = operator_shape
-    else:
-        num_None_1 = sum(i is None for i in tensor_shape)
-        num_None_2 = sum(i is None for i in operator_shape)
-        if num_None_1 > num_None_2:
-            tensor_shape = operator_shape
     return tensor_shape
 
 
