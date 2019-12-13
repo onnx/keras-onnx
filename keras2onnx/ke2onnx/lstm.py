@@ -5,7 +5,7 @@
 ###############################################################################
 import numbers
 import numpy as np
-from collections import Iterable
+from collections.abc import Iterable
 from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto
