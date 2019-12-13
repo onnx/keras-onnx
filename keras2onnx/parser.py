@@ -99,9 +99,11 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset, p
     iname = prefix + i_.name
     k2o_logger().debug('td_layer input: ' + iname)
     i0 = varset.get_local_variable_or_declare_one(iname, infer_variable_type(i_, varset.target_opset))
+    o1_reshape_shape = (-1,) + oshapes[0][2:]
     i0_reshape_name = i_.op.name + '_reshape_0:0'
     i0_reshape = varset.declare_local_variable(i0_reshape_name, infer_variable_type(i_, varset.target_opset))
     i0_reshape_shape = (-1,) + ishapes[0][2:]
+    i0_reshape.type.shape = i0_reshape_shape
     operator_reshape_0 = varset.declare_local_operator(TYPES.TD_Reshape,
                                                        op_name=layer.name + '_reshape_0', target_shape=i0_reshape_shape)
     operator_reshape_0.add_input(i0)
@@ -117,6 +119,7 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset, p
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
     o1_reshape = varset.declare_local_variable(o1_reshape_name, infer_variable_type(o_, varset.target_opset))
+    o1_reshape.type.shape = o1_reshape_shape
     operator_reshape_1.add_input(o1_reshape)
 
     if isinstance(layer.layer, keras.Model):
