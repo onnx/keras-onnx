@@ -642,8 +642,6 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
             _on_parsing_tf_subgraph(graph, nodes, varset)
         else:
             kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), nodes[0].name)
-            if kenode is None:
-                kenode = extract_inbound_nodes(layer_key_)[0]
             on_parsing_keras_layer(graph, nodes, layer_key_, kenode, model_, varset)
 
     for nd_ in input_nodes:
