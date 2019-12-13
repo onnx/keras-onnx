@@ -16,7 +16,8 @@ from .wrapper import tf2onnx_wrap, TFNODES
 from ._builtin import TYPES
 from ._parse_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
-from ._parser_1x import (extract_inbound_nodes, list_input_tensors,
+from ._parser_1x import (extract_inbound_nodes,
+                         list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
 
 
@@ -287,7 +288,7 @@ def _on_parsing_tf_nodes(nodelist, varset):
     for node_ in nodelist:
         cvt = get_converter(node_.type)
         assert cvt is not None, "Cannot find the tf.op({}) converter.".format(node_.type)
-
+        k2o_logger().debug("Processing a tf node - %s" % node_.name)
         operator = varset.declare_local_operator(node_.type, raw_model=node_, op_name=node_.name)
 
         for o_ in node_.outputs:
@@ -445,7 +446,7 @@ def _build_inference_nodeset(graph, outputs):
 
 
 def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
-    newly = set()
+    newly = list()
     ts_end = set()  # the input tensor set of the whole layer/model.
     for node_ in extract_inbound_nodes(layer):
         if out_node is not None and out_node.name not in \
@@ -453,12 +454,20 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
             continue  # this layer could be reused several times in the whole graph.
         if any(ts_.op not in inference_nodeset for ts_ in list_output_tensors(node_)):
             continue
-        newly |= set([ts_.op for ts_ in list_output_tensors(node_)])
+        newly.extend([ts_.op for ts_ in list_output_tensors(node_)])
         ts_end |= set(list_input_tensors(node_))
 
+    for ts_ in list_input_mask(layer):
+        ts_end.add(ts_)
+
+    for ts_ in list_output_mask(layer):
+        newly.append(ts_.op)
+
     visited = set()
+    nodelist = list()  # keep the node list order.
     while newly:
-        visited |= newly
+        visited.update(newly)
+        nodelist.extend(newly)
         newly.clear()
         for n_ in visited:
             for i_ in n_.inputs:
@@ -472,9 +481,9 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
                     else:
                         continue
 
-                newly.add(i_.op)
+                newly.append(i_.op)
 
-    return list(visited)
+    return nodelist
 
 
 def _general_nodelist_closure(node, nodeset, keras_nodeset):
@@ -513,19 +522,13 @@ def _build_keras_nodeset(inference_nodeset, keras_node_dict):
     return nodes
 
 
-def _get_output_nodes(node_list, layer, node):
-    if layer:
-        for nd_ in extract_inbound_nodes(layer):
-            name_set = set(tsname_to_node(ts_.name) for ts_ in list_output_tensors(nd_))
-            if node.name in name_set:
-                return set(n_ for n_ in node_list if n_.name in name_set)
-    else:
-        nodes_has_children = set()
-        for node in node_list:
-            if node:
-                for input_tensor in node.inputs:
-                    nodes_has_children.add(input_tensor.op)
-        return set(node_list) - nodes_has_children
+def _get_output_nodes(node_list, node):
+    nodes_has_children = set()
+    for node in node_list:
+        if node:
+            for input_tensor in node.inputs:
+                nodes_has_children.add(input_tensor.op)
+    return [n_ for n_ in node_list if n_ not in nodes_has_children]  # need to keep the order.
 
 
 def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_overall):
@@ -545,8 +548,7 @@ def _visit_nodelist(activated_keras_nodes, input_nodes, layer_key,
                     keras_node_dict, node, nodelist, q_overall, visited):
     subgraph = list()
     i_subgraph = set()
-    for ot_ in (_get_output_nodes(activated_keras_nodes, layer_key, node
-                                  ) if activated_keras_nodes else [node]):
+    for ot_ in (_get_output_nodes(activated_keras_nodes, node) if activated_keras_nodes else [node]):
         if ot_ not in nodelist:
             visited.add(ot_)
             nodelist.append(ot_)
@@ -629,7 +631,7 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         nodes = []
         layer_key_, model_ = _parse_nodes(graph, inference_nodeset, input_nodes, keras_node_dict, keras_nodeset,
                                           node, nodes, varset, visited, q_overall)
-        if not nodes:  # already processed by the parse_nodes_XX
+        if not nodes:  # already processed by the _parse_nodes
             continue
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_key_.name, type(layer_key_)) if
@@ -640,6 +642,8 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
             _on_parsing_tf_subgraph(graph, nodes, varset)
         else:
             kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), nodes[0].name)
+            if kenode is None:
+                kenode = extract_inbound_nodes(layer_key_)[0]
             on_parsing_keras_layer(graph, nodes, layer_key_, kenode, model_, varset)
 
     for nd_ in input_nodes:

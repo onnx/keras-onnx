@@ -68,7 +68,6 @@ ZeroPadding2D = keras.layers.ZeroPadding2D
 if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
-
 debug_mode = False
 if os.environ.get('debug_mode', '0') != '0':
     debug_mode = True
@@ -120,7 +119,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime('onnx_bias_add', onnx_model, data, expected, self.model_files))
 
         model = Sequential()
-        model.add(Lambda(lambda x: tf.nn.bias_add(x, tf.constant([100., -100.]), data_format='NCHW'), input_shape=[2, 3, 4]))
+        model.add(
+            Lambda(lambda x: tf.nn.bias_add(x, tf.constant([100., -100.]), data_format='NCHW'), input_shape=[2, 3, 4]))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_bias_add')
         data = np.random.rand(5, 2, 3, 4).astype(np.float32)
         expected = model.predict(data)
@@ -204,6 +204,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data_2 = np.array([3]).astype(np.float32).reshape(1, 1)
         expected = model.predict([data_1, data_2])
         self.assertTrue(run_onnx_runtime('onnx_range_2', onnx_model, [data_1, data_2], expected, self.model_files))
+
+    def test_tf_not_equal(self):
+        input1_shape = [[3], [3]]
+        input1 = Input(shape=input1_shape[0], dtype='int32')
+        input2 = Input(shape=input1_shape[1], dtype='int32')
+        comp = Lambda(lambda x: tf.not_equal(x[0], x[1]))([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=comp)
+
+        onnx_model = keras2onnx.convert_keras(model, 'tf_not_equal')
+        data1 = np.array([[1, 2, 3], [1, 2, 3]])
+        data2 = np.array([[1, 2, 3], [2, 1, 4]])
+        expected = model.predict([data1, data2])
+        self.assertTrue(run_onnx_runtime('tf_not_equal', onnx_model, [data1, data2], expected, self.model_files))
 
     def test_tf_realdiv(self):
         input1_shape = [(2, 3), (2, 3)]
@@ -1441,6 +1454,40 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model = Sequential([
             keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
             LSTM(8, return_state=False, return_sequences=False)
+        ])
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+        expected = model.predict(x)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+    def test_masking_custom(self):
+        class MyPoolingMask(keras.layers.Layer):
+            def __init__(self, **kwargs):
+                self.supports_masking = True
+                super(MyPoolingMask, self).__init__(**kwargs)
+
+            def build(self, input_shape):
+                super(MyPoolingMask, self).build(input_shape)
+
+            def compute_mask(self, inputs, input_mask=None):
+                return None
+
+            def call(self, inputs, mask=None, **kwargs):
+                if mask is not None:
+                    return K.sum(inputs, axis=-2) / (
+                            K.sum(K.cast(mask, K.dtype(inputs)), axis=-1, keepdims=True) + K.epsilon())
+                else:
+                    output = K.mean(inputs, axis=-2)
+                    return output
+
+            def compute_output_shape(self, input_shape):
+                return input_shape[:-2] + input_shape[-1:]
+
+        timesteps, features = (3, 5)
+        model = Sequential([
+            keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
+            MyPoolingMask()
         ])
 
         onnx_model = keras2onnx.convert_keras(model, model.name)
