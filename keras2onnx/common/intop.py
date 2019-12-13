@@ -89,23 +89,13 @@ class Operator:
         return self.attrs.get(key, None)
 
     def get_input_shape(self):
-        input_shape = [ None if isinstance(i, str) else i for i in self.inputs[0].type.shape ]
+        input_shape = self.inputs[0].type.shape
         if input_shape is None:
             input_shape = self.raw_operator.input_shape
-        elif hasattr(self.raw_operator, 'input_shape'):
-            num_None_1 = sum(i is None for i in input_shape)
-            num_None_2 = sum(i is None for i in self.raw_operator.input_shape)
-            if num_None_1 > num_None_2:
-                input_shape = self.raw_operator.output_shape
         return input_shape
 
     def get_output_shape(self):
-        output_shape = [ None if isinstance(i, str) else i for i in self.outputs[0].type.shape ]
+        output_shape = self.outputs[0].type.shape
         if output_shape is None:
             output_shape = self.raw_operator.output_shape
-        elif hasattr(self.raw_operator, 'output_shape'):
-            num_None_1 = sum(i is None for i in output_shape)
-            num_None_2 = sum(i is None for i in self.raw_operator.output_shape)
-            if num_None_1 > num_None_2:
-                output_shape = self.raw_operator.output_shape
         return output_shape

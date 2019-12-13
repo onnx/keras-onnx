@@ -9,6 +9,19 @@ from .common import k2o_logger
 from .funcbook import get_converter
 from ._parse_tf import infer_variable_type, tsname_to_node, adjust_input_batch_size
 
+def fuse_operator_shape(tensor_shape, operator_shape):
+    if tensor_shape is None:
+        return tensor_shape
+    tensor_shape = [None if isinstance(i, str) else i for i in tensor_shape]
+    if tensor_shape is None:
+        tensor_shape = operator_shape
+    else:
+        num_None_1 = sum(i is None for i in tensor_shape)
+        num_None_2 = sum(i is None for i in operator_shape)
+        if num_None_1 > num_None_2:
+            tensor_shape = operator_shape
+    return tensor_shape
+
 
 def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
@@ -23,11 +36,14 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
         prefix = ''
 
-    for i_ in inputs:
+    for idx, i_ in enumerate(inputs):
         iname = prefix + i_.name
         k2o_logger().debug('input : ' + iname)
         var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset))
         i0 = varset.get_local_variable_or_declare_one(iname, var_type)
+        if hasattr(operator.raw_operator, 'input_shape'):
+            op_input_shape = operator.raw_operator.input_shape[idx] if len(inputs) > 1 else operator.raw_operator.input_shape
+            i0.type.shape = fuse_operator_shape(i0.type.shape, op_input_shape)
         operator.add_input(i0)
 
     if hasattr(layer, 'input_mask') and layer.input_mask is not None:
@@ -42,6 +58,10 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
         oname = prefix + o_.name
         k2o_logger().debug('output: ' + oname)
         o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
+        if hasattr(operator.raw_operator, 'output_shape'):
+            op_output_shape = operator.raw_operator.output_shape[n_] if len(outputs) > 1 else operator.raw_operator.output_shape
+            o1.type.shape = fuse_operator_shape(o1.type.shape, op_output_shape)
+
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
