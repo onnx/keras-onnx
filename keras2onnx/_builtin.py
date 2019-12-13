@@ -26,6 +26,7 @@ class TYPES:
     Max = 'Max'
     Mean = 'Mean'
     Min = 'Min'
+    NotEqual = 'NotEqual'
     Pack = 'Pack'
     Pad = 'Pad'
     PadV2 = 'PadV2'
@@ -182,9 +183,9 @@ def _make_range_const(scope, operator, container, start, limit, delta, onnx_type
     val = np.arange(start, limit, delta)
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.add_node_with_output('Identity',
-                             [('_start', onnx_type, val)],
-                             operator.outputs[0].full_name,
-                             name=operator.full_name + '_range')
+                              [('_start', onnx_type, val)],
+                              operator.outputs[0].full_name,
+                              name=operator.full_name + '_range')
 
 
 def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_type):
@@ -194,17 +195,17 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
     delta_cast = delta.name
     if onnx_type in [oopb.int32, oopb.int64]:
         diff_output = oopb.apply_cast(diff_node,
-                                    to=oopb.float,
-                                    name=operator.full_name + '_cast_diff')
+                                      to=oopb.float,
+                                      name=operator.full_name + '_cast_diff')
         delta_cast = oopb.apply_cast(delta.name,
                                      to=oopb.float,
                                      name=operator.full_name + '_cast_delta')
 
     div_node = oopb.apply_div(diff_output + delta_cast,
-                               name=operator.full_name + '_div')
+                              name=operator.full_name + '_div')
     ceil_node = oopb.add_node("Ceil",
-                               div_node,
-                               name=operator.full_name + '_ceil')
+                              div_node,
+                              name=operator.full_name + '_ceil')
     trip_count_node = oopb.apply_cast(ceil_node,
                                       to=oopb.int64,
                                       name=operator.full_name + '_trip_cnt')
@@ -655,6 +656,27 @@ def convert_tf_cast(scope, operator, container):
                               to=to)
 
 
+@converter_func(TYPES.NotEqual)
+def convert_tf_not_equal(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    if operator.target_opset >= 11:
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, operator.inputs[1].full_name],
+                                  operator.full_name + 'mask')
+        oopb.add_node_with_output('Not', equal_out,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_not')
+    else:
+        equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
+                                      operator.full_name + '_input_0_cast', to=6)
+        equal_input_1 = oopb.add_node('Cast', [operator.inputs[1].full_name],
+                                      operator.full_name + '_input_1_cast', to=6)
+        equal_out = oopb.add_node('Equal', [equal_input_0, equal_input_1],
+                                  operator.full_name + 'mask')
+        oopb.add_node_with_output('Not', equal_out,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_not')
+
+
 def _process_begin_end(new_begin, new_end, stride):
     if stride >= 0:
         new_begin.append(0)
@@ -825,6 +847,7 @@ direct_ops = {"Abs": ("apply_abs",),
               "Cosh": 9,
               "Div": ("apply_div",),
               "Elu": ("apply_elu",),
+              "Equal": 7,
               "Exp": ("apply_exp",),
               "Floor": ("apply_floor",),
               "Log": ("apply_log",),

@@ -10,6 +10,63 @@ from .funcbook import get_converter
 from ._parse_tf import infer_variable_type, tsname_to_node, adjust_input_batch_size
 
 
+def extract_inbound_nodes(layer):
+    if hasattr(layer, 'inbound_nodes'):
+        return layer.inbound_nodes
+    elif hasattr(layer, '_inbound_nodes'):
+        return layer._inbound_nodes
+    else:
+        raise ValueError("Failed to find inbound_nodes and _inbound_nodes when parsing %s" % layer.name)
+
+
+def list_input_tensors(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.input_tensors may not be a list, though the word is plural.
+    """
+    return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
+
+
+def list_output_tensors(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
+    """
+    return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
+
+
+def list_input_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
+    """
+    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
+
+
+def list_output_shapes(node):
+    """
+    Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
+    """
+    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
+
+
+def list_input_mask(layer):
+    if hasattr(layer, 'input_mask'):
+        if hasattr(layer.input_mask, 'dtype'):
+            return [layer.input_mask]
+        if layer.input_mask is not None:
+            return [ts_ for ts_ in layer.input_mask if ts_ is not None]
+
+    return []
+
+
+def list_output_mask(layer):
+    if hasattr(layer, 'output_mask'):
+        if hasattr(layer.output_mask, 'dtype'):
+            return [layer.output_mask]
+        if layer.output_mask is not None:
+            return [ts_ for ts_ in layer.output_mask if ts_ is not None]
+
+    return []
+
+
 def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
@@ -61,43 +118,6 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     return operator
 
 
-def extract_inbound_nodes(layer):
-    if hasattr(layer, 'inbound_nodes'):
-        return layer.inbound_nodes
-    elif hasattr(layer, '_inbound_nodes'):
-        return layer._inbound_nodes
-    else:
-        raise ValueError("Failed to find inbound_nodes and _inbound_nodes when parsing %s" % layer.name)
-
-
-def list_input_tensors(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.input_tensors may not be a list, though the word is plural.
-    """
-    return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
-
-
-def list_output_tensors(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
-    """
-    return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
-
-
-def list_input_shapes(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
-    """
-    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
-
-
-def list_output_shapes(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
-    """
-    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
-
-
 def build_opdict_from_keras(model):
     # type: (keras.Model) -> {}
 
@@ -118,5 +138,8 @@ def build_opdict_from_keras(model):
         for node_ in extract_inbound_nodes(l_):
             for ts_ in list_output_tensors(node_):
                 output_dict[ts_.name] = (l_, model)
+
+        for ts_ in list_output_mask(l_):
+            output_dict[ts_.name] = (l_, model)
 
     return {tsname_to_node(n_): v_ for n_, v_ in output_dict.items()}

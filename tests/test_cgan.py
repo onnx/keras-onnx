@@ -120,7 +120,7 @@ class CGAN():
         return Model([img, label], validity)
 
 
-@unittest.skipIf(keras2onnx.proto.tfcompat.is_tf2, "Tensorflow 1.x only tests.")
+@unittest.skipIf(keras2onnx.proto.tfcompat.is_tf2 and is_tf_keras, "Tensorflow 1.x only tests.")
 class TestCGAN(unittest.TestCase):
 
     def setUp(self):
