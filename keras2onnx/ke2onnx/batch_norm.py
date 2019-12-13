@@ -10,7 +10,7 @@ from ..proto import onnx_proto
 
 def convert_keras_batch_normalization(scope, operator, container):
     op = operator.raw_operator
-    shape_len = len(op._input_shape) if hasattr(op, '_input_shape') else len(operator.get_input_shape())
+    shape_len = len(operator.get_input_shape())
 
     if isinstance(op.axis, list):
         if len(op.axis) == 1:
