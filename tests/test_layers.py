@@ -1461,6 +1461,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_custom(self):
         class MyPoolingMask(keras.layers.Layer):
             def __init__(self, **kwargs):
