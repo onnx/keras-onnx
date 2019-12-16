@@ -885,7 +885,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_dot(self):
         self._dot_helper(False, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
         self._dot_helper(True, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
@@ -1000,7 +999,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime('test_batch_normalization_2_4d', onnx_model, [data], expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_simpleRNN(self):
         K.clear_session()
         inputs1 = keras.Input(shape=(3, 1))
@@ -1042,7 +1040,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict([x, s])
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [x, s], expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_GRU(self):
         inputs1 = keras.Input(shape=(3, 1))
 
@@ -1070,7 +1067,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected,
                                              self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_LSTM(self):
         inputs1 = keras.Input(shape=(3, 5))
         data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
@@ -1083,7 +1079,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(data)
                 self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_LSTM_with_bias(self):
         inputs1 = keras.Input(shape=(1, 1))
         cls = LSTM(units=1, return_state=True, return_sequences=True)
@@ -1097,7 +1092,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_LSTM_reshape(self):
         input_dim = 7
         sequence_len = 3
@@ -1113,7 +1107,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('tf_lstm', onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_LSTM_with_initializer(self):
         # batch_size = N
         # seq_length = H
@@ -1144,7 +1137,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs": x, 'state_h': sh, 'state_c': sc}, expected,
                              self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
     def test_LSTM_seqlen_none(self):
@@ -1218,7 +1210,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_seq_dynamic_batch_size(self):
         K.clear_session()
         data_dim = 4  # input_size

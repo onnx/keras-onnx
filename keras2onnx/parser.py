@@ -660,10 +660,11 @@ def _sorted_inputs(nodelist, outputs, inputs_set):
 
     def travel(node):
         for in_ts_ in node.inputs:
-            if in_ts_.op in inputs_set:
-                inputs.append(in_ts_.op)
-            elif in_ts_.op in node_set:
-                travel(in_ts_.op)
+            op_node = in_ts_.op
+            if (op_node in inputs_set) and (op_node not in inputs):
+                inputs.append(op_node)
+            elif op_node in node_set:
+                travel(op_node)
 
     for ts_ in outputs:
         travel(ts_.op)
