@@ -44,10 +44,10 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
 
     output_names = []
     output_dict = {}
-    if is_tf2:
+    if is_tf2 and is_tf_keras:
         tf_graph = build_layer_output_from_model(model, output_dict, output_names)
     else:
-        tf_graph = keras.backend.get_session().graph
+        tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
         output_dict = build_opdict_from_keras(model)
         output_names = [n.name for n in model.outputs]
 
