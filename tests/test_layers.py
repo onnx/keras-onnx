@@ -68,10 +68,6 @@ ZeroPadding2D = keras.layers.ZeroPadding2D
 if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
-debug_mode = False
-if os.environ.get('debug_mode', '0') != '0':
-    debug_mode = True
-
 
 class TestKerasTF2ONNX(unittest.TestCase):
 
@@ -1318,7 +1314,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime('recursive', onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_recursive_and_shared_model(self):
         keras.backend.set_learning_phase(0)
         N, C, D = 2, 3, 3
@@ -1541,7 +1536,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         x = np.transpose(x.astype(np.float32), [0, 3, 1, 2])
         self.assertTrue(run_onnx_runtime('channel_last_input', onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_sub_model(self):
         class IdentityLayer(Layer):
             def __init__(self, **kwargs):
