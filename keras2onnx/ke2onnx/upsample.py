@@ -6,13 +6,15 @@
 import collections
 from ..common.onnx_ops import apply_transpose, apply_upsample
 from .common import get_permutation_config
+from ..proto import is_tf_keras
+from ..proto.tfcompat import is_tf2
 
 
 def convert_keras_upsample(scope, operator, container, n_dims):
     op = operator.raw_operator
     # op.size type is tuple in keras.io, even if we set a int in keras.layers API.
     # op.size type can be int in tf.keras.
-    op_size = op.size if isinstance(op.size, collections.Iterable) else [op.size]
+    op_size = op.size if isinstance(op.size, collections.abc.Iterable) else [op.size]
     scales_sub = list(d for d in op_size)
     if n_dims == 1:
         shape_gap =  len(op.input_shape) - len(scales_sub)
@@ -51,11 +53,14 @@ def convert_keras_upsample(scope, operator, container, n_dims):
 
     # If no_permutation_required is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
     # conversion, a Transpose would be added.
+    coordinate_transformation_mode = 'half_pixel' if is_tf2 and is_tf_keras else 'asymmetric'
     if no_permutation_required:
-        apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container, mode=mode, scales=scales)
+        apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container,
+                       mode=mode, coordinate_transformation_mode=coordinate_transformation_mode, scales=scales)
     else:
         upsampled_tensor_name = scope.get_unique_variable_name(input_tensor_name + '_upsampled')
-        apply_upsample(scope, input_tensor_name, upsampled_tensor_name, container, mode=mode, scales=scales)
+        apply_upsample(scope, input_tensor_name, upsampled_tensor_name, container,
+                       mode=mode, coordinate_transformation_mode=coordinate_transformation_mode, scales=scales)
         apply_transpose(scope, upsampled_tensor_name, operator.outputs[0].full_name, container, perm=output_perm_axes)
 
 
