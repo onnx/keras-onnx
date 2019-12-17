@@ -172,14 +172,31 @@ def extract_outputs_from_subclassing_model(model, output_dict, output_names):
     return tf_graph
 
 
-def outputs_to_dict(graph, outputs):
-    t2l_dict = {}
-    for k_, v_ in outputs.items():
-        op = graph.get_operation_by_name(tsname_to_node(k_))
-        assert op is not None, "Cannot find the {} in the graph".format(k_)
-        t2l_dict.update({ts_k_: v_ for ts_k_ in op.outputs})
+def extract_outputs_from_inbound_nodes(model):
+    output_dict = {}
+    if hasattr(model, 'layers'):
+        for l_ in model.layers:
+            output_dict.update(extract_outputs_from_inbound_nodes(l_))
 
-    return t2l_dict
+    for nd_ in model.inbound_nodes:
+        output_tensors = [nd_.output_tensors] if hasattr(nd_.output_tensors, 'dtype') else \
+            nd_.output_tensors
+        for ts_ in output_tensors:
+            op_name = tsname_to_node(ts_.name)
+            if op_name not in output_dict:
+                output_dict[op_name] = (model, None)
+
+    return output_dict
+
+
+def build_layer_output_from_model(model, output_dict, output_names):
+    if is_subclassing(model):
+        return extract_outputs_from_subclassing_model(model, output_dict, output_names)
+    else:
+        graph = model.outputs[0].graph
+        output_names.extend([n.name for n in model.outputs])
+        output_dict.update(extract_outputs_from_inbound_nodes(model))
+        return graph
 
 
 def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):

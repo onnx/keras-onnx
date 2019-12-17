@@ -14,7 +14,7 @@ from .parser import parse_graph
 from .topology import Topology
 from .common.utils import set_logger_level
 from .funcbook import set_converter
-from ._parse_tf import is_placeholder_node, is_subclassing, tsname_to_node, extract_outputs_from_subclassing_model
+from ._parse_tf import is_placeholder_node, tsname_to_node, build_layer_output_from_model
 from ._parser_1x import build_opdict_from_keras
 
 
@@ -39,24 +39,19 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     if debug_mode:
         print(model.summary())
 
+    name = name or model.name
+    target_opset = target_opset or get_opset_number_from_onnx()
+
     output_names = []
     output_dict = {}
     if is_tf2:
-        if is_subclassing(model):
-            tf_graph = extract_outputs_from_subclassing_model(model, output_dict, output_names)
-        else:
-            tf_graph = model.outputs[0].graph
-            output_dict = build_opdict_from_keras(model)
+        tf_graph = build_layer_output_from_model(model, output_dict, output_names)
     else:
         tf_graph = keras.backend.get_session().graph
         output_dict = build_opdict_from_keras(model)
-
-    name = name or model.name
-    target_opset = target_opset or get_opset_number_from_onnx()
-    output_names = output_names or [n.name for n in model.outputs]
+        output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
-
     dump_graph_into_tensorboard(tf_graph)
     topology = Topology(model, tf_graph,
                         target_opset=target_opset,
