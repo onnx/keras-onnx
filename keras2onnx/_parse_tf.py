@@ -178,13 +178,14 @@ def extract_outputs_from_inbound_nodes(model):
         for l_ in model.layers:
             output_dict.update(extract_outputs_from_inbound_nodes(l_))
 
-    for nd_ in model.inbound_nodes:
-        output_tensors = [nd_.output_tensors] if hasattr(nd_.output_tensors, 'dtype') else \
-            nd_.output_tensors
-        for ts_ in output_tensors:
-            op_name = tsname_to_node(ts_.name)
-            if op_name not in output_dict:
-                output_dict[op_name] = (model, None)
+    if hasattr(model, 'inbound_nodes'):
+        for nd_ in model.inbound_nodes:
+            output_tensors = [nd_.output_tensors] if hasattr(nd_.output_tensors, 'dtype') else \
+                nd_.output_tensors
+            for ts_ in output_tensors:
+                op_name = tsname_to_node(ts_.name)
+                if op_name not in output_dict:
+                    output_dict[op_name] = (model, None)
 
     return output_dict
 
