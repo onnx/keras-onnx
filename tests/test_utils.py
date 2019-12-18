@@ -149,14 +149,16 @@ def print_mismatches(case_name, list_idx, expected_list, actual_list, rtol=1.e-3
     diff_list = abs(expected_list - actual_list)
     count_total = len(expected_list)
     count_error = 0
+    count_current = 0
 
     for e_, a_, d_ in zip(expected_list, actual_list, diff_list):
         if d_ > atol + rtol * abs(a_):
             if count_error < 10:  # print the first 10 mismatches
                 print(
                     "case = " + case_name + ", result mismatch for expected = " + str(e_) +
-                    ", actual = " + str(a_), file=sys.stderr)
+                    ", actual = " + str(a_) + " at location " + str(count_current), file=sys.stderr)
             count_error = count_error + 1
+        count_current += 1
 
     print("case = " + case_name + ", " +
           str(count_error) + " mismatches out of " + str(count_total) + " for list " + str(list_idx),
