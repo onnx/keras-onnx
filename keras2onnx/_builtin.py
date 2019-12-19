@@ -22,6 +22,7 @@ class TYPES:
     BiasAddV1 = 'BiasAddV1'
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
+    ExpandDims = 'ExpandDims'
     GatherV2 = 'GatherV2'
     Max = 'Max'
     Mean = 'Mean'
@@ -157,6 +158,27 @@ def convert_tf_const(scope, operator, container):
     np_arr = _cal_tensor_value(node.outputs[0])
     onnx_tensor = numpy_helper.from_array(np_arr, node.outputs[0].name)
     container.add_initializer_from_tensor(onnx_tensor)
+
+
+@converter_func(TYPES.ExpandDims)
+def convert_tf_expand_dims(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    axis = _cal_tensor_value(node.inputs[1]).tolist()
+    rank = len(_cal_tensor_shape(node.inputs[0]))
+    if operator.target_opset < 11:
+        op_version = 1
+        if axis < 0:
+            axis += rank
+    else:
+        op_version = 11
+    axes = [axis]
+    oopb.add_node_with_output("Unsqueeze",
+                              [operator.inputs[0].full_name],
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              op_version=op_version,
+                              axes=axes)
 
 
 @converter_func(TYPES.GatherV2)
