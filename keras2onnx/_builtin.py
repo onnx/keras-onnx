@@ -25,8 +25,10 @@ class TYPES:
     ExpandDims = 'ExpandDims'
     GatherV2 = 'GatherV2'
     Max = 'Max'
+    Maximum = 'Maximum'
     Mean = 'Mean'
     Min = 'Min'
+    Minimum = 'Minimum'
     NotEqual = 'NotEqual'
     Pack = 'Pack'
     Pad = 'Pad'
@@ -196,6 +198,85 @@ def convert_tf_gather_v2(scope, operator, container):
                               name=operator.full_name,
                               op_version=op_version,
                               axis=axis)
+
+
+def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
+    node = operator.raw_operator
+    supported_types = [oopb.double, oopb.float, oopb.float16]
+    output_type = _to_onnx_type(node.outputs[0].dtype)
+    need_cast = False
+    cast_inputs = []
+
+    for idx, inp in enumerate(node.inputs):
+        inp_type = _to_onnx_type(inp.dtype)
+        if inp_type not in supported_types:
+            diff_output = oopb.apply_cast(inp.name,
+                                          to=oopb.float,
+                                          name=operator.full_name + '_input_' + str(idx))
+            cast_inputs.extend(diff_output)
+            need_cast = True
+        else:
+            cast_inputs.append(inp.name)
+
+    # tensorflow minimum/maximum does support broadcast, onnx < opset 8 does not.
+    # handle this by doing something like:
+    # y = min(x1, add(x2, sub(x1, x1))), where x1, x2 are the inputs and x2 is a scalar
+    # this will create a tensor of zeros of the shape of x1, adds x2 to it (which broadcasts) and use that for min.
+    broadcast_inputs = []
+    needs_broadcast_op = []
+    if operator.target_opset < 8:
+        output_shape = _cal_tensor_shape(node.outputs[0])
+        has_correct_shape = []
+        for i, input_name in enumerate(node.inputs):
+            input_shape = _cal_tensor_shape(node.inputs[i])
+            if input_shape != output_shape:
+                needs_broadcast_op.append(i)
+            else:
+                has_correct_shape.append(cast_inputs[i])
+
+    if needs_broadcast_op:
+        has_correct_shape = has_correct_shape[0]
+        for i in range(len(cast_inputs)):
+            if i in needs_broadcast_op:
+                # get a tensor with zeros (since there is no Fill op as of opset8)
+                sub_node = oopb.apply_sub([has_correct_shape, has_correct_shape],
+                                          name=operator.full_name + '_diff_' + str(i))
+                # use add as 'broadcast' op
+                add_node = oopb.apply_add([cast_inputs[i]] + sub_node,
+                                           name=operator.full_name + '_add_' + str(i))
+                broadcast_inputs.extend(add_node)
+            else:
+                broadcast_inputs.append(cast_inputs[i])
+    else:
+        broadcast_inputs = cast_inputs
+
+    op_postfix = '_max' if apply_func == oopb.apply_max else '_min'
+    max_node = apply_func(broadcast_inputs,
+                          name=operator.full_name + op_postfix)
+
+    if need_cast:
+        oopb.apply_op_with_output("apply_cast",
+                                  max_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_castback',
+                                  to=output_type)
+    else:
+        oopb.apply_op_with_output("apply_identity",
+                                  max_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_identity')
+
+
+@converter_func(TYPES.Maximum)
+def convert_tf_maximum(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    _convert_tf_maximum_minimum(scope, operator, container, oopb, oopb.apply_max)
+
+
+@converter_func(TYPES.Minimum)
+def convert_tf_minimum(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    _convert_tf_maximum_minimum(scope, operator, container, oopb, oopb.apply_min)
 
 
 def _make_range_const(scope, operator, container, start, limit, delta, onnx_type):
