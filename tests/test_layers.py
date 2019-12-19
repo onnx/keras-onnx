@@ -147,11 +147,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime('onnx_concat', onnx_model, [data1, data2], expected, self.model_files))
 
     def test_tf_expand_dims(self):
-        for dim in [1, -1]:
+        for dim in [0, 1, -1]:
             model = Sequential()
             model.add(Lambda(lambda x: tf.expand_dims(x, dim), input_shape=[2, 3, 4]))
             onnx_model = keras2onnx.convert_keras(model, 'test_tf_expand_dims')
-            data = np.random.rand(1, 2, 3, 4).astype(np.float32)
+            data = np.random.rand(3, 2, 3, 4).astype(np.float32)
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_tf_expand_dims', onnx_model, data, expected, self.model_files))
 

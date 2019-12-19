@@ -169,7 +169,7 @@ def convert_tf_expand_dims(scope, operator, container):
     if operator.target_opset < 11:
         op_version = 1
         if axis < 0:
-            axis += rank
+            axis += rank + 1
     else:
         op_version = 11
     axes = [axis]
