@@ -29,6 +29,20 @@ class LeNet(tf.keras.Model):
         return self.out(x)
 
 
+class MLP(tf.keras.Model):
+    def __init__(self):
+        super().__init__()
+        self.flatten = tf.keras.layers.Flatten()
+        self.dense1 = tf.keras.layers.Dense(units=256, activation=tf.nn.relu)
+        self.dense2 = tf.keras.layers.Dense(units=10)
+
+    def call(self, inputs):
+        x = self.flatten(inputs)
+        x = self.dense1(x)
+        output = self.dense2(x)
+        return output
+
+
 @unittest.skipIf((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2),
                  "Tensorflow 2.0 only tests.")
 class TestTF2Keras2ONNX(unittest.TestCase):
@@ -41,6 +55,16 @@ class TestTF2Keras2ONNX(unittest.TestCase):
         oxml = keras2onnx.convert_keras(lenet)
         model_files = []
         self.assertTrue(run_onnx_runtime('lenet', oxml, data, expected, model_files))
+
+    def test_mlf(self):
+        tf.keras.backend.clear_session()
+        mlf = MLP()
+        input = tf.random.normal((2, 20))
+        expected = mlf(input)
+        mlf._set_inputs(input)
+        oxml = keras2onnx.convert_keras(mlf)
+        model_files = []
+        self.assertTrue(run_onnx_runtime('lenet', oxml, input.numpy(), expected, model_files))
 
 
 if __name__ == "__main__":
