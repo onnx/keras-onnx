@@ -39,6 +39,7 @@ class TYPES:
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
+    Rsqrt = 'Rsqrt'
     Shape = 'Shape'
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
@@ -669,6 +670,23 @@ def convert_tf_round(scope, operator, container):
                                   operator.input_full_names,
                                   operator.output_full_names,
                                   name=operator.full_name)
+
+
+@converter_func(TYPES.Rsqrt)
+def convert_tf_rsqrt(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    sqrt_node = oopb.add_node('Sqrt',
+                              operator.inputs[0].full_name,
+                              operator.inputs[0].full_name + '_sqrt')
+    if operator.target_opset < 6:
+        op_version = 1
+    else:
+        op_version = 6
+    oopb.add_node_with_output("Reciprocal",
+                              sqrt_node,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              op_version=op_version)
 
 
 @converter_func(TYPES.Shape)
