@@ -5,7 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_reshape, apply_transpose
+from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
 
 
@@ -20,8 +20,7 @@ def convert_keras_gru(scope, operator, container):
     output_state = op.return_state
     reverse_input = op.go_backwards
 
-    op_type = 'GRU'
-    attrs = {'name': operator.full_name}
+    attrs = {}
     gru_input_names = []
 
     gru_x_name = scope.get_unique_variable_name('gru_x')
@@ -83,25 +82,19 @@ def convert_keras_gru(scope, operator, container):
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
     attrs['hidden_size'] = hidden_size
 
-    # Set up version-dependent attributes
-    if container.target_opset < 3:
-        op_version = 1
-        attrs['output_sequence'] = 1 if output_seq else 0
-    elif container.target_opset <= 5:
-        attrs['output_sequence'] = 1 if output_seq else 0
-        op_version = 3
-    else:
-        op_version = 7
-
-    if container.target_opset >= 3:
-        attrs['linear_before_reset'] = 1 if op.reset_after else 0
-
     # We use the collected information to build ONNX's GRU. ONNX GRU's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
     gru_y_name = scope.get_unique_variable_name('gru_y')
     gru_h_name = scope.get_unique_variable_name('gru_h')
     gru_output_names = [gru_y_name, gru_h_name]
-    container.add_node(op_type, gru_input_names, gru_output_names, op_version=op_version, **attrs)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_gru',
+                              gru_input_names,
+                              gru_output_names,
+                              name=operator.raw_operator.name,
+                              output_seq=output_seq,
+                              reset_after=op.reset_after,
+                              **attrs)
 
     # Create output-adjusting operators
     if output_seq:

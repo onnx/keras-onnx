@@ -121,7 +121,7 @@ def convert_bidirectional(scope, operator, container):
     lstm__type = 'LSTM'
     lstm_input_names = []
     lstm_output_names = []
-    lstm_attrs = {'name': operator.full_name}
+    lstm_attrs = {}
 
     # Reshape Keras input format into ONNX input format
     lstm_x_name = scope.get_unique_variable_name(operator.full_name + '_X')
@@ -243,12 +243,6 @@ def convert_bidirectional(scope, operator, container):
 
     lstm_attrs['direction'] = 'bidirectional'
     lstm_attrs['hidden_size'] = hidden_size
-    # Set up version-dependent attributes
-    if container.target_opset <= 5:
-        lstm_attrs['output_sequence'] = 1 if output_seq else 0
-        op_version = 1
-    else:
-        op_version = 7
 
     if hasattr(op, 'merge_mode'):
         if op.merge_mode not in ['concat', None]:
@@ -267,7 +261,12 @@ def convert_bidirectional(scope, operator, container):
     lstm_output_names.append(lstm_c_name)
 
     # Create the major node, ONNX LSTM
-    container.add_node('LSTM', lstm_input_names, lstm_output_names, op_version=op_version, **lstm_attrs)
+    oopb.apply_op_with_output('apply_lstm',
+                              lstm_input_names,
+                              lstm_output_names,
+                              name=operator.raw_operator.name,
+                              output_seq=output_seq,
+                              **lstm_attrs)
 
     if output_seq:
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
@@ -368,12 +367,12 @@ def convert_bidirectional(scope, operator, container):
             transposed_h_name = scope.get_unique_variable_name(operator.full_name + '_Y_h_transposed')
             apply_transpose(scope, lstm_h_name, transposed_h_name, container, perm=perm)
 
-            # Maintain backwards opset compatibility for 'Flatten'
-            op_version = 1 if container.target_opset < 9 else 9
-
             # Flatten ONNX (N, D, C') into (N, D * C')
-            container.add_node('Flatten', transposed_h_name, operator.outputs[0].full_name,
-                               name=scope.get_unique_variable_name('Flatten'), axis=1, op_version=op_version)
+            oopb.apply_op_with_output("apply_flatten",
+                                      transposed_h_name,
+                                      operator.outputs[0].full_name,
+                                      name=operator.full_name + '_flatten',
+                                      axis=1)
         else:
             # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
             # forward/backward pass.

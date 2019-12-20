@@ -5,7 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_reshape, apply_transpose
+from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
 
 
@@ -21,7 +21,7 @@ def convert_keras_simple_rnn(scope, operator, container):
     output_state = op.return_state
     reverse_input = op.go_backwards
 
-    attrs = {'name': operator.full_name}
+    attrs = {}
     rnn_input_names = []
     rnn_output_names = []
 
@@ -70,20 +70,19 @@ def convert_keras_simple_rnn(scope, operator, container):
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
     attrs['hidden_size'] = hidden_size
 
-    # Set up version-dependent attributes
-    if container.target_opset <= 5:
-        attrs['output_sequence'] = 1 if output_seq else 0
-        op_version = 1
-    else:
-        op_version = 7
-
     # We use the collected information to build ONNX's RNN. ONNX RNN's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
     rnn_y_name = scope.get_unique_variable_name('rnn_y')
     rnn_h_name = scope.get_unique_variable_name('rnn_h')
     rnn_output_names.append(rnn_y_name)
     rnn_output_names.append(rnn_h_name)
-    container.add_node('RNN', rnn_input_names, rnn_output_names, op_version=op_version, **attrs)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_rnn',
+                              rnn_input_names,
+                              rnn_output_names,
+                              name=operator.raw_operator.name,
+                              output_seq=output_seq,
+                              **attrs)
 
     # Create operators to adjust ONNX output to meet Keras format
     if output_seq:
