@@ -170,6 +170,29 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_tf_expand_dims', onnx_model, data, expected, self.model_files))
 
+    def test_tf_fused_batch_norm(self):
+        def my_func_1(x):
+            beta = tf.constant([0.2, 0.3, 0.4, 0.5])
+            gamma = tf.constant([0.5, 0.4, 0.3, 0.2])
+            mean = tf.constant([0.1, 0.2, 0.3, 0.4])
+            variance = tf.constant([0.9, 1.0, 1.0, 1.1])
+            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NHWC', is_training=False)[0]
+
+        def my_func_2(x):
+            beta = tf.constant([0.2, 0.3])
+            gamma = tf.constant([0.5, 0.4])
+            mean = tf.constant([0.1, 0.2])
+            variance = tf.constant([0.9, 1.0])
+            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NCHW', is_training=False)[0]
+
+        for my_func in [my_func_1, my_func_2]:
+            model = Sequential()
+            model.add(Lambda(lambda x: my_func(x), input_shape=[2, 3, 4]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_fused_batch_norm')
+            data = np.random.rand(1, 2, 3, 4).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_tf_fused_batch_norm', onnx_model, data, expected, self.model_files))
+
     def test_tf_gather(self):
         model = Sequential()
         model.add(Lambda(lambda x: tf.gather(x, [1, 1], axis=1), input_shape=[5, 5]))
