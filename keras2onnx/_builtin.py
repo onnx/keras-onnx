@@ -23,6 +23,9 @@ class TYPES:
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
     ExpandDims = 'ExpandDims'
+    FusedBatchNorm = 'FusedBatchNorm'
+    FusedBatchNormV2 = 'FusedBatchNormV2'
+    FusedBatchNormV3 = 'FusedBatchNormV3'
     GatherV2 = 'GatherV2'
     Max = 'Max'
     Maximum = 'Maximum'
@@ -175,6 +178,52 @@ def convert_tf_expand_dims(scope, operator, container):
                               name=operator.full_name,
                               axis=axis,
                               rank=rank)
+
+
+def _convert_tf_fused_batch_norm_core(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    input_dim = len(_cal_tensor_shape(node.inputs[0]))
+    epsilon = node.get_attr('epsilon')
+    attrs = {'epsilon': epsilon, 'momentum': 0.9, 'spatial': 1}
+    outputs_num = min(5, len(node.outputs))
+
+    if node.get_attr('data_format') == b'NHWC':
+        input_perm = [0, input_dim - 1] + list(range(1, input_dim - 1))
+        transpose_node_1 = oopb.apply_transpose(operator.inputs[0].full_name, name=operator.full_name + '_transpose_1',
+                                                perm=input_perm)
+        for idx in range(1, 5):
+            transpose_node_1.append(operator.inputs[idx].full_name)
+        batch_norm = oopb.apply_batch_norm(transpose_node_1, name=operator.full_name + '_batch_norm', outputs_num=outputs_num, **attrs)
+        output_perm = [0] + list(range(2, input_dim)) + [1]
+        final_node = oopb.apply_transpose(batch_norm[0], name=operator.full_name + '_transpose_2',
+                                          perm=output_perm)
+    else:
+        transpose_node_1 = []
+        for idx in range(5):
+            transpose_node_1.append(operator.inputs[idx].full_name)
+        batch_norm = oopb.apply_batch_norm(transpose_node_1, name=operator.full_name + '_batch_norm', outputs_num=outputs_num, **attrs)
+        final_node = batch_norm[0]
+
+    oopb.apply_op_with_output("apply_identity",
+                              final_node,
+                              operator.outputs[0].full_name,
+                              name=operator.full_name)
+
+
+@converter_func(TYPES.FusedBatchNorm)
+def convert_tf_fused_batch_norm(scope, operator, container):
+    _convert_tf_fused_batch_norm_core(scope, operator, container)
+
+
+@converter_func(TYPES.FusedBatchNormV2)
+def convert_tf_fused_batch_norm_v2(scope, operator, container):
+    _convert_tf_fused_batch_norm_core(scope, operator, container)
+
+
+@converter_func(TYPES.FusedBatchNormV3)
+def convert_tf_fused_batch_norm_v3(scope, operator, container):
+    _convert_tf_fused_batch_norm_core(scope, operator, container)
 
 
 @converter_func(TYPES.GatherV2)
