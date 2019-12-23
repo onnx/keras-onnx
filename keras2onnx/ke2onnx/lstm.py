@@ -63,10 +63,9 @@ def convert_keras_lstm(scope, operator, container):
         b[3] = keras_b[2 * hidden_size:][:hidden_size]
 
     # Declare essential attributes of ONNX LSTM
-    lstm__type = 'LSTM'
     lstm_input_names = []
     lstm_output_names = []
-    lstm_attrs = {'name': operator.full_name}
+    lstm_attrs = {}
 
     # Because of the format difference between Keras and ONNX LSTM's, we set up a preprocessing node to match them.
     lstm_x_name = scope.get_unique_variable_name('lstm_x')
@@ -140,13 +139,6 @@ def convert_keras_lstm(scope, operator, container):
     lstm_attrs['direction'] = 'reverse' if reverse_input else 'forward'
     lstm_attrs['hidden_size'] = hidden_size
 
-    # Set up version-dependent attributes
-    if container.target_opset <= 5:
-        lstm_attrs['output_sequence'] = 1 if output_seq else 0
-        op_version = 1
-    else:
-        op_version = 7
-
     # We declare some names to store the outputs produced by ONNX LSTM. Then, create ONNX LSTM. Subsequently, its
     # outputs may be adjusted to match Keras format.
     lstm_y_name = scope.get_unique_variable_name('lstm_y')
@@ -155,9 +147,14 @@ def convert_keras_lstm(scope, operator, container):
     lstm_output_names.append(lstm_h_name)
     lstm_c_name = scope.get_unique_variable_name('lstm_c')
     lstm_output_names.append(lstm_c_name)
-    container.add_node(lstm__type, lstm_input_names, lstm_output_names, op_version=op_version, **lstm_attrs)
 
     oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_lstm',
+                              lstm_input_names,
+                              lstm_output_names,
+                              name=operator.raw_operator.name,
+                              output_seq=output_seq,
+                              **lstm_attrs)
 
     # Create output-adjusting operators
     if output_seq:

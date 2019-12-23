@@ -169,19 +169,12 @@ def convert_tf_expand_dims(scope, operator, container):
     node = operator.raw_operator
     axis = _cal_tensor_value(node.inputs[1]).tolist()
     rank = len(_cal_tensor_shape(node.inputs[0]))
-    if operator.target_opset < 11:
-        op_version = 1
-        if axis < 0:
-            axis += rank + 1
-    else:
-        op_version = 11
-    axes = [axis]
-    oopb.add_node_with_output("Unsqueeze",
+    oopb.apply_op_with_output("apply_unsqueeze",
                               [operator.inputs[0].full_name],
                               operator.output_full_names,
                               name=operator.full_name,
-                              op_version=op_version,
-                              axes=axes)
+                              axis=axis,
+                              rank=rank)
 
 
 @converter_func(TYPES.GatherV2)
@@ -189,15 +182,10 @@ def convert_tf_gather_v2(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     axis = _cal_tensor_value(node.inputs[2]).tolist()
-    if operator.target_opset < 11:
-        op_version = 1
-    else:
-        op_version = 11
-    oopb.add_node_with_output("Gather",
+    oopb.apply_op_with_output("apply_gather",
                               [operator.inputs[0].full_name, operator.inputs[1].full_name],
                               operator.output_full_names,
                               name=operator.full_name,
-                              op_version=op_version,
                               axis=axis)
 
 
@@ -360,12 +348,11 @@ def convert_tf_range(scope, operator, container):
         onnx_type = _to_onnx_type(node.outputs[0].dtype)
         _make_range(scope, operator, container, node.inputs[0], node.inputs[1], node.inputs[2], onnx_type)
     else:
-        op_version = 11
         oopb.add_node_with_output("Range",
                                   operator.input_full_names,
                                   operator.outputs[0].full_name,
                                   name=operator.full_name + '_range',
-                                  op_version=op_version)
+                                  op_version=11)
 
 
 @converter_func(TYPES.TD_Reshape)
@@ -392,12 +379,10 @@ def convert_tf_any_all(scope, operator, container):
                               axes=axis,
                               keepdims=keepdims,
                               name=operator.full_name + '_reduce')
-
-    oopb.add_node_with_output("Greater",
+    oopb.apply_op_with_output('apply_greater',
                               [reduce_op, np.array(0, dtype=np.float32)],
                               operator.output_full_names,
-                              name=operator.full_name,
-                              op_version=9)
+                              name=operator.full_name)
 
 
 @converter_func(TYPES.Pack)
@@ -427,11 +412,9 @@ def _convert_tf_pad(scope, operator, container):
     node = operator.raw_operator
     paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
     mode = node.get_attr("mode") if hasattr(node, 'mode') else None
-    attrs = {}
 
     if mode:
         mode = mode.s.decode("utf-8").lower()
-        attrs['mode'] = mode
     if mode not in [None, "constant"]:
         raise ValueError(mode + " pad mode is not supported")
 
@@ -444,27 +427,24 @@ def _convert_tf_pad(scope, operator, container):
     else:
         cast_op = operator.input_full_names[0]
 
-    if operator.target_opset < 11:
-        attrs['pads'] = paddings
-        if mode in [None, "constant"] and len(node.inputs) == 3:
-            const_val = _cal_tensor_value(node.inputs[2]).tolist()
-            attrs['value'] = const_val
-        pad_node = oopb.add_node("Pad",
-                                 cast_op,
-                                 name=operator.full_name + 'pad',
-                                 op_version=2, **attrs)
+    if mode in [None, "constant"] and len(node.inputs) == 3:
+        const_val = _cal_tensor_value(node.inputs[2]).tolist()
     else:
-        if len(node.inputs) == 3:
-            pad_inputs = [cast_op,
-                          ('_pads', oopb.int64, np.array(paddings.astype(np.int64), dtype='int64')),
-                          operator.input_full_names[2]]
-        else:
-            pad_inputs = [cast_op,
-                          ('_pads', oopb.int64, np.array(paddings.astype(np.int64), dtype='int64'))]
-        pad_node = oopb.add_node("Pad",
-                                 pad_inputs,
-                                 name=operator.full_name + 'pad',
-                                 op_version=11, **attrs)
+        const_val = None
+
+    if operator.target_opset < 11:
+        pad_node = oopb.apply_pad(cast_op,
+                                  name=operator.full_name + '_pad',
+                                  mode=mode,
+                                  pads=paddings,
+                                  value=const_val)
+    else:
+        pad_node = oopb.apply_pad(cast_op,
+                                  name=operator.full_name + '_pad',
+                                  mode=mode,
+                                  pads=paddings,
+                                  value=const_val,
+                                  onnx_type=_to_onnx_type(node.inputs[0].dtype))
 
     if origin_dtype not in [oopb.float16, oopb.float,
                             oopb.double]:
@@ -678,15 +658,10 @@ def convert_tf_rsqrt(scope, operator, container):
     sqrt_node = oopb.add_node('Sqrt',
                               operator.inputs[0].full_name,
                               operator.inputs[0].full_name + '_sqrt')
-    if operator.target_opset < 6:
-        op_version = 1
-    else:
-        op_version = 6
-    oopb.add_node_with_output("Reciprocal",
+    oopb.apply_op_with_output("apply_reciprocal",
                               sqrt_node,
                               operator.output_full_names,
-                              name=operator.full_name,
-                              op_version=op_version)
+                              name=operator.full_name + '_cast')
 
 
 @converter_func(TYPES.Shape)
