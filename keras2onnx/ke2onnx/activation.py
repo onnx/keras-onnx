@@ -56,7 +56,7 @@ def convert_keras_activation(scope, operator, container):
         apply_identity(scope, input_name, output_name, container)
     elif activation in [activation_get('selu'), keras.activations.selu]:
         apply_selu(scope, input_name, output_name, container, alpha=1.673263, gamma=1.050701)
-    elif activation in [relu6]:
+    elif activation in [relu6] or activation.__name__ == 'relu6':
         # relu6(x) = min(relu(x), 6)
         apply_relu(scope, input_name, output_name + "_relu6", container)
         apply_clip(scope, output_name + "_relu6", output_name, container,
