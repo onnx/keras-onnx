@@ -998,7 +998,7 @@ def convert_tf_unpack(scope, operator, container):
         oopb.apply_op_with_output("apply_squeeze",
                                   split_node[i],
                                   operator.outputs[i].full_name,
-                                  name=operator.full_name + '_squeeze' + str(i),
+                                  name=operator.full_name + '_squeeze_' + str(i),
                                   axis=axis_val)
 
 
