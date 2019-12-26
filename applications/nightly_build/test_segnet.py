@@ -24,17 +24,22 @@ class TestSegNet(unittest.TestCase):
             os.remove(fl)
 
     def test_segnet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
+        # From https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py
         model = keras_segmentation.models.segnet.segnet(101)
         res = run_image(model, self.model_files, img_path, target_size=(416, 608))
         self.assertTrue(*res)
 
     def test_vgg_segnet(self):
-        # From https://github.com/divamgupta/image-segmentation-keras/models/segnet.py
+        # From https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py
         model = keras_segmentation.models.segnet.vgg_segnet(101)
         res = run_image(model, self.model_files, img_path, target_size=(416, 608))
         self.assertTrue(*res)
 
+    def test_mobilenet_segnet(self):
+        # From https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py
+        model = keras_segmentation.models.segnet.mobilenet_segnet(101)
+        res = run_image(model, self.model_files, img_path, target_size=(224, 224))
+        self.assertTrue(*res)
 
 if __name__ == "__main__":
     unittest.main()
