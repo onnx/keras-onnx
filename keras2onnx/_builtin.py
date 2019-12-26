@@ -49,6 +49,7 @@ class TYPES:
     Sum = 'Sum'
     Tile = 'Tile'
     TopKV2 = 'TopKV2'
+    Unpack = 'Unpack'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
@@ -976,6 +977,29 @@ def convert_tf_strided_slice(scope, operator, container):
                                   cropped_tensor_name,
                                   operator.output_full_names,
                                   operator.inputs[0].full_name + '_identity')
+
+
+@converter_func(TYPES.Unpack)
+def convert_tf_unpack(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    axis_val = node.get_attr('axis')
+    input_shape = _cal_tensor_shape(node.inputs[0])
+    if axis_val < 0 and operator.target_opset < 11:
+        axis_val = len(input_shape) + axis_val
+
+    split_node = oopb.add_node_all('Split',
+                                   operator.inputs[0].full_name,
+                                   operator.full_name + '_split',
+                                   outputs_num=input_shape[axis_val],
+                                   axis=axis_val)
+
+    for i in range(len(split_node)):
+        oopb.apply_op_with_output("apply_squeeze",
+                                  split_node[i],
+                                  operator.outputs[i].full_name,
+                                  name=operator.full_name + '_squeeze_' + str(i),
+                                  axis=axis_val)
 
 
 direct_ops = {"Abs": ("apply_abs",),
