@@ -49,6 +49,7 @@ class TYPES:
     Sum = 'Sum'
     Tile = 'Tile'
     TopKV2 = 'TopKV2'
+    Transpose = 'Transpose'
     Unpack = 'Unpack'
 
     # converter internal types:
@@ -788,6 +789,26 @@ def convert_tf_topkv2(scope, operator, container):
                               [cast_0, unsqueeze],
                               operator.output_full_names,
                               name=operator.full_name)
+
+
+@converter_func(TYPES.Transpose)
+def convert_tf_transpose(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    perm = _cal_tensor_value(node.inputs[1])
+    input_value = _cal_tensor_value(node.inputs[0])
+    if input_value is None:
+        oopb.apply_op_with_output("apply_transpose",
+                                  operator.inputs[0].full_name,
+                                  operator.output_full_names,
+                                  name=operator.full_name,
+                                  perm=perm)
+    else:
+        output_value = np.transpose(input_value, perm)
+        oopb.apply_op_with_output("apply_identity",
+                                  [('_transpose_value', mapping.NP_TYPE_TO_TENSOR_TYPE[output_value.dtype], output_value)],
+                                  operator.output_full_names,
+                                  name=operator.full_name)
 
 
 @converter_func(TYPES.Cast)
