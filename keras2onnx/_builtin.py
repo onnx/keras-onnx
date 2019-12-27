@@ -22,6 +22,7 @@ class TYPES:
     BiasAddV1 = 'BiasAddV1'
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
+    Conv2D = 'Conv2D'
     ExpandDims = 'ExpandDims'
     FusedBatchNorm = 'FusedBatchNorm'
     FusedBatchNormV2 = 'FusedBatchNormV2'
@@ -165,6 +166,124 @@ def convert_tf_const(scope, operator, container):
     np_arr = _cal_tensor_value(node.outputs[0])
     onnx_tensor = numpy_helper.from_array(np_arr, node.outputs[0].name)
     container.add_initializer_from_tensor(onnx_tensor)
+
+
+def _spatial_map(shape, perm):
+    new_shape = shape[:]
+    for i in perm:
+        new_shape[i] = shape[perm[i]]
+    return new_shape
+
+NCHW_TO_NHWC = [0, 2, 3, 1]
+NHWC_TO_NCHW = [0, 3, 1, 2]
+HWCN_TO_NCHW = [3, 2, 0, 1]
+NCHW_TO_HWCN = [2, 3, 1, 0]
+
+def _is_nhwc(node):
+    return node.get_attr('data_format') == b'NHWC'
+
+def _conv_convert_inputs(oopb, scope, operator, container, node, with_kernel=False, new_kernel_shape=None,
+                        input_index=None, output_indices=None):
+    """Convert input and kernel from tensorflow to onnx. This maybe require to
+        to insert transpose ops for input, kernel and output unless they are constants
+        and we can transpose the constant.
+        We transpose inputs if they are in NHWC. We always transpose the kernel from
+        HWNC to NCHW. Outputs are transposed if the format is NHWC.
+        Some convolutions like depthwise_conv2d require a reshape of the kernel.
+        Args:
+            ctx: the parent graph
+            node: node of the convolution op
+            with_kernel: transpose the kernel
+            new_kernel_shape: reshape the kernel
+    """
+
+    if input_index is None:
+        input_index = 0
+    if output_indices is None:
+        output_indices = [0]
+
+    if _is_nhwc(node):
+        # transpose input if needed, no need to record shapes on input
+        input_name = node.input[input_index]
+        transpose_node_1 = oopb.apply_transpose(input_name,
+                                                name=operator.full_name + '_transpose_1',
+                                                perm=NHWC_TO_NCHW)
+
+    # kernel must to be transposed
+    if with_kernel:
+        input_name = node.input[1]
+        transpose = ctx.insert_new_node_on_input(node, "Transpose", input_name)
+        transpose.set_attr("perm", HWCN_TO_NCHW)
+        transpose.skip_conversion = True
+        new_shape = _spatial_map(ctx.get_shape(input_name), HWCN_TO_NCHW)
+        ctx.set_shape(transpose.output[0], new_shape)
+
+        # some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
+        if new_kernel_shape:
+            if ctx.opset < 5:
+                # old reshape takes new shape as attribute
+                input_name = node.input[1]
+                reshape = ctx.insert_new_node_on_input(node, "Reshape", input_name)
+                reshape.set_attr("shape", new_kernel_shape)
+                reshape.skip_conversion = True
+            else:
+                # new reshape takes new shape as input[1]
+                shape_name = utils.make_name(node.name)
+                ctx.make_const(shape_name, np.array(new_kernel_shape, dtype=np.int64))
+                input_name = node.input[1]
+                reshape = ctx.make_node("Reshape", [input_name, shape_name])
+                ctx.replace_input(node, input_name, reshape.output[0])
+                reshape.skip_conversion = True
+            ctx.set_shape(reshape.output[0], new_kernel_shape)
+
+    # transpose outputs if needed
+    if _is_nhwc(node):
+        for idx in output_indices:
+            output_name = node.output[idx]
+            output_shape = ctx.get_shape(node.output[idx])
+            op_name = utils.make_name(node.name)
+            transpose = ctx.insert_new_node_on_output("Transpose", output_name, name=op_name)
+            transpose.set_attr("perm", NCHW_TO_NHWC)
+            transpose.skip_conversion = True
+            # set TF NHWC shape to transpose node output
+            ctx.set_shape(transpose.output[0], output_shape)
+            # Transpose TF NHWC shape back to NCHW shape for current ONNX conv node output
+            ctx.set_shape(output_name, spatial_map(output_shape, NHWC_TO_NCHW))
+        node.data_format = "NCHW"
+
+@converter_func(TYPES.Conv2D)
+def convert_tf_conv2d(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    kernel_shape = _cal_tensor_shape(node.inputs[1])[0:2]
+    strides = node.get_attr('strides')
+    dilations = node.get_attr('dilations')
+    padding = node.get_attr('padding')
+    spatial = 2
+    attrs = {}
+    if padding:
+        if dilations is None:
+            dilations = [1] * spatial * 2
+        if padding == b'SAME':
+            pads = [0] * spatial * 2
+            input_shape = _cal_tensor_shape(node.inputs[0])
+            output_shape = _cal_tensor_shape(node.outputs[0])
+            # transpose shape to nchw
+            if node.get_attr('data_format') == b'NHWC':
+                input_shape = _spatial_map(input_shape, NHWC_TO_NCHW)
+                output_shape = _spatial_map(output_shape, NHWC_TO_NCHW)
+            # calculate pads
+            if any(input_shape[i + 2] == -1 or output_shape[i + 2] == -1 for i in range(spatial)):
+                attrs["auto_pad"] = "SAME_UPPER"
+            else:
+                for i in range(spatial):
+                    pad = (output_shape[i + 2] - 1) * strides[i] + dilations[i] * kernel_shape[i] - input_shape[i + 2]
+                    pad = max(pad, 0)
+                    pads[i] = pad // 2
+                    pads[i + spatial] = pad - pad // 2
+                attrs["pads"] = pads
+
+    _conv_convert_inputs(oopb, scope, operator, container, node, with_kernel=True)
 
 
 @converter_func(TYPES.ExpandDims)

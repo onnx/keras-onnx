@@ -106,6 +106,17 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
+    def test_tf_conv(self):
+        model = Sequential()
+        k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
+        model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 2], padding='SAME'), input_shape=[10, 12, 3]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+        import onnx
+        onnx.save_model(onnx_model, 'conv2d.onnx')
+        data = np.random.rand(1, 10, 12, 3).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_tf_conv', onnx_model, data, expected, self.model_files))
+
     def test_tf_rsqrt(self):
         def my_func_1(x):
             beta = tf.constant([0.0, 0.0, 0.0, 0.0])
