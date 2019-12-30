@@ -203,10 +203,13 @@ def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_ker
     # kernel must to be transposed
     if with_kernel:
         val = _cal_tensor_value(node.inputs[1])
-        val = val.transpose(HWCN_TO_NCHW)
-        onnx_type = _to_onnx_type(node.inputs[1].dtype)
-        transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
-                                                    name=operator.full_name + '_transpose_kernel')
+        if val is not None:
+            val = val.transpose(HWCN_TO_NCHW)
+            onnx_type = _to_onnx_type(node.inputs[1].dtype)
+            transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
+                                                        name=operator.full_name + '_transpose_kernel')
+        else:
+            raise ValueError("The weight of the op " + operator.full_name + " is not constant.")
         # TODO, some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
     else:
         transpose_node_kernel = [ node.inputs[1].name ]
