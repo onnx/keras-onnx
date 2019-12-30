@@ -111,7 +111,7 @@ def convert_tf_identity(scope, operator, container):
 def convert_tf_bias_add(scope, operator, container):
     node = operator.raw_operator
     oopb = OnnxOperatorBuilder(container, scope)
-    if _is_nhwc(node):
+    if not _is_nhwc(node):
         shape0 = _cal_tensor_shape(node.inputs[0])
         shape1 = _cal_tensor_shape(node.inputs[1])
         if node.inputs[1].op.type == 'Const':
