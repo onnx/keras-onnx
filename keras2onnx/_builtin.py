@@ -209,7 +209,9 @@ def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_ker
             transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
                                                         name=operator.full_name + '_transpose_kernel')
         else:
-            raise ValueError("The weight of the op " + operator.full_name + " is not constant.")
+            transpose_node_kernel = oopb.apply_transpose(node.inputs[1].name,
+                                                         name=operator.full_name + '_transpose_kernel',
+                                                         perm=HWCN_TO_NCHW)
         # TODO, some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
     else:
         transpose_node_kernel = [ node.inputs[1].name ]
@@ -238,7 +240,6 @@ def _conv_dims_attr(node, dims):
     if _is_nhwc(node):
         if len(dims) == 2:
             h, w = dims
-            c = n = 1
         else:
             n, h, w, c = dims
     else:
@@ -268,7 +269,7 @@ def _convert_tf_conv2d(scope, operator, container):
                 input_shape = _spatial_map(input_shape, NHWC_TO_NCHW)
                 output_shape = _spatial_map(output_shape, NHWC_TO_NCHW)
             # calculate pads
-            if any(input_shape[i + 2] == -1 or output_shape[i + 2] == -1 for i in range(spatial)):
+            if any(input_shape[i + 2] == None or output_shape[i + 2] == None for i in range(spatial)):
                 attrs["auto_pad"] = "SAME_UPPER"
             else:
                 for i in range(spatial):
