@@ -209,7 +209,9 @@ def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_ker
             transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
                                                         name=operator.full_name + '_transpose_kernel')
         else:
-            raise ValueError("The weight of the op " + operator.full_name + " is not constant.")
+            transpose_node_kernel = oopb.apply_transpose(node.inputs[1].name,
+                                                         name=operator.full_name + '_transpose_kernel',
+                                                         perm=HWCN_TO_NCHW)
         # TODO, some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
     else:
         transpose_node_kernel = [ node.inputs[1].name ]
