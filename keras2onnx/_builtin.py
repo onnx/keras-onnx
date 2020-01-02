@@ -47,6 +47,7 @@ class TYPES:
     Round = 'Round'
     Rsqrt = 'Rsqrt'
     Shape = 'Shape'
+    Size = 'Size'
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
     Sum = 'Sum'
@@ -769,6 +770,27 @@ def convert_tf_reshape(scope, operator, container):
                               operator.outputs[0].full_name,
                               name=operator.full_name + '_reshape',
                               desired_shape=shape_value)
+
+
+@converter_func(TYPES.Size)
+def convert_tf_size(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    dtype = _to_onnx_type(node.outputs[0].dtype)
+    if dtype != oopb.int64:
+        size_node = oopb.add_node('Size',
+                                  operator.inputs[0].full_name,
+                                  operator.inputs[0].full_name + '_size')
+        oopb.apply_op_with_output("apply_cast",
+                                  size_node,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_size_cast',
+                                  to=dtype)
+    else:
+        oopb.add_node_with_output('Size',
+                                  operator.inputs[0].full_name,
+                                  operator.output_full_names,
+                                  name=operator.inputs[0].full_name + '_size')
 
 
 def _convert_tf_resize(scope, operator, container, mode):
