@@ -25,6 +25,7 @@ class TYPES:
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
     ExpandDims = 'ExpandDims'
+    Fill = 'Fill'
     FusedBatchNorm = 'FusedBatchNorm'
     FusedBatchNormV2 = 'FusedBatchNormV2'
     FusedBatchNormV3 = 'FusedBatchNormV3'
@@ -336,6 +337,61 @@ def _convert_tf_fused_batch_norm_core(scope, operator, container):
                               operator.outputs[0].full_name,
                               name=operator.full_name)
 
+
+@converter_func(TYPES.Fill)
+def convert_tf_fill(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    if operator.target_opset < 9:
+        fill_shape = _cal_tensor_shape(node.inputs[0])
+        fill_shape_dims = fill_shape[0]
+        val_dtype = _to_onnx_type(node.inputs[1].dtype)
+        need_cast = val_dtype != oopb.float and operator.target_opset < 9
+        if need_cast:
+            cast_input_val = oopb.apply_cast(operator.inputs[1].full_name,
+                                             to=oopb.float,
+                                             name=operator.full_name + '_input_value_cast')
+        else:
+            cast_input_val = [ operator.inputs[1].full_name ]
+        idx = 0
+        for _ in range(fill_shape_dims):
+            cast_input_val = oopb.apply_unsqueeze(cast_input_val,
+                                                  name=operator.full_name + '_unsqueeze_' + str(idx),
+                                                  axis=0)
+            idx += 1
+        cast_input_dim = oopb.apply_cast(operator.inputs[0].full_name,
+                                         to=oopb.int64,
+                                         name=operator.full_name + '_input_dim_cast')
+        if need_cast:
+            tile_node = oopb.apply_tile(cast_input_val + cast_input_dim,
+                                        name=operator.full_name + '_tile')
+            oopb.apply_op_with_output("apply_cast",
+                                      tile_node,
+                                      operator.output_full_names,
+                                      name=operator.full_name)
+        else:
+            oopb.apply_op_with_output("apply_tile",
+                                      cast_input_val,
+                                      operator.output_full_names,
+                                      name=operator.full_name,
+                                      repeats=cast_input_dim[0])
+    else:
+        val_dtype = _to_onnx_type(node.inputs[0].dtype)
+        if val_dtype != oopb.int64:
+            cast_input_dim = oopb.apply_cast(operator.inputs[0].full_name,
+                                             to=oopb.int64,
+                                             name=operator.full_name + '_input_dim_cast')
+        else:
+            cast_input_dim = [ operator.inputs[0].full_name ]
+
+        val = _cal_tensor_value(node.inputs[1])
+        value = np.array([val])
+        attrs = {"value": numpy_helper.from_array(value)}
+        oopb.add_node_with_output('ConstantOfShape',
+                                  cast_input_dim,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name,
+                                  **attrs)
 
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
