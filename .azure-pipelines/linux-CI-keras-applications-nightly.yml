@@ -58,7 +58,7 @@ jobs:
       pip install -e .
       cd ..
       pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly
+      pip install -i https://test.pypi.org/simple/ ort-nightly==1.1.0.dev1228
       pip install opencv-python
       pip install tqdm
       pip install keras-segmentation
