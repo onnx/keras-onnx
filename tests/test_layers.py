@@ -419,6 +419,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
                     expected = model.predict(data)
                     self.assertTrue(run_onnx_runtime('onnx_resize', onnx_model, data, expected, self.model_files))
 
+    def test_tf_size(self):
+        model = Sequential()
+        model.add(Lambda(lambda x: tf.size(x), input_shape=[2, 3, 5]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_size')
+        data = np.random.rand(3, 2, 3, 5).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_tf_size', onnx_model, data, expected, self.model_files))
+
     def test_tf_squeeze(self):
         for func_ in [lambda x: tf.squeeze(x, [1]), lambda x: tf.squeeze(x), lambda x: tf.squeeze(x, [-2])]:
             model = Sequential()
