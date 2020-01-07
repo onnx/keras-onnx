@@ -55,6 +55,7 @@ class TYPES:
     TopKV2 = 'TopKV2'
     Transpose = 'Transpose'
     Unpack = 'Unpack'
+    VariableV2 = 'VariableV2'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
@@ -1223,6 +1224,36 @@ def convert_tf_unpack(scope, operator, container):
                                   operator.outputs[i].full_name,
                                   name=operator.full_name + '_squeeze_' + str(i),
                                   axis=axis_val)
+
+
+@converter_func(TYPES.VariableV2)
+def convert_tf_variable_v2(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    v_output = node.outputs[0].name
+    get_assign_value = False
+    for graph_node_name in node.graph._nodes_by_name:
+        graph_op = node.graph._nodes_by_name[graph_node_name]
+        if graph_op.type == 'Assign' and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
+            cur_i = graph_op.inputs[1].op
+            if cur_i.type == 'Const':
+                val_type = cur_i.get_attr('dtype')
+                val_shape = [ dim.size for dim in cur_i.get_attr('value').tensor_shape.dim]
+                if cur_i.get_attr('value').tensor_content != b'':
+                    val_arr = np.frombuffer(cur_i.get_attr('value').tensor_content, val_type.as_numpy_dtype).reshape(*val_shape)
+                else:
+                    val = cur_i.get_attr('value').float_val[0]
+                    val_arr = np.full(tuple(val_shape), val)
+                node_input = [('_identity', _to_onnx_type(val_type), val_arr)]
+                get_assign_value = True
+                break
+    if get_assign_value:
+        oopb.add_node_with_output('Identity',
+                                  node_input,
+                                  operator.output_full_names,
+                                  operator.outputs[0].full_name + '_identity')
+    else:
+        raise ValueError("VariableV2 op " + node.name + " is not properly processed")
 
 
 direct_ops = {"Abs": ("apply_abs",),
