@@ -33,7 +33,7 @@ def infer_variable_type(tensor, opset, inbound_node_shape=None):
         tensor_shape = list(inbound_node_shape)
 
     # Determine the tensor's element type
-    tensor_type = tensor.dtype
+    tensor_type = tensor.dtype.base_dtype
     if tensor.dtype == 'resource':
         node_attr = tensor.op.node_def.attr
         tensor_type = node_attr['dtype'].type
