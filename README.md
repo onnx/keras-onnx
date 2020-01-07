@@ -22,6 +22,8 @@ keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.
 Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
 
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
+# Development
+Keras2ONNX depends on [onnxconverter-common](https://github.com/microsoft/onnxconverter-common). In practice, the latest code of this converter requires the latest version of onnxconverter-common, so if you install this converter from its source code, please install the onnxconverter-common in source code mode before keras2onnx installation (e.g. ```pip install git+https://github.com/microsoft/onnxconverter-common```).
 
 # Usage
 Before running the converter, please notice that tensorflow has to be installed in your python environment,
