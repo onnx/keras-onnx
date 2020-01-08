@@ -41,6 +41,7 @@ class TYPES:
     PadV2 = 'PadV2'
     Prod = 'Prod'
     Range = 'Range'
+    ReadVariableOp = 'ReadVariableOp'
     Reshape = 'Reshape'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
@@ -55,6 +56,8 @@ class TYPES:
     TopKV2 = 'TopKV2'
     Transpose = 'Transpose'
     Unpack = 'Unpack'
+    VarHandleOp = 'VarHandleOp'
+    VariableV2 = 'VariableV2'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
@@ -1046,6 +1049,17 @@ def convert_tf_not_equal(scope, operator, container):
                                   name=operator.full_name + '_not')
 
 
+@converter_func(TYPES.ReadVariableOp)
+def convert_tf_read_variable_op(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    if len(node.inputs) == 1 and len(node.outputs) == 1:
+        oopb.apply_op_with_output("apply_identity",
+                                  operator.input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name)
+
+
 def _process_begin_end(new_begin, new_end, stride):
     if stride >= 0:
         new_begin.append(0)
@@ -1223,6 +1237,45 @@ def convert_tf_unpack(scope, operator, container):
                                   operator.outputs[i].full_name,
                                   name=operator.full_name + '_squeeze_' + str(i),
                                   axis=axis_val)
+
+
+def _convert_tf_var_handle_helper(scope, operator, container, var_handle_name, graph_op_type):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    v_output = node.outputs[0].name
+    get_assign_value = False
+    for graph_node_name in node.graph._nodes_by_name:
+        graph_op = node.graph._nodes_by_name[graph_node_name]
+        if graph_op.type == graph_op_type and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
+            cur_i = graph_op.inputs[1].op
+            if cur_i.type == 'Const':
+                val_type = cur_i.get_attr('dtype')
+                val_shape = [ dim.size for dim in cur_i.get_attr('value').tensor_shape.dim]
+                if cur_i.get_attr('value').tensor_content != b'':
+                    val_arr = np.frombuffer(cur_i.get_attr('value').tensor_content, val_type.as_numpy_dtype).reshape(*val_shape)
+                else:
+                    val = cur_i.get_attr('value').float_val[0]
+                    val_arr = np.full(tuple(val_shape), val)
+                node_input = [('_identity', _to_onnx_type(val_type), val_arr)]
+                get_assign_value = True
+                break
+    if get_assign_value:
+        oopb.add_node_with_output('Identity',
+                                  node_input,
+                                  operator.output_full_names,
+                                  operator.outputs[0].full_name + '_identity')
+    else:
+        raise ValueError(var_handle_name + " op " + node.name + " is not properly processed")
+
+
+@converter_func(TYPES.VarHandleOp)
+def convert_tf_var_handle_op(scope, operator, container):
+    _convert_tf_var_handle_helper(scope, operator, container, "VarHandleOp", "AssignVariableOp")
+
+
+@converter_func(TYPES.VariableV2)
+def convert_tf_variable_v2(scope, operator, container):
+    _convert_tf_var_handle_helper(scope, operator, container, "VariableV2", "Assign")
 
 
 direct_ops = {"Abs": ("apply_abs",),
