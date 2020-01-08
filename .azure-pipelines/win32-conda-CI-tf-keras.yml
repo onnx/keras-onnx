@@ -50,11 +50,11 @@ jobs:
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
       pip install %TENSORFLOW_PATH%
-      pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
       cd ..
+      pip install -r requirements.txt
       pip install -r requirements-dev.txt
     displayName: 'Install dependencies'
 
