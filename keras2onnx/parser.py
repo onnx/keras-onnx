@@ -286,10 +286,7 @@ def _check_tfnode_converter_availability(graph, node):
         return False
     else:
         cvt = get_converter(node.type)
-        if cvt is None:
-            return False
-        else:
-            return True
+        return cvt is not None
 
 
 def _check_tfnodes_converter_availability(graph, nodelist):
