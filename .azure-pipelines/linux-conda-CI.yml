@@ -30,7 +30,7 @@ jobs:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
-        TENSORFLOW_PATH: tensorflow
+        TENSORFLOW_PATH: tensorflow==2.0.0
 
     maxParallel: 3
 

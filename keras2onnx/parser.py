@@ -273,10 +273,26 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
     return ts_inputs, ts_outputs
 
 
-def _check_tfnode_converter_availability(nodelist):
+def _check_tfnode_converter_availability(graph, node):
+    var_assign_map = {'VarHandleOp': 'AssignVariableOp', 'VariableV2': 'Assign'}
+    if node.type in var_assign_map:
+        v_output = node.outputs[0].name
+        for graph_node_name in graph._nodes_by_name:
+            graph_op = graph._nodes_by_name[graph_node_name]
+            if graph_op.type == var_assign_map[node.type] and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
+                cur_i = graph_op.inputs[1].op
+                if cur_i.type == 'Const' and cur_i.get_attr('value').tensor_content != b'':
+                    return True
+        return False
+    else:
+        cvt = get_converter(node.type)
+        return cvt is not None
+
+
+def _check_tfnodes_converter_availability(graph, nodelist):
     for n_ in nodelist:
-        cvt = get_converter(n_.type)
-        if cvt is None:
+        flag = _check_tfnode_converter_availability(graph, n_)
+        if not flag:
             k2o_logger().warning(
                 "node {} of type {} cannot be converted, fall back to tf2onnx".format(n_.name, n_.type))
             return False
@@ -309,7 +325,7 @@ def _on_parsing_tf_nodes(nodelist, varset):
 
 
 def _on_parsing_tf_subgraph(graph, node_list, varset):
-    if _check_tfnode_converter_availability(node_list):
+    if _check_tfnodes_converter_availability(graph, node_list):
         _on_parsing_tf_nodes(node_list, varset)
         return
 
