@@ -544,13 +544,14 @@ class TestKerasTF2ONNX(unittest.TestCase):
     @unittest.skipIf(is_tf2,
                      "tf 2.0 is not supported.")
     def test_tf_variable(self):
-        model = Sequential()
         val = np.random.random((2, 3, 4))
-        model.add(Lambda(lambda x: x + K.variable(value=val), input_shape=[2, 3, 4]))
-        onnx_model = keras2onnx.convert_keras(model, 'test_tf_variable')
-        data = np.random.rand(3, 2, 3, 4).astype(np.float32)
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
+        for var_ in [K.variable(value=val), K.zeros(shape=(2, 3, 4)), K.ones(shape=(2, 3, 4))]:
+            model = Sequential()
+            model.add(Lambda(lambda x: x + var_, input_shape=[2, 3, 4]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_variable')
+            data = np.random.rand(3, 2, 3, 4).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
     def test_any_all(self):

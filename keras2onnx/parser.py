@@ -276,14 +276,17 @@ def _on_parsing_model_layer(sub_model, graph, target_kenode, varset, top_kenode=
 def _check_tfnode_converter_availability(graph, node):
     var_assign_map = {'VarHandleOp': 'AssignVariableOp', 'VariableV2': 'Assign'}
     if node.type in var_assign_map:
-        v_output = node.outputs[0].name
-        for graph_node_name in graph._nodes_by_name:
-            graph_op = graph._nodes_by_name[graph_node_name]
-            if graph_op.type == var_assign_map[node.type] and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
-                cur_i = graph_op.inputs[1].op
-                if cur_i.type == 'Const' and cur_i.get_attr('value').tensor_content != b'':
-                    return True
-        return False
+        if is_tf2:
+            v_output = node.outputs[0].name
+            for graph_node_name in graph._nodes_by_name:
+                graph_op = graph._nodes_by_name[graph_node_name]
+                if graph_op.type == var_assign_map[node.type] and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
+                    cur_i = graph_op.inputs[1].op
+                    if cur_i.type == 'Const' and cur_i.get_attr('value').tensor_content != b'':
+                        return True
+            return False
+        else:
+            return True
     else:
         cvt = get_converter(node.type)
         return cvt is not None
