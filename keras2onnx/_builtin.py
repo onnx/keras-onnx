@@ -60,6 +60,7 @@ class TYPES:
     Unpack = 'Unpack'
     VarHandleOp = 'VarHandleOp'
     VariableV2 = 'VariableV2'
+    Where = 'Where'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
