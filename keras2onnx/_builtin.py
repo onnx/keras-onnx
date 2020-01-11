@@ -1295,6 +1295,20 @@ def convert_tf_variable_v2(scope, operator, container):
     _convert_tf_var_handle_helper(scope, operator, container, "VariableV2", "Assign")
 
 
+@converter_func(TYPES.Where)
+def convert_tf_where(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    where_node = oopb.add_node('NonZero',
+                               operator.inputs[0].full_name,
+                               operator.inputs[0].full_name + '_non_zero')
+    oopb.apply_op_with_output("apply_transpose",
+                              where_node,
+                              operator.output_full_names,
+                              name=operator.full_name + '_transpose',
+                              perm=list(reversed(range(len(node.outputs[0].shape)))))
+
+
 direct_ops = {"Abs": ("apply_abs",),
               "Acos": 7,
               "Acosh": 9,

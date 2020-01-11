@@ -554,19 +554,38 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
 
     def test_tf_where(self):
+        '''
         model = Sequential()
-        x_val = np.array([1, 2, -3, 4, -5, -6, -7, 8, 9, 0], dtype=np.float32)
-        true_result = np.array([111, 222, 333, 444, 555, 666, 777, 888, 999, 1000],
-                               dtype=np.float32)
-        false_result = np.array([-111, -222, -333, -444, -555, -666, -777, -888, -999, -1000],
-                                dtype=np.float32)
-        x = tf.placeholder(tf.float32, x_val.shape)
-        picks = tf.where(x > -1, true_result, false_result)
-        model.add(Lambda(lambda x: picks, input_shape=[2, 3]))
-        onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
-        data = np.random.rand(1, 2, 3).astype(np.float32)
+        a = tf.constant([[[1, 1], [3, 6]], [[7, 8], [9, 9]]])
+        b = tf.where(tf.equal(a, 3))
+        model.add(Lambda(lambda x: b, input_shape=(2,)))
+        data = np.random.rand(1, 2).astype(np.float32)
         expected = model.predict(data)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
         self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
+
+        model = Sequential()
+        a = tf.constant([[[1, 1], [3, 6]], [[7, 8], [3, 3]]])
+        b = tf.where(tf.equal(a, 3))
+        model.add(Lambda(lambda x: b, input_shape=(2,)))
+        data = np.random.rand(3, 2).astype(np.float32)
+        expected = model.predict(data)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
+        self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
+        '''
+        model = Sequential()
+        x = tf.constant([[1,2,3],[4,5,6]])
+        y = tf.constant( [[7,8,9],[10,11,12]])
+        condition = tf.constant([[True, False, False],[False, True, True]])
+        b = tf.where(condition, x, y)
+        model.add(Lambda(lambda x: b, input_shape=(2,)))
+        data = np.random.rand(2, 2).astype(np.float32)
+        expected = model.predict(data)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_where', debug_mode=True)
+        import onnx
+        onnx.save_model(onnx_model, 'where.onnx')
+        self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
+
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
     def test_any_all(self):
