@@ -27,7 +27,7 @@ jobs:
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        TENSORFLOW_PATH: tensorflow==2.0.0
+        TENSORFLOW_PATH: tensorflow-cpu
 
     maxParallel: 3
 
