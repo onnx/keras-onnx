@@ -4,4 +4,5 @@
 # license information.
 ###############################################################################
 from .main import keras_layer_to_operator
+from .main import keras_layer_spec
 from .main import static_set_ke2onnx_converters

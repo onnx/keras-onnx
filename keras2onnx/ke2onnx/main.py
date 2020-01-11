@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
 import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
@@ -126,6 +125,16 @@ def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
 
+def _default_extract_layer_name(fstr_list, node_name):
+    for fstr in fstr_list:
+        idx = fstr.rfind('{}/')
+        if node_name.endswith(fstr[idx + 3:]):
+            klen = len(fstr) + idx - 2  # 2 = len('{}')
+            return node_name[:len(node_name) - klen]
+
+    return None
+
+
 _layer = keras.layers
 _adv_activations = keras.layers.advanced_activations
 
@@ -202,6 +211,17 @@ keras_layer_to_operator = {
     _layer.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
+
+_keras_layer_spec = {
+    _layer.AveragePooling1D: (["{}/AvgPool"], _default_extract_layer_name),
+    _layer.AveragePooling2D: (["{}/AvgPool"], _default_extract_layer_name),
+    _layer.AveragePooling3D: (["{}/AvgPool"], _default_extract_layer_name),
+}
+
+
+def keras_layer_spec(layer_type):
+    return _keras_layer_spec.get(layer_type, (None, None))
+
 
 if not is_keras_older_than('2.1.3'):
     keras_layer_to_operator.update({

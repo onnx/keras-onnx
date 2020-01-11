@@ -49,12 +49,12 @@ def convert_keras_pooling_core(scope, operator, container, n_dims,
     if no_permutation_required:
         # In this case, the output of our Pool operator just match what Keras produces.
         pool_result = oopb.add_node(op_type_prefix + onnx_op_type, adjusted_pooling_input,
-                           operator.inputs[0].full_name+'_pooling', **attrs)
+                                    operator.inputs[0].full_name + '_pooling', **attrs)
     else:
         # Put the output of Pool operator to an intermediate tensor. Laster we will apply a Transpose to match the
         # original Keras output format
         pool_result_1 = oopb.add_node(op_type_prefix + onnx_op_type, adjusted_pooling_input,
-                                    operator.inputs[0].full_name + '_pooling', **attrs)
+                                      operator.inputs[0].full_name + '_pooling', **attrs)
 
         # Generate a final Transpose
         pool_result = oopb.add_node('Transpose', pool_result_1,
@@ -65,7 +65,7 @@ def convert_keras_pooling_core(scope, operator, container, n_dims,
         squeeze_result = oopb.add_node('Reshape',
                                        [pool_result,
                                         ('_start', oopb.int64, np.array([0, -1], dtype='int64'))],
-                                        operator.inputs[0].full_name + '_reshape')
+                                       operator.inputs[0].full_name + '_reshape')
     else:
         squeeze_result = pool_result
 
