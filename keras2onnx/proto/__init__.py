@@ -47,11 +47,12 @@ def is_keras_later_than(version_str):
     return StrictVersion(keras.__version__.split('-')[0]) > StrictVersion(version_str)
 
 
-if is_tf_keras:
+try:
     import tensorflow
     def is_tensorflow_older_than(version_str):
         return StrictVersion(tensorflow.__version__.split('-')[0]) < StrictVersion(version_str)
 
-
     def is_tensorflow_later_than(version_str):
         return StrictVersion(tensorflow.__version__.split('-')[0]) > StrictVersion(version_str)
+except ImportError:
+    pass

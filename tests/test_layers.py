@@ -565,8 +565,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2,
+                     "tf 2.0 is not supported.")
     def test_tf_where(self):
-        '''
         model = Sequential()
         a = tf.constant([[[1, 1], [3, 6]], [[7, 8], [9, 9]]])
         b = tf.where(tf.equal(a, 3))
@@ -584,20 +585,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
         self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
-        '''
-        model = Sequential()
-        x = tf.constant([[1,2,3],[4,5,6]])
-        y = tf.constant( [[7,8,9],[10,11,12]])
-        condition = tf.constant([[True, False, False],[False, True, True]])
-        b = tf.where(condition, x, y)
-        model.add(Lambda(lambda x: b, input_shape=(2,)))
-        data = np.random.rand(2, 2).astype(np.float32)
-        expected = model.predict(data)
-        onnx_model = keras2onnx.convert_keras(model, 'test_tf_where', debug_mode=True)
-        import onnx
-        onnx.save_model(onnx_model, 'where.onnx')
-        self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
 
+        target_opset = get_opset_number_from_onnx()
+        if target_opset >= 9:
+            model = Sequential()
+            x = tf.constant([[1,2,3],[4,5,6]])
+            y = tf.constant([[7,8,9],[10,11,12]])
+            condition = tf.constant([[True, False, False],[False, True, True]])
+            b = tf.where(condition, x, y)
+            model.add(Lambda(lambda x: b, input_shape=(2,)))
+            data = np.random.rand(2, 2).astype(np.float32)
+            expected = model.predict(data)
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
+            self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
 
     @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
     def test_any_all(self):
