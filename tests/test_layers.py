@@ -565,8 +565,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2,
-                     "tf 2.0 is not supported.")
+    @unittest.skipIf(is_tf2 or get_opset_number_from_onnx() < 9,
+                     "tf 2.0 or opset < 9 is not supported.")
     def test_tf_where(self):
         model = Sequential()
         a = tf.constant([[[1, 1], [3, 6]], [[7, 8], [9, 9]]])
