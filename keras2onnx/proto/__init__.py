@@ -30,6 +30,7 @@ is_tf_keras = False
 if os.environ.get('TF_KERAS', '0') != '0':
     is_tf_keras = True
 
+
 if is_tf_keras:
     from tensorflow.python import keras
 else:
