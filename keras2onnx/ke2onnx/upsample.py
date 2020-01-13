@@ -53,7 +53,24 @@ def convert_keras_upsample(scope, operator, container, n_dims):
 
     # If no_permutation_required is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
     # conversion, a Transpose would be added.
-    coordinate_transformation_mode = 'half_pixel' if is_tf_keras and mode=='linear' else 'asymmetric'
+    coordinate_transformation_mode = None
+    if mode == 'linear':
+        if is_tf_keras:
+            if is_tf2:
+                coordinate_transformation_mode = 'half_pixel'
+            else:
+                import tensorflow as tf
+                from distutils.version import StrictVersion
+                if StrictVersion(tf.__version__.split('-')[0]) >= StrictVersion(
+                        '1.15.0'):
+                    if operator.target_opset < 11:
+                        raise ValueError('tf_keras upsample bilinear mode is not supported until opset 11')
+                    else:
+                        coordinate_transformation_mode = 'half_pixel'
+
+    if coordinate_transformation_mode is None:
+        coordinate_transformation_mode = 'asymmetric'
+
     if no_permutation_required:
         apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container,
                        mode=mode, coordinate_transformation_mode=coordinate_transformation_mode, scales=scales)

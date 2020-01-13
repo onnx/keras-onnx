@@ -1041,8 +1041,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
             layer = UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
             if not is_keras_older_than("2.2.3"):
-                layer = UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
-                self._misc_conv_helper(layer, ishape)
+                opset_ = get_opset_number_from_onnx()
+                if opset_ >= 11 or not is_tf_keras:
+                    layer = UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
+                    self._misc_conv_helper(layer, ishape)
         ishape = (20, 20, 20, 1)
         layer = UpSampling3D(size=(2, 3, 4), data_format='channels_last')
         self._misc_conv_helper(layer, ishape)
