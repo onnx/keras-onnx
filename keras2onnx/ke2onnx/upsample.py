@@ -7,6 +7,8 @@ import collections
 from ..common.onnx_ops import apply_transpose, apply_upsample
 from .common import get_permutation_config
 from ..proto import is_tf_keras
+if is_tf_keras:
+    from ..proto import is_tensorflow_older_than
 from ..proto.tfcompat import is_tf2
 
 
@@ -59,10 +61,7 @@ def convert_keras_upsample(scope, operator, container, n_dims):
             if is_tf2:
                 coordinate_transformation_mode = 'half_pixel'
             else:
-                import tensorflow as tf
-                from distutils.version import StrictVersion
-                if StrictVersion(tf.__version__.split('-')[0]) >= StrictVersion(
-                        '1.15.0'):
+                if not is_tensorflow_older_than('1.15.0'):
                     if operator.target_opset < 11:
                         raise ValueError('tf_keras upsample bilinear mode is not supported until opset 11')
                     else:
