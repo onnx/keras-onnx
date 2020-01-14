@@ -37,6 +37,8 @@ class TYPES:
     Mean = 'Mean'
     Min = 'Min'
     Minimum = 'Minimum'
+    NonMaxSuppressionV2 = 'NonMaxSuppressionV2'
+    NonMaxSuppressionV3 = 'NonMaxSuppressionV3'
     NotEqual = 'NotEqual'
     Pack = 'Pack'
     Pad = 'Pad'
@@ -311,7 +313,7 @@ def convert_tf_expand_dims(scope, operator, container):
                               [operator.inputs[0].full_name],
                               operator.output_full_names,
                               name=operator.full_name,
-                              axis=axis,
+                              axes=[axis],
                               rank=rank)
 
 
@@ -365,7 +367,7 @@ def convert_tf_fill(scope, operator, container):
         for _ in range(fill_shape_dims):
             cast_input_val = oopb.apply_unsqueeze(cast_input_val,
                                                   name=operator.full_name + '_unsqueeze_' + str(idx),
-                                                  axis=0)
+                                                  axes=[0])
             idx += 1
         cast_input_dim = oopb.apply_cast(operator.inputs[0].full_name,
                                          to=oopb.int64,
@@ -505,6 +507,39 @@ def convert_tf_maximum(scope, operator, container):
 def convert_tf_minimum(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     _convert_tf_maximum_minimum(scope, operator, container, oopb, oopb.apply_min)
+
+
+@converter_func(TYPES.NonMaxSuppressionV2, TYPES.NonMaxSuppressionV3)
+def convert_tf_nonmaxsuppression(scope, operator, container):
+    if operator.target_opset < 10:
+        raise ValueError("NonMaxSuppression op is not supported for opset < 10")
+    else:
+        oopb = OnnxOperatorBuilder(container, scope)
+        input_0 = oopb.apply_unsqueeze(operator.inputs[0].full_name,
+                                       name=operator.full_name + '_unsqueeze_0',
+                                       axes=[0])
+        input_1 = oopb.apply_unsqueeze(operator.inputs[1].full_name,
+                                       name=operator.full_name + '_unsqueeze_1',
+                                       axes=[0, 1])
+        input_2 = oopb.apply_cast(operator.inputs[2].full_name,
+                                  to=oopb.int64,
+                                  name=operator.full_name + '_cast_0')
+        non_max_v = 10 if operator.target_opset < 11 else 11
+        nonmaxsuppress = oopb.add_node('NonMaxSuppression',
+                                       input_0 + input_1 + input_2 + operator.input_full_names[3:],
+                                       operator.full_name + '_nonmax',
+                                       op_version=non_max_v)
+        slice_node = oopb.apply_slice(nonmaxsuppress,
+                                      name=operator.full_name + '_slice',
+                                      starts=[2], ends=[3], axes=[1])
+        squeeze_node = oopb.apply_squeeze(slice_node,
+                                          name=operator.full_name + '_squeeze',
+                                          axes=[1])
+        oopb.apply_op_with_output("apply_cast",
+                                  squeeze_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_castback',
+                                  to=oopb.int32)
 
 
 def _make_range_const(scope, operator, container, start, limit, delta, onnx_type):
@@ -1268,7 +1303,7 @@ def convert_tf_unpack(scope, operator, container):
                                   split_node[i],
                                   operator.outputs[i].full_name,
                                   name=operator.full_name + '_squeeze_' + str(i),
-                                  axis=axis_val)
+                                  axes=[axis_val])
 
 
 def _convert_tf_var_handle_helper(scope, operator, container, var_handle_name, graph_op_type):
