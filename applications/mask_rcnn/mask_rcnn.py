@@ -17,7 +17,6 @@ from keras2onnx.common.onnx_ops import apply_transpose, apply_identity
 from keras2onnx.common.onnx_ops import OnnxOperatorBuilder
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import tf2onnx_contrib_op_conversion
 
 
 ROOT_DIR = os.path.abspath("./")
@@ -719,8 +718,8 @@ if __name__ == '__main__':
 
     model_file_name = './mrcnn.onnx'
     if not os.path.exists(model_file_name):
-        # use opset 10 or later
-        oml = keras2onnx.convert_keras(model.keras_model, target_opset=10, custom_op_conversions=tf2onnx_contrib_op_conversion)
+        # use opset 11 or later
+        oml = keras2onnx.convert_keras(model.keras_model, target_opset=11)
         onnx.save_model(oml, model_file_name)
 
     # run with ONNXRuntime
