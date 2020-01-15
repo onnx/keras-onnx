@@ -54,6 +54,8 @@ class TYPES:
     Select = 'Select'
     Shape = 'Shape'
     Size = 'Size'
+    Split = 'Split'
+    SplitV = 'SplitV'
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
     Sum = 'Sum'
@@ -684,7 +686,23 @@ def convert_tf_pack(scope, operator, container):
 def _convert_tf_pad(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
-    paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
+    paddings_value = _cal_tensor_value(node.inputs[1])
+    if paddings_value is None:
+        padding_dtype = _to_onnx_type(node.inputs[1].dtype)
+        if padding_dtype != oopb.int64:
+            cast_node = oopb.apply_cast(operator.input_full_names[1],
+                                        to=oopb.int64,
+                                        name=operator.full_name + '_paddings_cast')
+        else:
+            cast_node = operator.input_full_names[1]
+        transpose_node_1 = oopb.apply_transpose(cast_node,
+                                                name=operator.full_name + '_transpose_1',
+                                                perm=[1, 0])
+        paddings = oopb.apply_reshape(transpose_node_1,
+                                      name=operator.full_name + '_reshape',
+                                      desired_shape=[-1])[0]
+    else:
+        paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
     mode = node.get_attr("mode") if hasattr(node, 'mode') else None
 
     if mode:
@@ -1006,6 +1024,32 @@ def convert_tf_shape(scope, operator, container):
                                   operator.output_full_names,
                                   name=operator.full_name + '_cast',
                                   to=dtype)
+
+
+@converter_func(TYPES.Split)
+def convert_tf_split(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    split_dims = _cal_tensor_value(node.inputs[0]).tolist()
+    oopb.apply_op_with_output('apply_split',
+                              operator.input_full_names[1:],
+                              operator.output_full_names,
+                              operator.inputs[0].full_name + '_split',
+                              axis=split_dims)
+
+
+@converter_func(TYPES.SplitV)
+def convert_tf_splitv(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    split = _cal_tensor_value(node.inputs[1]).tolist()
+    split_dims = _cal_tensor_value(node.inputs[2]).tolist()
+    oopb.apply_op_with_output('apply_split',
+                              operator.input_full_names[0],
+                              operator.output_full_names,
+                              operator.inputs[0].full_name + '_split',
+                              split=split,
+                              axis=split_dims)
 
 
 @converter_func(TYPES.Squeeze)

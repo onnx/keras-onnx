@@ -439,6 +439,17 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_tf_size', onnx_model, data, expected, self.model_files))
 
+    def test_tf_splitv(self):
+        def my_func_1(x):
+            return tf.split(x, [4, 15, 11], 2)[0]
+
+        model = Sequential()
+        model.add(Lambda(lambda x: my_func_1(x), input_shape=[5, 30]))
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_splitv')
+        data = np.random.rand(2, 5, 30).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_splitv', onnx_model, data, expected, self.model_files))
+
     def test_tf_squeeze(self):
         for func_ in [lambda x: tf.squeeze(x, [1]), lambda x: tf.squeeze(x), lambda x: tf.squeeze(x, [-2])]:
             model = Sequential()
