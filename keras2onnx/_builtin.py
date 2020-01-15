@@ -26,11 +26,13 @@ class TYPES:
     ConcatV2 = 'ConcatV2'
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
+    CropAndResize = 'CropAndResize'
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
     FusedBatchNorm = 'FusedBatchNorm'
     FusedBatchNormV2 = 'FusedBatchNormV2'
     FusedBatchNormV3 = 'FusedBatchNormV3'
+    GatherNd = 'GatherNd'
     GatherV2 = 'GatherV2'
     Max = 'Max'
     Maximum = 'Maximum'
@@ -305,6 +307,27 @@ def convert_tf_conv2d(scope, operator, container):
     _convert_tf_conv2d(scope, operator, container)
 
 
+@converter_func(TYPES.CropAndResize)
+def convert_tf_crop_and_resize(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("CropAndResize op is not supported for opset < 11")
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    mode_value = node.get_attr('method')
+    transpose_node = oopb.apply_transpose(operator.inputs[0].full_name, name=operator.full_name + '_transpose_1',
+                                          perm=[0, 3, 1, 2])
+    cropandresize = oopb.add_node('CropAndResize',
+                                  transpose_node + operator.input_full_names[1:],
+                                  operator.full_name + '_crop_and_resize',
+                                  op_domain='com.microsoft',
+                                  mode=mode_value)
+    oopb.apply_op_with_output("apply_transpose",
+                              cropandresize,
+                              operator.output_full_names,
+                              name=operator.full_name + '_transpose_final',
+                              perm=[0, 2, 3, 1])
+
+
 @converter_func(TYPES.ExpandDims)
 def convert_tf_expand_dims(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -430,6 +453,25 @@ def convert_tf_gather_v2(scope, operator, container):
                               operator.output_full_names,
                               name=operator.full_name,
                               axis=axis)
+
+
+@converter_func(TYPES.GatherNd)
+def convert_tf_gather_nd(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("GatherND op is not supported for opset < 11")
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    indices_dtype = _to_onnx_type(node.inputs[1].dtype)
+    if indices_dtype != oopb.int64:
+        cast_node = oopb.apply_cast(operator.inputs[1].full_name,
+                                    to=oopb.int64,
+                                    name=operator.full_name + '_cast')[0]
+    else:
+        cast_node = operator.inputs[1].full_name
+    oopb.add_node_with_output('GatherND',
+                              [ operator.inputs[0].full_name, cast_node ],
+                              operator.outputs[0].full_name,
+                              name=operator.full_name)
 
 
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
@@ -1452,6 +1494,7 @@ direct_ops = {"Abs": ("apply_abs",),
               "Softsign": 1,
               "Softmax": ("apply_softmax", 1),
               "Sqrt": ("apply_sqrt",),
+              "StopGradient": ("apply_identity",),
               "Sub": ("apply_sub",),
               "Tan": 7,
               "Tanh": ("apply_tanh",)
