@@ -801,21 +801,24 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
     # ... the model input names are identical to the original Keras model.
     for idx_ in range(len(topo.raw_model.model.inputs)):
         op = top_level.declare_local_operator(TYPES.Identity)
-        input_ts = topo.raw_model.model.inputs[idx_]
+        idx_key = idx_
+        if isinstance(topo.raw_model.model.inputs, dict):
+            idx_key = list(topo.raw_model.model.inputs.keys())[idx_]
+        input_ts = topo.raw_model.model.inputs[idx_key]
         var_type = _adjust_input_batch_size(infer_variable_type(input_ts, target_opset))
         str_value = input_ts.name
         var0 = None
         if hasattr(topo.raw_model.model, 'input_names'):
             str_value = topo.raw_model.model.input_names[idx_]
-        elif topo.raw_model.model.inputs[idx_].name.endswith(':0'):
-            str_value = topo.raw_model.model.inputs[idx_].name[:-2]
+        elif input_ts.name.endswith(':0'):
+            str_value = input_ts.name[:-2]
         else:
             # if there is no difference between input tensor name and model input name,
             # skip it.
             var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
         if not var0:
             var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
-            var1 = top_level.get_local_variable_or_declare_one(topo.raw_model.model.inputs[idx_].name, var_type)
+            var1 = top_level.get_local_variable_or_declare_one(input_ts.name, var_type)
             op.add_input(var0)
             op.add_output(var1)
         topo.raw_model.add_input_name(str_value)
