@@ -54,6 +54,8 @@ class TYPES:
     Select = 'Select'
     Shape = 'Shape'
     Size = 'Size'
+    Split = 'Split'
+    SplitV = 'SplitV'
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
     Sum = 'Sum'
@@ -1006,6 +1008,32 @@ def convert_tf_shape(scope, operator, container):
                                   operator.output_full_names,
                                   name=operator.full_name + '_cast',
                                   to=dtype)
+
+
+@converter_func(TYPES.Split)
+def convert_tf_split(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    split_dims = _cal_tensor_value(node.inputs[0]).tolist()
+    oopb.apply_op_with_output('apply_split',
+                              operator.input_full_names[1:],
+                              operator.output_full_names,
+                              operator.inputs[0].full_name + '_split',
+                              axis=split_dims)
+
+
+@converter_func(TYPES.SplitV)
+def convert_tf_splitv(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    split = _cal_tensor_value(node.inputs[1]).tolist()
+    split_dims = _cal_tensor_value(node.inputs[2]).tolist()
+    oopb.apply_op_with_output('apply_split',
+                              operator.input_full_names[0],
+                              operator.output_full_names,
+                              operator.inputs[0].full_name + '_split',
+                              split=split,
+                              axis=split_dims)
 
 
 @converter_func(TYPES.Squeeze)
