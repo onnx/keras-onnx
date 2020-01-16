@@ -375,27 +375,6 @@ def convert_tf_conv2d(scope, operator, container):
     _convert_tf_conv2d(scope, operator, container)
 
 
-@converter_func(TYPES.CropAndResize)
-def convert_tf_crop_and_resize(scope, operator, container):
-    if operator.target_opset < 11:
-        raise ValueError("CropAndResize op is not supported for opset < 11")
-    oopb = OnnxOperatorBuilder(container, scope)
-    node = operator.raw_operator
-    mode_value = node.get_attr('method')
-    transpose_node = oopb.apply_transpose(operator.inputs[0].full_name, name=operator.full_name + '_transpose_1',
-                                          perm=[0, 3, 1, 2])
-    cropandresize = oopb.add_node('CropAndResize',
-                                  transpose_node + operator.input_full_names[1:],
-                                  operator.full_name + '_crop_and_resize',
-                                  op_domain='com.microsoft',
-                                  mode=mode_value)
-    oopb.apply_op_with_output("apply_transpose",
-                              cropandresize,
-                              operator.output_full_names,
-                              name=operator.full_name + '_transpose_final',
-                              perm=[0, 2, 3, 1])
-
-
 @converter_func(TYPES.ExpandDims)
 def convert_tf_expand_dims(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)

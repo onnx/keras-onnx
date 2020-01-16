@@ -7,12 +7,13 @@ import os
 import sys
 import unittest
 import keras2onnx
-from keras2onnx.proto import keras, is_tensorflow_older_than
+from keras2onnx import set_converter
+from keras2onnx.proto import keras
 import onnx
 import numpy as np
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, print_mismatches
+from test_utils import run_onnx_runtime, print_mismatches, convert_tf_crop_and_resize
 
 import urllib.request
 MASKRCNN_WEIGHTS_PATH = r'https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5'
@@ -42,6 +43,7 @@ class TestMaskRCNN(unittest.TestCase):
     @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0"),
                      "Mask-rcnn conversion needs contrib op for onnx < 1.6.0.")
     def test_mask_rcnn(self):
+        set_converter('CropAndResize', convert_tf_crop_and_resize)
         onnx_model = keras2onnx.convert_keras(model.keras_model)
 
         import skimage
