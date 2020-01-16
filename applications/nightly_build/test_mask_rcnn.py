@@ -39,7 +39,7 @@ class TestMaskRCNN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0") or not is_tensorflow_older_than('1.15.0'),
+    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0"),
                      "Mask-rcnn conversion needs contrib op for onnx < 1.6.0.")
     def test_mask_rcnn(self):
         onnx_model = keras2onnx.convert_keras(model.keras_model)
