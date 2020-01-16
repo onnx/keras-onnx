@@ -11,16 +11,7 @@ from .funcbook import get_converter
 from .proto import keras
 from .proto.tfcompat import normalize_tensor_shape
 from .ke2onnx import keras_layer_spec
-from ._builtin import TYPES
-
-
-def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault'] and \
-           node.outputs[0].dtype.name != 'resource'
-
-
-def tsname_to_node(name):
-    return name.split(':')[0]
+from ._builtin import TYPES, is_placeholder_node, tsname_to_node
 
 
 def infer_variable_type(tensor, opset, inbound_node_shape=None):

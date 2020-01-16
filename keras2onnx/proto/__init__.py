@@ -12,6 +12,7 @@ from distutils.version import StrictVersion
 # we can conduct quick fixes by overwriting ONNX functions without changing any lines elsewhere.
 from onnx import onnx_pb as onnx_proto
 from onnx import helper
+from onnx import save_model as save_model
 
 
 def get_opset_number_from_onnx():
@@ -29,7 +30,6 @@ _check_onnx_version()
 is_tf_keras = False
 if os.environ.get('TF_KERAS', '0') != '0':
     is_tf_keras = True
-
 
 if is_tf_keras:
     from tensorflow.python import keras
@@ -51,6 +51,7 @@ def is_keras_later_than(version_str):
 
 def is_tensorflow_older_than(version_str):
     return StrictVersion(tensorflow.__version__.split('-')[0]) < StrictVersion(version_str)
+
 
 def is_tensorflow_later_than(version_str):
     return StrictVersion(tensorflow.__version__.split('-')[0]) > StrictVersion(version_str)

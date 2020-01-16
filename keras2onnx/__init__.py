@@ -28,6 +28,7 @@ try:
 except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
 
+from .proto import save_model
 from .common import Variable, cvtfunc, set_logger_level
 from .funcbook import set_converter, set_converters
 
