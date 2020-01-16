@@ -129,7 +129,7 @@ def convert_tensorflow(frozen_graph_def,
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
-    from .wrapper import tf2onnx, tf2onnx_builtin_conversion
+    from .wrapper import tf2onnx
 
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
@@ -141,9 +141,6 @@ def convert_tensorflow(frozen_graph_def,
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(tf_graph_def, name='')
 
-    custom_op_handlers = tf2onnx_builtin_conversion(target_opset)
-    if custom_op_conversions:
-        custom_op_handlers.update(custom_op_conversions)
     with tf.Session(graph=tf_graph):
         if not input_names:
             input_nodes = list(_collect_input_nodes(tf_graph, output_names)[0])
@@ -151,7 +148,7 @@ def convert_tensorflow(frozen_graph_def,
         g = tf2onnx.tfonnx.process_tf_graph(tf_graph,
                                             continue_on_error=debug_mode,
                                             opset=target_opset,
-                                            custom_op_handlers=custom_op_handlers,
+                                            custom_op_handlers=custom_op_conversions,
                                             inputs_as_nchw=channel_first_inputs,
                                             output_names=output_names,
                                             input_names=input_names)
