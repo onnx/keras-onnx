@@ -3,14 +3,11 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import sys
 import importlib
-import numpy as np
 from distutils.version import StrictVersion
 from onnx import numpy_helper
 from .common import k2o_logger
 from .funcbook import set_converter
-from .proto import onnx_proto, helper
 
 
 try:
