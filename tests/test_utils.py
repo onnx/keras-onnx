@@ -9,7 +9,7 @@ import onnx
 import numpy as np
 import keras2onnx
 from keras2onnx.proto import keras, is_keras_older_than
-from keras2onnx.common.onnx_ops import apply_identity
+from keras2onnx.common.onnx_ops import apply_identity, OnnxOperatorBuilder
 from onnx import onnx_pb, helper
 
 working_path = os.path.abspath(os.path.dirname(__file__))
@@ -17,70 +17,26 @@ tmp_path = os.path.join(working_path, 'temp')
 
 tf2onnx = keras2onnx.wrapper.tf2onnx
 
-# This is for Pad opset 11 which is now a contrib op, TODO: need onnx schema update for Pad
-def on_Pad(ctx, node, name, args):
-    node.type = "Pad"
-    node.domain = 'com.microsoft'
-    mode = node.get_attr("mode")
-    if mode:
-        mode = mode.s.decode("utf-8").lower()
-        node.set_attr("mode", mode)
-    if mode not in [None, "constant", "reflect"]:
-        raise ValueError(mode + " pad mode is not supported")
 
-    origin_dtype = ctx.get_dtype(node.output[0])
-    cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[1])
-    cast_node.set_attr("to", onnx_pb.TensorProto.INT64)
-    ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.INT64)
-    ctx.copy_shape(node.name, cast_node.output[0])
-
-    attrs = {'perm': [1, 0]}
-    transpose_node = ctx.make_node("Transpose", [cast_node.output[0]], name=tf2onnx.utils.make_name(node.name),
-                                   attr=attrs)
-
-    const_name = tf2onnx.utils.make_name(node.name)
-
-    const_array = ctx.make_const(const_name, np.array([-1], dtype=np.int64))
-
-    reshape = ctx.make_node("Reshape", [transpose_node.output[0], const_array.output[0]])
-    ctx.replace_input(node, node.input[1], reshape.output[0])
-
-    if origin_dtype not in [onnx_pb.TensorProto.FLOAT16, onnx_pb.TensorProto.FLOAT,
-                            onnx_pb.TensorProto.DOUBLE]:
-        cast_node = ctx.insert_new_node_on_input(node, "Cast", node.input[0])
-        cast_node.set_attr("to", onnx_pb.TensorProto.FLOAT)
-        ctx.set_dtype(cast_node.output[0], onnx_pb.TensorProto.FLOAT)
-        ctx.copy_shape(node.name, cast_node.output[0])
-
-        cast_back_node = ctx.insert_new_node_on_output("Cast", node.output[0],
-                                                       name=tf2onnx.utils.make_name(node.name) + "_castback")
-        cast_back_node.set_attr("to", origin_dtype)
-        ctx.set_dtype(cast_back_node.output[0], origin_dtype)
-        ctx.copy_shape(node.name, cast_back_node.output[0])
-
-
-def on_CropAndResize(ctx, node, name, args):
-    node.type = "CropAndResize"
-    node.domain = 'com.microsoft'
-    mode = node.get_attr("method")
-    if mode:
-        mode_value = helper.get_attribute_value(mode)
-        del node.attr['method']
-        node.set_attr("mode", mode_value)
-
-    transpose_node = ctx.insert_new_node_on_input(node, "Transpose", node.input[0])
-    transpose_node.set_attr("perm", [0, 3, 1, 2])
-    ctx.set_dtype(transpose_node.output[0], onnx_pb.TensorProto.INT64)
-
-    transpose_node_2 = ctx.insert_new_node_on_output("Transpose", node.output[0],
-                                                     name=tf2onnx.utils.make_name(node.name) + "_transpose_final")
-    transpose_node_2.set_attr("perm", [0, 2, 3, 1])
-    ctx.set_dtype(transpose_node_2.output[0], onnx_pb.TensorProto.INT64)
-
-
-def on_GatherNd(ctx, node, name, args):
-    node.type = "GatherND"
-    node.domain = "com.microsoft"
+def convert_tf_crop_and_resize(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("CropAndResize op is not supported for opset < 11")
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    mode_value = node.get_attr('method')
+    transpose_node = oopb.apply_transpose(operator.inputs[0].full_name,
+                                          name=operator.full_name + '_transpose_1',
+                                          perm=[0, 3, 1, 2])
+    cropandresize = oopb.add_node('CropAndResize',
+                                  transpose_node + operator.input_full_names[1:],
+                                  operator.full_name + '_crop_and_resize',
+                                  op_domain='com.microsoft',
+                                  mode=mode_value)
+    oopb.apply_op_with_output("apply_transpose",
+                              cropandresize,
+                              operator.output_full_names,
+                              name=operator.full_name + '_transpose_final',
+                              perm=[0, 2, 3, 1])
 
 
 # convert keras_contrib.layers.InstanceNormalization
@@ -135,14 +91,6 @@ def convert_InstanceNormalizationLayer(scope, operator, container):
                              operator.inputs[0].full_name + '_add_bias')
 
     apply_identity(scope, add_bias, operator.outputs[0].full_name, container)
-
-
-tf2onnx_contrib_op_conversion = {
-    'GatherNd': (on_GatherNd, []),
-    'CropAndResize': (on_CropAndResize, []),
-    'Pad': (on_Pad, []),
-    'PadV2': (on_Pad, [])
-}
 
 
 def print_mismatches(case_name, list_idx, expected_list, actual_list, rtol=1.e-3, atol=1.e-6):
