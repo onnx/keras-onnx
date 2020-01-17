@@ -518,7 +518,7 @@ def convert_tf_gather_nd(scope, operator, container):
     else:
         cast_node = operator.inputs[1].full_name
     oopb.add_node_with_output('GatherND',
-                              [ operator.inputs[0].full_name, cast_node ],
+                              [operator.inputs[0].full_name, cast_node],
                               operator.outputs[0].full_name,
                               name=operator.full_name)
 
