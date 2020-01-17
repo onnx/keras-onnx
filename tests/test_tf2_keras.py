@@ -1,3 +1,4 @@
+import os
 import unittest
 import keras2onnx
 import numpy as np
@@ -19,8 +20,8 @@ class LeNet(tf.keras.Model):
         self.fc_2 = tf.keras.layers.Dense(84, activation='relu')
         self.out = tf.keras.layers.Dense(10, activation='softmax')
 
-    def call(self, input):
-        x = self.conv2d_1(input)
+    def call(self, inputs, **kwargs):
+        x = self.conv2d_1(inputs)
         x = self.average_pool(x)
         x = self.conv2d_2(x)
         x = self.average_pool(x)
@@ -31,21 +32,37 @@ class LeNet(tf.keras.Model):
 
 class MLP(tf.keras.Model):
     def __init__(self):
-        super().__init__()
+        super(MLP, self).__init__()
         self.flatten = tf.keras.layers.Flatten()
         self.dense1 = tf.keras.layers.Dense(units=256, activation=tf.nn.relu)
         self.dense2 = tf.keras.layers.Dense(units=10)
 
-    def call(self, inputs):
+    def call(self, inputs, **kwargs):
         x = self.flatten(inputs)
         x = self.dense1(x)
         output = self.dense2(x)
         return output
 
 
+class DummyModel(tf.keras.Model):
+    def __init__(self, func):
+        super(DummyModel, self).__init__()
+        self.func = func
+
+    def call(self, inputs, **kwargs):
+        return self.func(inputs)
+
+
 @unittest.skipIf((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2),
                  "Tensorflow 2.0 only tests.")
 class TestTF2Keras2ONNX(unittest.TestCase):
+    def setUp(self):
+        self.model_files = []
+
+    def tearDown(self):
+        for fl in self.model_files:
+            os.remove(fl)
+
     def test_lenet(self):
         tf.keras.backend.clear_session()
         lenet = LeNet()
@@ -53,18 +70,31 @@ class TestTF2Keras2ONNX(unittest.TestCase):
         expected = lenet(data)
         lenet._set_inputs(data)
         oxml = keras2onnx.convert_keras(lenet)
-        model_files = []
-        self.assertTrue(run_onnx_runtime('lenet', oxml, data, expected, model_files))
+        self.assertTrue(run_onnx_runtime('lenet', oxml, data, expected, self.model_files))
 
     def test_mlf(self):
         tf.keras.backend.clear_session()
         mlf = MLP()
-        input = tf.random.normal((2, 20))
-        expected = mlf(input)
-        mlf._set_inputs(input)
+        np_input = tf.random.normal((2, 20))
+        expected = mlf.predict(np_input)
         oxml = keras2onnx.convert_keras(mlf)
-        model_files = []
-        self.assertTrue(run_onnx_runtime('lenet', oxml, input.numpy(), expected, model_files))
+        self.assertTrue(run_onnx_runtime('lenet', oxml, np_input.numpy(), expected, self.model_files))
+
+    def test_tf_ops(self):
+        tf.keras.backend.clear_session()
+
+        def op_func(arg_inputs):
+            x = tf.math.squared_difference(arg_inputs[0], arg_inputs[1])
+            x = tf.matmul(x, x, adjoint_b=True)
+            r = tf.rank(x)
+            x = x - tf.cast(tf.expand_dims(r, axis=0), tf.float32)
+            return x
+
+        dm = DummyModel(op_func)
+        inputs = [tf.random.normal((3, 2, 20)), tf.random.normal((3, 2, 20))]
+        expected = dm.predict(inputs)
+        oxml = keras2onnx.convert_keras(dm)
+        self.assertTrue(run_onnx_runtime('op_model', oxml, [i_.numpy() for i_ in inputs], expected, self.model_files))
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@
 # license information.
 ###############################################################################
 import logging
+import importlib
 from .proto import keras, is_tf_keras
 from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
@@ -12,7 +13,7 @@ from .topology import convert_topology
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph
 from .topology import Topology
-from .common.utils import set_logger_level
+from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
 from ._parse_tf import is_placeholder_node, tsname_to_node, build_layer_output_from_model
 from ._parser_1x import build_opdict_from_keras
@@ -129,7 +130,11 @@ def convert_tensorflow(frozen_graph_def,
     :return an ONNX ModelProto
     """
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
-    from .wrapper import tf2onnx
+    try:
+        tf2onnx = importlib.import_module('tf2onnx')
+    except (ImportError, ModuleNotFoundError) as e:
+        k2o_logger().warning(
+            "Can't import tf2onnx module, so the conversion on a model with any custom/lambda layer will fail!")
 
     if target_opset is None:
         target_opset = get_opset_number_from_onnx()
