@@ -1,34 +1,16 @@
+import onnx
 import unittest
 import numpy as np
 
-from keras2onnx.subgraph import create_subgraph
-from keras2onnx.proto.tfcompat import tensorflow as tf
-import keras2onnx.common as _cmn
-import keras2onnx.proto as _proto
+import keras2onnx
+from keras2onnx import common as _cmn
+from keras2onnx import proto as _proto
+from keras2onnx.proto import keras
+
+from distutils.version import StrictVersion
 
 
-class SubgraphTestCase(unittest.TestCase):
-    """
-    Tests for subgraph operations
-    """
-
-    def test_main(self):
-        g = tf.Graph()
-        with g.as_default():
-            i0 = tf.constant(1.0, shape=[2, 3], name="a")
-            t_add = tf.add(
-                i0,
-                tf.placeholder(dtype=np.float32),
-                name="add")
-
-        self.assertNotEqual(t_add.op.inputs[0].op.type, 'Placeholder')
-        node_list = g.get_operations()
-        node_list.remove(i0.op)
-        sgv, replacement = create_subgraph(g, node_list, tf.Session())
-        self.assertEqual(sgv.get_operation_by_name(t_add.op.name).inputs[0].op.type, 'Placeholder')
-
-
-class ONNXOPSTestCase(unittest.TestCase):
+class KerasConverterMiscTestCase(unittest.TestCase):
     """
     Tests for ONNX Operator Builder
     """
@@ -39,6 +21,35 @@ class ONNXOPSTestCase(unittest.TestCase):
         value = oopb.apply_add((np.array([[1.0], [0.5]], dtype='float32'),
                                 ('_i1', oopb.float, np.array([2.0], dtype='float32'))), 'add')
         self.assertTrue(value[0].startswith('add'))
+
+    @unittest.skipIf(StrictVersion(onnx.__version__) < StrictVersion("1.2"),
+                     "Not supported in ONNX version less than 1.2, since this test requires opset 7.")
+    def test_model_creation(self):
+        N, C, H, W = 2, 3, 5, 5
+        input1 = keras.layers.Input(shape=(H, W, C))
+        x1 = keras.layers.Dense(8, activation='relu')(input1)
+        input2 = keras.layers.Input(shape=(H, W, C))
+        x2 = keras.layers.Dense(8, activation='relu')(input2)
+        maximum_layer = keras.layers.Maximum()([x1, x2])
+
+        out = keras.layers.Dense(8)(maximum_layer)
+        model = keras.models.Model(inputs=[input1, input2], outputs=out)
+
+        trial1 = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
+        trial2 = np.random.rand(N, H, W, C).astype(np.float32, copy=False)
+
+        predicted = model.predict([trial1, trial2])
+        self.assertIsNotNone(predicted)
+
+        converted_model_7 = keras2onnx.convert_keras(model, target_opset=7)
+        converted_model_5 = keras2onnx.convert_keras(model, target_opset=5)
+
+        self.assertIsNotNone(converted_model_7)
+        self.assertIsNotNone(converted_model_5)
+
+        opset_comparison = converted_model_7.opset_import[0].version > converted_model_5.opset_import[0].version
+
+        self.assertTrue(opset_comparison)
 
 
 if __name__ == '__main__':

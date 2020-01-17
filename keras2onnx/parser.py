@@ -10,10 +10,9 @@ from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2
 from .common import k2o_logger
 from .topology import Topology
-from .subgraph import create_subgraph
 from .funcbook import get_converter
-from .wrapper import tf2onnx_wrap, TFNODES
 from ._builtin import TYPES
+
 from ._parse_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
 from ._parser_1x import (extract_inbound_nodes,
@@ -280,7 +279,8 @@ def _check_tfnode_converter_availability(graph, node):
             v_output = node.outputs[0].name
             for graph_node_name in graph._nodes_by_name:
                 graph_op = graph._nodes_by_name[graph_node_name]
-                if graph_op.type == var_assign_map[node.type] and len(graph_op.inputs) > 1 and v_output == graph_op.inputs[0].name:
+                if graph_op.type == var_assign_map[node.type] and len(graph_op.inputs) > 1 and v_output == \
+                        graph_op.inputs[0].name:
                     cur_i = graph_op.inputs[1].op
                     if cur_i.type == 'Const' and cur_i.get_attr('value').tensor_content != b'':
                         return True
@@ -331,71 +331,8 @@ def _on_parsing_tf_subgraph(graph, node_list, varset):
     if _check_tfnodes_converter_availability(graph, node_list):
         _on_parsing_tf_nodes(node_list, varset)
         return
-
-    operator = varset.declare_local_operator(TFNODES, raw_model=node_list)
-    operator.nodelist = node_list
-
-    sess = keras.backend.get_session()
-    subgraph, replacement = create_subgraph(graph, node_list, sess, operator.full_name)
-    setattr(operator, 'subgraph', subgraph)
-    vars_, ts = _locate_inputs_by_node(node_list, varset)
-
-    for n_, var_ in enumerate(vars_):
-        ph_ = ts[n_]
-        ph_name = replacement.get(ts[n_].op.name) + ':0'
-        assert ph_ is not None
-
-        # ph_.name -> identity -> ph_name -> ...
-        oop = varset.declare_local_operator(TYPES.Identity)
-        oop.add_input(var_)
-        ov = varset.declare_local_variable(ph_name, infer_variable_type(ph_, varset.target_opset))
-        oop.add_output(ov)
-        operator.add_input(ov)
-
-    k2o_logger().debug("input: " + ','.join(operator.input_full_names))
-
-
-def _finalize_tf2onnx_op(topo, operator, varset):
-    subgraph = operator.subgraph  # type: tf.Graph
-    node_list = operator.nodelist
-
-    nodes = {}
-    for n_ in varset.variable_name_mapping.keys():
-        node = _find_node(node_list, n_)
-        if node is not None and (not is_placeholder_node(node)):
-            if node in nodes:
-                nodes[node].append(n_)
-            else:
-                nodes[node] = [n_, ]
-
-    outputs = []
-    with subgraph.as_default():
-        for n0_ in nodes:
-            for i_, n_ in enumerate(n0_.outputs):
-                idf_ = tf.identity(subgraph.get_tensor_by_name(operator.full_name + '/' + n_.name),
-                                   operator.full_name + '_identity')
-                outputs.append(idf_.name)
-                iv = varset.get_local_variable_or_declare_one(idf_.name, infer_variable_type(n_, varset.target_opset))
-                ov = varset.get_local_variable_or_declare_one(n0_.outputs[i_].name,
-                                                              infer_variable_type(n_, varset.target_opset))
-                operator.add_output(iv)
-                oop = varset.declare_local_operator(TYPES.Identity)
-                oop.add_input(iv)
-                oop.add_output(ov)
-
-        g = tf2onnx_wrap(topo, subgraph, outputs, varset.target_opset)
-        assert g
-        operator.tf2onnx_graph = g
-
-    return operator
-
-
-def _finalize_const_graph(topology, top_level, varset):
-    # this is const sub-graph list, which will be not traveled.
-    const_iop = [op_ for op_ in varset.operators.values() if not op_.input_full_names]
-    for op_ in const_iop:
-        if hasattr(op_, 'subgraph'):
-            _finalize_tf2onnx_op(topology, op_, varset)
+    else:
+        raise RuntimeError("Some tensorflow operation doesn't support, stop converting.")
 
 
 def _infer_graph_shape(topology, top_level, varset):
@@ -413,22 +350,19 @@ def _infer_graph_shape(topology, top_level, varset):
                 continue
 
             visited.add(oop)
-            if oop.type == TFNODES:
-                _finalize_tf2onnx_op(topology, oop, varset)
+            if isinstance(oop.raw_operator, (keras.layers.Layer, tf.Operation)):
+                assert oop.outputs
+            elif oop.raw_operator:
+                oop.outputs = _locate_outputs(oop.raw_operator, varset)
             else:
-                if isinstance(oop.raw_operator, (keras.layers.Layer, tf.Operation)):
-                    assert oop.outputs
-                elif oop.raw_operator:
-                    oop.outputs = _locate_outputs(oop.raw_operator, varset)
-                else:
-                    assert oop.outputs
-                for o_ in oop.outputs:
-                    o_.op_from = oop
+                assert oop.outputs
+            for o_ in oop.outputs:
+                o_.op_from = oop
 
-                si = oop.shape_infer
-                if si is not None:
-                    # let operator to build its own shape if it can't be deduced from the tf.graph.
-                    si(oop)
+            si = oop.shape_infer
+            if si is not None:
+                # let operator to build its own shape if it can't be deduced from the tf.graph.
+                si(oop)
 
             for o_ in oop.outputs:
                 var_queue.put_nowait(o_)
@@ -667,7 +601,6 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         var_ts = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
         _create_link_node(var_ts, top_scope, varset, True)
 
-    _finalize_const_graph(topology, top_scope, varset)
     _infer_graph_shape(topology, top_scope, varset)
     topology.root_names = [variable.onnx_name for variable in top_scope.variables.values()]
     return topology
@@ -784,7 +717,6 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
         var_ts = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
         _create_link_node(var_ts, top_scope, varset, True)
 
-    _finalize_const_graph(topology, top_scope, varset)
     _infer_graph_shape(topology, top_scope, varset)
     topology.root_names = [variable.onnx_name for variable in top_scope.variables.values()]
     return topology
@@ -829,14 +761,13 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
         output_tensors = [graph.get_tensor_by_name(n_) for n_ in output_names]
     for idx_, ts_ in enumerate(output_tensors):
         op = top_level.declare_local_operator(TYPES.Identity)
-        output_ts = output_tensors[idx_]
-        var_type = _adjust_input_batch_size(infer_variable_type(output_ts, target_opset))
-        str_value = output_ts.name
+        var_type = _adjust_input_batch_size(infer_variable_type(ts_, target_opset))
+        str_value = ts_.name
         use_ts_name = False
         if hasattr(topo.raw_model.model, 'output_names'):
             str_value = topo.raw_model.model.output_names[idx_]
-        elif output_ts.name.endswith(':0'):
-            str_value = tsname_to_node(output_ts.name)
+        elif ts_.name.endswith(':0'):
+            str_value = tsname_to_node(ts_.name)
         else:
             # if there is no difference between output tensor name and model output name
             # skip it.
@@ -851,7 +782,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
 
         if not use_ts_name:
             var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
-            var1 = top_level.get_local_variable_or_declare_one(output_ts.name, var_type)
+            var1 = top_level.get_local_variable_or_declare_one(ts_.name, var_type)
             op.add_input(var1)
             op.add_output(var0)
 
