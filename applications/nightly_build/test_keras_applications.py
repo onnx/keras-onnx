@@ -138,6 +138,39 @@ class TestKerasApplications(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    def test_bert(self):
+        from transformers import TFBertModel, BertTokenizer, TFBertForSequenceClassification
+        '''
+        pretrained_weights = 'bert-base-uncased'
+        tokenizer = BertTokenizer.from_pretrained(pretrained_weights)
+        '''
+        import json
+        raw_data = json.dumps({
+            'text': 'My python is not working'
+        })
+        text = json.loads(raw_data)['text']
+        # model = TFBertModel.from_pretrained(pretrained_weights)
+
+        labels = ['c#', '.net', 'java', 'asp.net', 'c++', 'javascript', 'php', 'python', 'sql', 'sql-server']
+        model_dir = 'bert-stackoverflow-v2'  # os.path.join(os.getenv('AZUREML_MODEL_DIR'), 'bert-stackoverflow-v2')
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        # model = TFBertForSequenceClassification.from_pretrained(model_dir, num_labels=len(labels))
+        model = TFBertForSequenceClassification.from_pretrained('bert-base-uncased', num_labels=len(labels))
+        inputs = tokenizer.encode_plus(text, add_special_tokens=True, return_tensors='tf')
+        inputs_onnx = {}
+        for input_ in inputs:
+            inputs_onnx[input_] = inputs[input_].numpy()
+
+        # predictions = model.predict(inputs, steps=1)
+        predictions = model.predict(inputs)
+        print(predictions[0])
+        # model.save_weights('bertv2.h5')
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=10)
+        import onnx
+        onnx.save_model(onnx_model, 'bertv2.onnx')
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+
+
 
 if __name__ == "__main__":
     unittest.main()
