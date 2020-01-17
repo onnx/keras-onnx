@@ -210,7 +210,7 @@ def convert_tf_batchmatmul(scope, operator, container):
 def convert_tf_squared_difference(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     sub_node = oopb.apply_sub(operator.input_full_names, name=operator.full_name + '_sub')
-    oopb.apply_op_with_output('apply_mul', sub_node, operator.output_full_names, name=operator.full_name)
+    oopb.apply_op_with_output('apply_mul', sub_node + sub_node, operator.output_full_names, name=operator.full_name)
 
 
 @converter_func(TYPES.ConcatV2)
