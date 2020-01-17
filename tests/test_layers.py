@@ -8,7 +8,10 @@ import unittest
 import keras2onnx
 import numpy as np
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
-from keras2onnx.proto import keras, is_tf_keras, get_opset_number_from_onnx, is_keras_older_than, is_keras_later_than
+from keras2onnx.proto import (keras, is_tf_keras,
+                              get_opset_number_from_onnx, is_tensorflow_later_than,
+                              is_keras_older_than, is_keras_later_than)
+
 from test_utils import run_onnx_runtime
 
 K = keras.backend
@@ -537,12 +540,13 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_transpose_1', onnx_model, data, expected, self.model_files))
 
-        model = Sequential()
-        model.add(Lambda(lambda x: tf.transpose(x), input_shape=[2, 3, 4]))
-        onnx_model = keras2onnx.convert_keras(model, 'test_tf_transpose')
-        data = np.random.rand(4, 2, 3, 4).astype(np.float32)
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('onnx_transpose_2', onnx_model, data, expected, self.model_files))
+        if is_tensorflow_later_than('1.13.0'):
+            model = Sequential()
+            model.add(Lambda(lambda x: tf.transpose(x), input_shape=[2, 3, 4]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_transpose')
+            data = np.random.rand(4, 2, 3, 4).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_transpose_2', onnx_model, data, expected, self.model_files))
 
         def my_func_1(x):
             a = tf.constant([[1, 2, 3], [4, 5, 6]], tf.float32)

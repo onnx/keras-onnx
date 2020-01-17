@@ -86,6 +86,8 @@ class TestTF2Keras2ONNX(unittest.TestCase):
         def op_func(arg_inputs):
             x = tf.math.squared_difference(arg_inputs[0], arg_inputs[1])
             x = tf.matmul(x, x, adjoint_b=True)
+            r = tf.rank(x)
+            x = x - tf.cast(tf.expand_dims(r, axis=0), tf.float32)
             return x
 
         dm = DummyModel(op_func)
