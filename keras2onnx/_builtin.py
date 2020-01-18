@@ -59,6 +59,7 @@ class TYPES:
     Select = 'Select'
     Shape = 'Shape'
     Size = 'Size'
+    Softmax = 'Softmax'
     Split = 'Split'
     SplitV = 'SplitV'
     SquaredDifference = 'SquaredDifference'
@@ -1263,6 +1264,22 @@ def convert_tf_read_variable_op(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.Softmax)
+def convert_tf_softmax(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    logits_rank = len(_cal_tensor_shape(node.inputs[0]))
+    axis = node.get_attr('axis') if hasattr(node, 'axis') else -1
+    if operator.target_opset < 11 and axis < 0:
+        axis += logits_rank
+
+    oopb.apply_op_with_output("apply_softmax",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              axis=axis)
+
+
 def _process_begin_end(new_begin, new_end, stride):
     if stride >= 0:
         new_begin.append(0)
@@ -1543,7 +1560,6 @@ direct_ops = {"Abs": ("apply_abs",),
               "Sinh": 9,
               "Softplus": 1,
               "Softsign": 1,
-              "Softmax": ("apply_softmax", 1),
               "Sqrt": ("apply_sqrt",),
               "StopGradient": ("apply_identity",),
               "Sub": ("apply_sub",),
