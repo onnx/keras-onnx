@@ -21,9 +21,9 @@ jobs:
         INSTALL_KERAS: pip install keras==2.1.6
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET:
-        RUN_TESTS: 'pytest tests --doctest-modules --junitxml=junit/test-results.xml "\n"
-          cd applications/nightly_build "\n"
-          python run_all.py --exclude "test_transformers.py"'
+        RUN_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+          cd applications/nightly_build
+          python run_all.py --exclude "test_transformers.py"
 
       Python36:
         python.version: '3.6'
@@ -31,9 +31,9 @@ jobs:
         INSTALL_KERAS: pip install keras==2.2.4
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        RUN_TESTS: 'pytest tests --doctest-modules --junitxml=junit/test-results.xml "\n"
-          cd applications/nightly_build "\n"
-          python run_all.py --exclude "test_transformers.py"'
+        RUN_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+          cd applications/nightly_build
+          python run_all.py --exclude "test_transformers.py"
 
       Python37:
         python.version: '3.7.3'
@@ -41,9 +41,9 @@ jobs:
         INSTALL_KERAS: pip install keras
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        RUN_TESTS: 'pytest tests --doctest-modules --junitxml=junit/test-results.xml "\n"
-          cd applications/nightly_build "\n"
-          python run_all.py --exclude "test_transformers.py"'
+        RUN_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+          cd applications/nightly_build
+          python run_all.py --exclude "test_transformers.py"
 
       Python37_tf2:
         python.version: '3.7.3'
@@ -51,9 +51,9 @@ jobs:
         INSTALL_KERAS:
         TENSORFLOW_PATH: tensorflow==2.1.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        RUN_TESTS: 'pip install transformers "\n"
-          cd applications/nightly_build "\n"
-          python test_transformers.py'
+        RUN_TESTS: pip install transformers
+          cd applications/nightly_build
+          python test_transformers.py
 
     maxParallel: 4
 
