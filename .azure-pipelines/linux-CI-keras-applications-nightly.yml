@@ -21,6 +21,7 @@ jobs:
         INSTALL_KERAS: pip install keras==2.1.6
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET:
+        INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
@@ -30,6 +31,7 @@ jobs:
         INSTALL_KERAS: pip install keras==2.2.4
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
@@ -39,6 +41,7 @@ jobs:
         INSTALL_KERAS: pip install keras
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
@@ -48,6 +51,7 @@ jobs:
         INSTALL_KERAS:
         TENSORFLOW_PATH: tensorflow==2.1.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        INSTALL_TRANSFORMERS: pip install transformers
         RUN_UNIT_TESTS:
         RUN_TESTS: python test_transformers.py
 
@@ -91,7 +95,7 @@ jobs:
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
       pip install scikit-learn
-      pip install transformers
+      $(INSTALL_TRANSFORMERS)
     displayName: 'Install dependencies'
 
   - script: |
