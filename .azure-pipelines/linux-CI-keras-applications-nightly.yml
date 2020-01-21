@@ -48,7 +48,7 @@ jobs:
         INSTALL_KERAS:
         TENSORFLOW_PATH: tensorflow==2.1.0
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        RUN_UNIT_TESTS: 
+        RUN_UNIT_TESTS:
         RUN_TESTS: python test_transformers.py
 
     maxParallel: 4
@@ -90,6 +90,8 @@ jobs:
       $(INSTALL_KERAS_RESNET)
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
+      pip install scikit-learn
+      pip install transformers
     displayName: 'Install dependencies'
 
   - script: |
@@ -97,7 +99,6 @@ jobs:
       python -c "import onnxruntime"
       $(RUN_UNIT_TESTS)
       cd applications/nightly_build
-      pip install transformers
       $(RUN_TESTS)
     displayName: 'pytest'
 
