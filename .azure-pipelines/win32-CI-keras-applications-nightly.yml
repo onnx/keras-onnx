@@ -46,7 +46,7 @@ jobs:
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
       Python37_tf2:
-        python.version: '3.7.3'
+        python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         INSTALL_KERAS:
         TENSORFLOW_PATH: tensorflow==2.1.0
