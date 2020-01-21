@@ -75,8 +75,8 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      pip install $(TENSORFLOW_PATH)
-      $(INSTALL_KERAS)
+      pip install %TENSORFLOW_PATH%
+      %INSTALL_KERAS%
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
@@ -93,16 +93,16 @@ jobs:
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
       pip install scikit-learn
-      $(INSTALL_TRANSFORMERS)
+      %INSTALL_TRANSFORMERS%
     displayName: 'Install dependencies'
 
   - script: |
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      $(RUN_UNIT_TESTS)
+      %RUN_UNIT_TESTS%
       cd applications/nightly_build
-      $(RUN_TESTS)
+      %RUN_TESTS%
     displayName: 'pytest'
 
   - script: |
