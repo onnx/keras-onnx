@@ -32,12 +32,6 @@ jobs:
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
 
-      Python37-tf210:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
-        KERAS: keras
-        TENSORFLOW_PATH: tensorflow==2.1.0
-
     maxParallel: 3
 
   steps:
