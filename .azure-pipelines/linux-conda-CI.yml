@@ -14,25 +14,25 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since tf2onnx does not support it
-      Python35:
+      Python35-tf1110:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
         TENSORFLOW_PATH: tensorflow==1.11.0
 
-      Python36:
+      Python36-tf1150:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         KERAS: keras==2.2.5
         TENSORFLOW_PATH: tensorflow==1.15.0
 
-      Python37:
+      Python37-tf200:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
 
-      Python37:
+      Python37-tf210:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
