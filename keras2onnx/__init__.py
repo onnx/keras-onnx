@@ -35,7 +35,6 @@ from .funcbook import set_converter, set_converters
 from .main import convert_keras
 from .main import export_tf_frozen_graph
 from .main import build_io_names_tf2onnx
-from .main import convert_tensorflow
 
 
 def tfname_to_onnx(name): return Variable.tfname_to_onnx(name)
