@@ -332,18 +332,19 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict([data_1, data_2])
         self.assertTrue(run_onnx_runtime('onnx_range_2', onnx_model, [data_1, data_2], expected, self.model_files))
 
-    def test_tf_not_equal(self):
-        input1_shape = [[3], [3]]
-        input1 = Input(shape=input1_shape[0], dtype='int32')
-        input2 = Input(shape=input1_shape[1], dtype='int32')
-        comp = Lambda(lambda x: tf.not_equal(x[0], x[1]))([input1, input2])
-        model = keras.models.Model(inputs=[input1, input2], outputs=comp)
+    def test_tf_compare_equal(self):
+        for tf_op_ in [tf.not_equal, tf.less_equal, tf.greater_equal]:
+            input1_shape = [[3], [3]]
+            input1 = Input(shape=input1_shape[0], dtype='int32')
+            input2 = Input(shape=input1_shape[1], dtype='int32')
+            comp = Lambda(lambda x: tf_op_(x[0], x[1]))([input1, input2])
+            model = keras.models.Model(inputs=[input1, input2], outputs=comp)
 
-        onnx_model = keras2onnx.convert_keras(model, 'tf_not_equal')
-        data1 = np.array([[1, 2, 3], [1, 2, 3]]).astype(np.int32)
-        data2 = np.array([[1, 2, 3], [2, 1, 4]]).astype(np.int32)
-        expected = model.predict([data1, data2])
-        self.assertTrue(run_onnx_runtime('tf_not_equal', onnx_model, [data1, data2], expected, self.model_files))
+            onnx_model = keras2onnx.convert_keras(model, 'tf_compare_equal')
+            data1 = np.array([[1, 2, 3], [1, 2, 3]]).astype(np.int32)
+            data2 = np.array([[1, 2, 3], [2, 1, 4]]).astype(np.int32)
+            expected = model.predict([data1, data2])
+            self.assertTrue(run_onnx_runtime('tf_compare_equal', onnx_model, [data1, data2], expected, self.model_files))
 
     def test_tf_realdiv(self):
         input1_shape = [(2, 3), (2, 3)]

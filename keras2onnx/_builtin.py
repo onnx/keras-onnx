@@ -36,6 +36,8 @@ class TYPES:
     FusedBatchNormV3 = 'FusedBatchNormV3'
     GatherNd = 'GatherNd'
     GatherV2 = 'GatherV2'
+    GreaterEqual = 'GreaterEqual'
+    LessEqual = 'LessEqual'
     MatMul = 'MatMul'
     Max = 'Max'
     Maximum = 'Maximum'
@@ -56,6 +58,7 @@ class TYPES:
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
     Round = 'Round'
     Rsqrt = 'Rsqrt'
+    ScatterNd = 'ScatterNd'
     Select = 'Select'
     Shape = 'Shape'
     Size = 'Size'
@@ -524,6 +527,40 @@ def convert_tf_gather_nd(scope, operator, container):
                               name=operator.full_name)
 
 
+def _convert_tf_compare_equal(scope, operator, container, tf_op_string, onnx_op_string):
+    if operator.target_opset < 7:
+        raise ValueError(tf_op_string + " op is not supported for opset < 7")
+    oopb = OnnxOperatorBuilder(container, scope)
+    if operator.target_opset >= 9:
+        compare_node = oopb.add_node(onnx_op_string,
+                                     operator.input_full_names,
+                                     operator.full_name + '_' + onnx_op_string.lower())
+        oopb.add_node_with_output('Not',
+                                  [compare_node],
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name)
+    else:
+        compare_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
+                                        operator.full_name + '_input_0_cast', to=oopb.float)
+        compare_input_1 = oopb.add_node('Cast', [operator.inputs[1].full_name],
+                                        operator.full_name + '_input_1_cast', to=oopb.float)
+        less_out = oopb.add_node(onnx_op_string, [compare_input_0, compare_input_1],
+                                 operator.full_name + '_' + onnx_op_string.lower())
+        oopb.add_node_with_output('Not', less_out,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_not')
+
+
+@converter_func(TYPES.GreaterEqual)
+def convert_tf_greater_equal(scope, operator, container):
+    _convert_tf_compare_equal(scope, operator, container, 'GreaterEqual', 'Less')
+
+
+@converter_func(TYPES.LessEqual)
+def convert_tf_less_equal(scope, operator, container):
+    _convert_tf_compare_equal(scope, operator, container, 'LessEqual', 'Greater')
+
+
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     node = operator.raw_operator
     supported_types = [oopb.double, oopb.float, oopb.float16]
@@ -924,6 +961,43 @@ def convert_tf_reshape(scope, operator, container):
                               desired_shape=shape_value)
 
 
+@converter_func(TYPES.ScatterNd)
+def convert_tf_scatter_nd(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("ScatterNd op is not supported for opset = " + str(operator.target_opset))
+    else:
+        oopb = OnnxOperatorBuilder(container, scope)
+        node = operator.raw_operator
+
+        const_shape_dtype = _to_onnx_type(node.inputs[2].dtype)
+        if const_shape_dtype != oopb.int64:
+            const_of_shape_input = oopb.apply_cast(operator.inputs[2].full_name,
+                                                   to=oopb.int64,
+                                                   name=operator.full_name + '_const_of_shape_input')
+        else:
+            const_of_shape_input = [operator.inputs[2].full_name]
+
+        np_val = np.array([0], dtype=np.int64)
+        onnx_tensor = numpy_helper.from_array(np_val, operator.inputs[2].full_name + '_value')
+        const_of_shape = oopb.add_node('ConstantOfShape',
+                                       const_of_shape_input,
+                                       operator.inputs[2].full_name + '_const_of_shape',
+                                       value=onnx_tensor)
+
+        node_input_0_dtype = _to_onnx_type(node.inputs[0].dtype)
+        if node_input_0_dtype != oopb.int64:
+            node_input_0_cast = oopb.apply_cast(operator.inputs[0].full_name,
+                                                to=oopb.int64,
+                                                name=operator.full_name + '_input_0')
+        else:
+            node_input_0_cast = [operator.inputs[0].full_name]
+
+        oopb.add_node_with_output('ScatterND',
+                                  [const_of_shape] + node_input_0_cast + [operator.inputs[1].full_name],
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_scatter_nd')
+
+
 @converter_func(TYPES.Select)
 def convert_tf_select(scope, operator, container):
     if operator.target_opset < 9:
@@ -1237,7 +1311,7 @@ def convert_tf_not_equal(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     if operator.target_opset >= 11:
         equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, operator.inputs[1].full_name],
-                                  operator.full_name + 'mask')
+                                  operator.full_name + '_mask')
         oopb.add_node_with_output('Not', equal_out,
                                   operator.output_full_names,
                                   name=operator.full_name + '_not')
@@ -1247,7 +1321,7 @@ def convert_tf_not_equal(scope, operator, container):
         equal_input_1 = oopb.add_node('Cast', [operator.inputs[1].full_name],
                                       operator.full_name + '_input_1_cast', to=6)
         equal_out = oopb.add_node('Equal', [equal_input_0, equal_input_1],
-                                  operator.full_name + 'mask')
+                                  operator.full_name + '_mask')
         oopb.add_node_with_output('Not', equal_out,
                                   operator.output_full_names,
                                   name=operator.full_name + '_not')
