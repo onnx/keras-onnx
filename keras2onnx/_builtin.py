@@ -1393,6 +1393,15 @@ def _prepare_StridedSlice(node, target_opset):
     needs_squeeze = []
     ellipsis_gap = 0
     data_input = node.inputs[0]
+
+    new_axis_len = 0
+    cur_new_axis_mask = new_axis_mask
+    while cur_new_axis_mask > 0:
+        if cur_new_axis_mask & 1:
+            new_axis_len += 1
+        cur_new_axis_mask = cur_new_axis_mask >> 1
+    new_axis_axes = []
+
     for idx, begin_item in enumerate(begin):
         if target_opset < 10 and strides[idx] != 1:
             raise ValueError("StridedSlice: only strides=1 are supported, current stride =" + str(strides[idx]))
@@ -1401,7 +1410,16 @@ def _prepare_StridedSlice(node, target_opset):
             input_shape = node.inputs[0].shape  # ctx.get_shape(node.input[0])
             if input_shape is None:
                 raise ValueError("StridedSlice op {} requires the shape of input".format(node.name))
-            ellipsis_gap = len(input_shape) - len(begin)
+            ellipsis_gap = len(input_shape) + new_axis_len - len(begin)
+            for ellipsis_start_idx in range(idx, idx + ellipsis_gap + 1):
+                new_begin.append(0)
+                new_end.append(max_size)
+                axes.append(ellipsis_start_idx)
+                steps.append(1)
+            continue
+
+        if (new_axis_mask >> idx) & 1:
+            new_axis_axes.append(idx + ellipsis_gap)
             continue
 
         end_item = end[idx]
@@ -1437,23 +1455,15 @@ def _prepare_StridedSlice(node, target_opset):
         new_begin.append(begin_item)
         new_end.append(end_item)
 
-    return new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask
+    return new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_axes
 
 
 @converter_func(TYPES.StridedSlice)
 def convert_tf_strided_slice(scope, operator, container):
     node = operator.raw_operator
-    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_mask = _prepare_StridedSlice(
+    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_axes = _prepare_StridedSlice(
         node, operator.target_opset)
     oopb = OnnxOperatorBuilder(container, scope)
-
-    new_axis_axes = []
-    cur_idx = 0
-    while new_axis_mask > 0:
-        if new_axis_mask & 1:
-            new_axis_axes.append(cur_idx)
-        new_axis_mask = new_axis_mask >> 1
-        cur_idx = cur_idx + 1
 
     if len(new_axis_axes) > 0:
         new_axis_unsqueeze = oopb.add_node('Unsqueeze',
