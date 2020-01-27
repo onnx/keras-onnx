@@ -500,6 +500,23 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(data)
                 self.assertTrue(run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected, self.model_files))
 
+    def _test_stridedslice_ellipse_newaxis(self, target_opset):
+        model = Sequential()
+        model.add(
+            Lambda(lambda x: x[:, 1:, tf.newaxis, ..., :, 1:, tf.newaxis], input_shape=[2, 3, 4, 3, 2, 2]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
+        data = np.random.rand(6 * 2 * 3 * 4 * 3 * 2 * 2).astype(np.float32).reshape(6, 2, 3, 4, 3, 2, 2)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected, self.model_files))
+
+        model = Sequential()
+        model.add(
+            Lambda(lambda x: x[...], input_shape=[2, 3, 4, 5]))
+        onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
+        data = np.random.rand(6 * 2 * 3 * 4 * 5).astype(np.float32).reshape(6, 2, 3, 4, 5)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_stridedslice', onnx_model, data, expected, self.model_files))
+
     def _test_stridedslice_ellipsis_mask_with_version(self, target_opset):
         model = Sequential()
         model.add(Lambda(lambda x: x[:, :2, ..., 1:], input_shape=[3, 4, 5, 6, 3]))
@@ -522,6 +539,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_stridedslice(self):
         opset_ = get_opset_number_from_onnx()
         self._test_stridedslice_with_version(opset_)
+        self._test_stridedslice_ellipse_newaxis(opset_)
         self._test_stridedslice_ellipsis_mask_with_version(opset_)
         self._test_stridedslice_shrink_mask_with_version(opset_)
 
