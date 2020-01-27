@@ -14,19 +14,19 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      Python35:
+      Python35-tf1110:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
         TENSORFLOW_PATH: tensorflow==1.11.0
 
-      Python36:
+      Python36-tf1140:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         KERAS: keras==2.2.5
         TENSORFLOW_PATH: tensorflow==1.14.0
 
-      Python37:
+      Python37-tf200:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras

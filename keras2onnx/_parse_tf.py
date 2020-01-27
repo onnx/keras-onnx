@@ -118,11 +118,15 @@ def _get_layers(tf_utils, layer):
 
 def layer_name_dict(tf_utils, layer, prefix, parent=None):
     output_dict = {}
-    sub_layers = _get_layers(tf_utils, layer)
+    sub_layers = layer if isinstance(layer, list) else _get_layers(tf_utils, layer)
+
     if sub_layers is not None:
         for l_ in sub_layers:
-            prefix_l = "{}/{}".format(prefix, l_.name)
-            submodel_dict = layer_name_dict(tf_utils, l_, prefix_l, layer)
+            if isinstance(l_, list):
+                submodel_dict = layer_name_dict(tf_utils, l_, prefix, layer)
+            else:
+                prefix_l = "{}/{}".format(prefix, l_.name)
+                submodel_dict = layer_name_dict(tf_utils, l_, prefix_l, layer)
             output_dict.update(submodel_dict)
 
     output_dict[prefix] = (layer, parent)
