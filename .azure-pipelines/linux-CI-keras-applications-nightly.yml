@@ -65,7 +65,6 @@ jobs:
       $(INSTALL_KERAS_RESNET)
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
-      pip install scikit-learn
       $(INSTALL_TRANSFORMERS)
     displayName: 'Install dependencies'
 
