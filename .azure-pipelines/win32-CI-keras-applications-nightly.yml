@@ -19,7 +19,7 @@ jobs:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         INSTALL_KERAS:
-        TENSORFLOW_PATH: tensorflow==2.1.0
+        TENSORFLOW_PATH: tensorflow==2.0.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS: pip install transformers
         SET_TF_KERAS: SET TF_KERAS=1
