@@ -43,8 +43,6 @@ class TestTransformers(unittest.TestCase):
             inputs_onnx[input_] = inputs[input_].numpy()
 
         predictions = model.predict(inputs)
-        # Make sure to set TF_KERAS = 1 since this is tf-keras model.
-        os.environ["TF_KERAS"] = "1"
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 

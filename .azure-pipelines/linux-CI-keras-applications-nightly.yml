@@ -23,6 +23,7 @@ jobs:
         INSTALL_KERAS_RESNET:
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+        SET_TF_KERAS:
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
       Python36:
@@ -33,6 +34,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+        SET_TF_KERAS:
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
       Python37:
@@ -43,6 +45,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
+        SET_TF_KERAS:
         RUN_TESTS: python run_all.py --exclude "test_transformers.py"
 
       Python37_tf2:
@@ -53,6 +56,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS: pip install transformers
         RUN_UNIT_TESTS:
+        SET_TF_KERAS: TF_KERAS='1'
         RUN_TESTS: python test_transformers.py
 
     maxParallel: 4
@@ -103,6 +107,7 @@ jobs:
       python -c "import onnxruntime"
       $(RUN_UNIT_TESTS)
       cd applications/nightly_build
+      $(SET_TF_KERAS)
       $(RUN_TESTS)
     displayName: 'pytest'
 
