@@ -14,9 +14,11 @@ All Keras layers have been supported for conversion using keras2onnx since **ONN
 
 Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
 
-keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x** (CI build). It does not support **Python 2.x**.
+keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x**/**tensorflow 2.0**//**tensorflow 2.1**  (CI build). It does not support **Python 2.x**.
 
 # Notes
+Keras2ONNX supports the new Keras subclassing model which was introduced in tensorflow 2.0 since the version 16.5. Some typical subclassing models like [huggingface/transformers](https://github.com/huggingface/transformers) have been converted into ONNX and validated by ONNXRuntime.<br>
+
 Since its version 2.3, the [multi-backend Keras (keras.io)](https://keras.io/#multi-backend-keras-and-tfkeras) stops the support of the tensorflow version above 2.0. The auther suggests to switch to tf.keras for the new features.
 # Multi-backend Keras and tf.keras:
 Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
