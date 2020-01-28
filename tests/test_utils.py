@@ -143,11 +143,11 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
         model_files.append(temp_model_file)
 
-    if not res:
-        for n_ in range(len(expected)):
-            expected_list = expected[n_].flatten()
-            actual_list = actual[n_].flatten()
-            print_mismatches(case_name, n_, expected_list, actual_list, rtol, atol)
+    # if not res:
+    for n_ in range(len(expected)):
+        expected_list = expected[n_].flatten()
+        actual_list = actual[n_].flatten()
+        print_mismatches(case_name, n_, expected_list, actual_list, rtol, atol)
 
     return res
 
