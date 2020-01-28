@@ -8,6 +8,7 @@ import sys
 import unittest
 import keras2onnx
 import json
+import os
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
@@ -19,6 +20,8 @@ class TestTransformers(unittest.TestCase):
 
     def setUp(self):
         self.model_files = []
+        # Make sure to set TF_KERAS = 1 since this is tf-keras model.
+        os.environ["TF_KERAS"] = "1"
 
     def tearDown(self):
         for fl in self.model_files:
