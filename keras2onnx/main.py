@@ -86,6 +86,8 @@ def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
     Freezes internal tensorflow graph for the specified keras model.
     :return The frozen graph object.
     """
+    if is_tf2:
+        raise RuntimeError("Only Tensorflow 1.x supported.")
     session = keras.backend.get_session()
     graph = model.outputs[0].graph if is_tf2 else session.graph
     with graph.as_default():

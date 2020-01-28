@@ -92,9 +92,8 @@ pred_onnx = sess.run(None, feed)
 
 An alternative way to load onnx model to runtime session is to save the model first:
 ```
-import onnx
 temp_model_file = 'model.onnx'
-onnx.save_model(onnx_model, temp_model_file)
+keras2onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
 

@@ -7,7 +7,7 @@ from .main import convert_keras
 
 def main(input_file, output_file=None, opset=None, channel_first=None):
     """
-    A command line interface for Keras/Tensorflow model to ONNX converter.
+    A command line interface for Keras model to ONNX converter.
     :param input_file: the original model file path, could be a folder name of TF saved model
     :param output_file: the converted ONNX model file path (optional)
     :param opset: the target opset for the ONNX model.
