@@ -23,7 +23,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS: pip install transformers
         RUN_UNIT_TESTS:
-        SET_TF_KERAS: TF_KERAS='1'
+        SET_TF_KERAS: export TF_KERAS=1
         RUN_TESTS: python test_transformers.py
 
     maxParallel: 4
