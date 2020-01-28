@@ -12,9 +12,9 @@ from .topology import convert_topology
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph
 from .topology import Topology
-from .common.utils import set_logger_level, k2o_logger
+from .common.utils import set_logger_level
 from .funcbook import set_converter
-from ._parse_tf import is_placeholder_node, tsname_to_node, build_layer_output_from_model
+from ._parse_tf import tsname_to_node, build_layer_output_from_model
 from ._parser_1x import build_opdict_from_keras
 
 
@@ -71,15 +71,14 @@ def build_io_names_tf2onnx(model):
 
 
 def _freeze_graph(session, keep_var_names=None, output_names=None):
-    graph = session.graph
-    with graph.as_default():
-        freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
-        input_graph_def = graph.as_graph_def()
-        for node in input_graph_def.node:
-            node.device = ""
-        frozen_graph_def = tf.graph_util.convert_variables_to_constants(
-            session, input_graph_def, output_names, freeze_var_names)
-        return frozen_graph_def
+    graph = tf.get_default_graph()
+    freeze_var_names = list(set(v.op.name for v in tf.global_variables()).difference(keep_var_names or []))
+    input_graph_def = graph.as_graph_def()
+    for node in input_graph_def.node:
+        node.device = ""
+    frozen_graph_def = tf.graph_util.convert_variables_to_constants(
+        session, input_graph_def, output_names, freeze_var_names)
+    return frozen_graph_def
 
 
 def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
@@ -87,6 +86,9 @@ def export_tf_frozen_graph(model, keep_var_names=None, output_names=None):
     Freezes internal tensorflow graph for the specified keras model.
     :return The frozen graph object.
     """
-    output_names = output_names or \
-                   [tsname_to_node(n_) for n_ in build_io_names_tf2onnx(model)['output_names']]
-    return _freeze_graph(keras.backend.get_session(), keep_var_names, output_names)
+    session = keras.backend.get_session()
+    graph = model.outputs[0].graph if is_tf2 else session.graph
+    with graph.as_default():
+        output_names = output_names or \
+                       [tsname_to_node(n_) for n_ in build_io_names_tf2onnx(model)['output_names']]
+        return _freeze_graph(session, keep_var_names, output_names)

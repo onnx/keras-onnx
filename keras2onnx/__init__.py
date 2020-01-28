@@ -24,7 +24,6 @@ try:
 
     if StrictVersion(tensorflow.__version__.split('-')[0]) >= StrictVersion('2.0.0'):
         tensorflow.compat.v1.disable_tensor_equality()
-    sys.path.insert(0, os.path.join(dirname(abspath(__file__)), 'ktf2onnx'))
 except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
 

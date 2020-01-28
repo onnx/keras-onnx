@@ -85,8 +85,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def asarray(*a):
         return np.array([a], dtype='f')
 
-    @unittest.skipIf(is_tf2, 'TODO')
     def test_keras_with_tf2onnx(self):
+        tf.disable_v2_behavior()
         model = Sequential()
         model.add(Dense(units=4, input_shape=(10,), activation='relu'))
         model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['binary_accuracy'])
