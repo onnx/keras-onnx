@@ -306,7 +306,7 @@ def _check_tfnodes_converter_availability(graph, nodelist):
 def _on_parsing_tf_nodes(nodelist, varset):
     for node_ in nodelist:
         cvt = get_converter(node_.type)
-        assert cvt is not None, "Cannot find the tf.op({}) converter.".format(node_.type)
+        assert cvt is not None, "Cannot find the tf.op({}) converter for the node {}.".format(node_.type, node_.name)
         k2o_logger().debug("Processing a tf node - %s" % node_.name)
         operator = varset.declare_local_operator(node_.type, raw_model=node_, op_name=node_.name)
 
