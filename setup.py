@@ -1,11 +1,8 @@
 # -*- coding: utf-8 -*-
-###############################################################################
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
-
 from distutils.core import setup
 from setuptools import find_packages
 import os
@@ -26,7 +23,6 @@ with open(os.path.join(this, "requirements.txt"), "r") as f:
 packages = find_packages()
 assert packages
 root_package = packages[0]
-packages += find_embedded_package('./keras2onnx/ktf2onnx')
 
 # read version from the package file.
 version_str = '0.1.0.0000'
@@ -35,7 +31,6 @@ with (open(os.path.join(this, '{}/__init__.py'.format(root_package)), "r")) as f
                         for _ in f.readlines()] if _.startswith("__version__")]
     if len(line) > 0:
         version_str = line[0].split('=')[1].strip('" ')
-
 
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md'), encoding='utf-8') as f:
@@ -67,5 +62,6 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'License :: OSI Approved :: MIT License']
 )
