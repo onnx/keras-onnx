@@ -11,7 +11,6 @@ from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
                               get_opset_number_from_onnx, is_tensorflow_later_than,
                               is_keras_older_than, is_keras_later_than)
-
 from test_utils import run_onnx_runtime
 
 K = keras.backend
@@ -85,18 +84,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def asarray(*a):
         return np.array([a], dtype='f')
 
-    def test_keras_with_tf2onnx(self):
-        tf.disable_v2_behavior()
-        model = Sequential()
-        model.add(Dense(units=4, input_shape=(10,), activation='relu'))
-        model.compile(loss='binary_crossentropy', optimizer='Adam', metrics=['binary_accuracy'])
-        graph_def = keras2onnx.export_tf_frozen_graph(model)
-        import onnxmltools
-        onnx_model = onnxmltools.convert_tensorflow(graph_def, **keras2onnx.build_io_names_tf2onnx(model))
-        data = np.random.rand(4 * 10).astype(np.float32).reshape(4, 10)
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('ktf2onnx_test', onnx_model, data, expected, self.model_files))
-
     def test_keras_lambda(self):
         model = Sequential()
         model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
@@ -113,7 +100,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_tf_conv(self):
         model = Sequential()
         k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
-        model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='SAME', data_format='NHWC'), input_shape=[10, 14, 3]))
+        model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='SAME', data_format='NHWC'),
+                         input_shape=[10, 14, 3]))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
         data = np.random.rand(1, 10, 14, 3).astype(np.float32)
         expected = model.predict(data)
@@ -121,7 +109,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
         model = Sequential()
         k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
-        model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='VALID', data_format='NHWC'), input_shape=[10, 14, 3]))
+        model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='VALID', data_format='NHWC'),
+                         input_shape=[10, 14, 3]))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
         data = np.random.rand(1, 10, 14, 3).astype(np.float32)
         expected = model.predict(data)
@@ -135,7 +124,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         data = np.random.rand(1, 10, 3).astype(np.float32)
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_tf_conv', onnx_model, data, expected, self.model_files))
-
 
     def test_tf_rsqrt(self):
         def my_func_1(x):
@@ -215,14 +203,16 @@ class TestKerasTF2ONNX(unittest.TestCase):
             gamma = tf.constant([0.5, 0.4, 0.3, 0.2])
             mean = tf.constant([0.1, 0.2, 0.3, 0.4])
             variance = tf.constant([0.9, 1.0, 1.0, 1.1])
-            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NHWC', is_training=False)[0]
+            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NHWC', is_training=False)[
+                0]
 
         def my_func_2(x):
             beta = tf.constant([0.2, 0.3])
             gamma = tf.constant([0.5, 0.4])
             mean = tf.constant([0.1, 0.2])
             variance = tf.constant([0.9, 1.0])
-            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NCHW', is_training=False)[0]
+            return tf.nn.fused_batch_norm(x, mean, variance, beta, gamma, 0.001, data_format='NCHW', is_training=False)[
+                0]
 
         for my_func in [my_func_1, my_func_2]:
             model = Sequential()
@@ -263,7 +253,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
                 data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
                 expected = model.predict([data1, data2])
-                self.assertTrue(run_onnx_runtime('tf_maximum_minimum', onnx_model, [data1, data2], expected, self.model_files))
+                self.assertTrue(
+                    run_onnx_runtime('tf_maximum_minimum', onnx_model, [data1, data2], expected, self.model_files))
 
         def my_func_3(x):
             return tf.minimum(tf.maximum(x[0], x[1]), 50)
@@ -284,7 +275,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 data1 = (100 * np.random.rand(*batch_data1_shape)).astype(np.int32)
                 data2 = (100 * np.random.rand(*batch_data2_shape)).astype(np.int32)
                 expected = model.predict([data1, data2])
-                self.assertTrue(run_onnx_runtime('tf_maximum_minimum', onnx_model, [data1, data2], expected, self.model_files))
+                self.assertTrue(
+                    run_onnx_runtime('tf_maximum_minimum', onnx_model, [data1, data2], expected, self.model_files))
 
     def test_tf_pad(self):
         def my_func_1(x):
@@ -605,9 +597,9 @@ class TestKerasTF2ONNX(unittest.TestCase):
         target_opset = get_opset_number_from_onnx()
         if target_opset >= 9:
             model = Sequential()
-            x = tf.constant([[1,2,3],[4,5,6]])
-            y = tf.constant([[7,8,9],[10,11,12]])
-            condition = tf.constant([[True, False, False],[False, True, True]])
+            x = tf.constant([[1, 2, 3], [4, 5, 6]])
+            y = tf.constant([[7, 8, 9], [10, 11, 12]])
+            condition = tf.constant([[True, False, False], [False, True, True]])
             b = tf.where(condition, x, y)
             model.add(Lambda(lambda x: b, input_shape=(2,)))
             data = np.random.rand(2, 2).astype(np.float32)
