@@ -23,7 +23,7 @@ jobs:
         INSTALL_KERAS_RESNET:
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
-        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py" "test_transformers.py"
+        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py test_transformers.py"
 
       Python36:
         python.version: '3.6'
@@ -33,7 +33,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
-        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py" "test_transformers.py"
+        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py test_transformers.py"
 
       Python37:
         python.version: '3.7'
@@ -43,7 +43,7 @@ jobs:
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS:
         RUN_UNIT_TESTS: pytest tests --doctest-modules --junitxml=junit/test-results.xml
-        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py" "test_transformers.py"
+        RUN_TESTS: python run_all.py --exclude "test_mask_rcnn.py test_transformers.py"
 
       Python37_tf2:
         python.version: '3.7'
