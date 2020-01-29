@@ -101,7 +101,7 @@ def _is_nhwc(node):
     return node.get_attr('data_format') == b'NHWC'
 
 
-_MAX_FOLDING_NODE_NUMBER = 9
+_MAX_FOLDING_NODE_NUMBER = 15
 
 
 def _count_input_nodes(tensor):  # type: (tensorflow.Tensor)->int
