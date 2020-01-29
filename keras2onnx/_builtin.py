@@ -38,6 +38,7 @@ class TYPES:
     GatherV2 = 'GatherV2'
     GreaterEqual = 'GreaterEqual'
     LessEqual = 'LessEqual'
+    LogSoftmax = 'LogSoftmax'
     MatMul = 'MatMul'
     Max = 'Max'
     Maximum = 'Maximum'
@@ -559,6 +560,22 @@ def convert_tf_greater_equal(scope, operator, container):
 @converter_func(TYPES.LessEqual)
 def convert_tf_less_equal(scope, operator, container):
     _convert_tf_compare_equal(scope, operator, container, 'LessEqual', 'Greater')
+
+
+@converter_func(TYPES.LogSoftmax)
+def convert_tf_logsoftmax(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    logits_rank = len(_cal_tensor_shape(node.inputs[0]))
+    axis = node.get_attr('axis') if hasattr(node, 'axis') else -1
+    if operator.target_opset < 11 and axis < 0:
+        axis += logits_rank
+
+    oopb.add_node_with_output('LogSoftmax',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              axis=axis)
 
 
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
