@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
 import collections
 import numbers
 import numpy as np
@@ -11,6 +10,7 @@ from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_split, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from .common import extract_recurrent_activation
+
 LSTM = keras.layers.LSTM
 
 
@@ -167,7 +167,7 @@ def convert_bidirectional(scope, operator, container):
     else:
         input_shape_tensor = oopb.add_node('Shape',
                                            [operator.input_full_names[0]],
-                                            operator.inputs[0].full_name + '_input_shape_tensor')
+                                           operator.inputs[0].full_name + '_input_shape_tensor')
 
         if container.target_opset >= 10:
             batch_indices_tensor = oopb.add_node('Slice',
@@ -180,12 +180,12 @@ def convert_bidirectional(scope, operator, container):
 
             if not is_static_shape:
                 seq_len_tensor = oopb.add_node('Slice',
-                                              [input_shape_tensor,
-                                               ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                               ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                               ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                               ],
-                                              operator.inputs[0].full_name + '_seq_len_tensor')
+                                               [input_shape_tensor,
+                                                ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                                ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                                ('_axes', oopb.int64, np.array([0], dtype='int64'))
+                                                ],
+                                               operator.inputs[0].full_name + '_seq_len_tensor')
         else:
             attrs = {'starts': [0], 'ends': [1], 'axes': [0]}
             batch_indices_tensor = oopb.add_node('Slice',
@@ -199,11 +199,11 @@ def convert_bidirectional(scope, operator, container):
                                                operator.inputs[0].full_name + '_seq_len_tensor', **attrs)
 
         batch_size_tensor = oopb.add_node('Concat',
-                                      [('_a', oopb.int64, np.array([2], dtype='int64')),
-                                       batch_indices_tensor,
-                                       ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
-                                       ],
-                                      operator.inputs[0].full_name + '_state_shape_tensor', axis=0)
+                                          [('_a', oopb.int64, np.array([2], dtype='int64')),
+                                           batch_indices_tensor,
+                                           ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                           ],
+                                          operator.inputs[0].full_name + '_state_shape_tensor', axis=0)
 
         state_constant_shape_h = oopb.add_node('ConstantOfShape',
                                                [batch_size_tensor],
@@ -272,7 +272,8 @@ def convert_bidirectional(scope, operator, container):
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
         if is_static_shape:
             lstm_y_name_fixed = scope.get_unique_variable_name(operator.full_name + '_Y_fixed')
-            apply_reshape(scope, lstm_y_name, lstm_y_name_fixed, container, desired_shape=[seq_length, 2, -1, hidden_size])
+            apply_reshape(scope, lstm_y_name, lstm_y_name_fixed, container,
+                          desired_shape=[seq_length, 2, -1, hidden_size])
         else:
             shape_tensor = oopb.add_node('Concat',
                                          [seq_len_tensor,
@@ -282,10 +283,10 @@ def convert_bidirectional(scope, operator, container):
                                           ],
                                          operator.inputs[0].full_name + '_output_seq_shape', axis=0)
             lstm_y_name_fixed = oopb.add_node('Reshape',
-                                             [lstm_y_name,
-                                              shape_tensor
-                                              ],
-                                             operator.inputs[0].full_name + '_output_seq_shape_1')
+                                              [lstm_y_name,
+                                               shape_tensor
+                                               ],
+                                              operator.inputs[0].full_name + '_output_seq_shape_1')
 
         if merge_concat:
             # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
@@ -307,10 +308,10 @@ def convert_bidirectional(scope, operator, container):
                                                 ],
                                                operator.inputs[0].full_name + '_output_seq_shape_2', **attrs)
                 shape_tensor_output = oopb.add_node('Reshape',
-                                                  [transposed_y_name,
-                                                   shape_tensor_2
-                                                   ],
-                                                  operator.inputs[0].full_name + '_output_merge_concat')
+                                                    [transposed_y_name,
+                                                     shape_tensor_2
+                                                     ],
+                                                    operator.inputs[0].full_name + '_output_merge_concat')
                 apply_identity(scope, shape_tensor_output, operator.outputs[0].full_name, container)
         else:
             # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
@@ -347,15 +348,15 @@ def convert_bidirectional(scope, operator, container):
                                                 ],
                                                operator.inputs[0].full_name + '_output_seq_shape_3', **attrs)
                 shape_tensor_output_0 = oopb.add_node('Reshape',
-                                                  [forward_y_name_1,
-                                                   shape_tensor_3
-                                                   ],
-                                                  operator.inputs[0].full_name + '_shape_tensor_output_0')
+                                                      [forward_y_name_1,
+                                                       shape_tensor_3
+                                                       ],
+                                                      operator.inputs[0].full_name + '_shape_tensor_output_0')
                 shape_tensor_output_1 = oopb.add_node('Reshape',
-                                                  [backward_y_name_1,
-                                                   shape_tensor_3
-                                                   ],
-                                                  operator.inputs[0].full_name + '_shape_tensor_output_1')
+                                                      [backward_y_name_1,
+                                                       shape_tensor_3
+                                                       ],
+                                                      operator.inputs[0].full_name + '_shape_tensor_output_1')
                 apply_identity(scope, shape_tensor_output_0, operator.outputs[0].full_name, container)
                 apply_identity(scope, shape_tensor_output_1, operator.outputs[1].full_name, container)
     else:
