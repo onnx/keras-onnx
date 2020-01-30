@@ -451,28 +451,28 @@ class TestKerasTF2ONNX(unittest.TestCase):
         def my_func_1(x):
             return tf.slice(x[0], x[1][0], [3, 1, 1, 2])
 
-        input1 = Input(shape=(2, 3, 5))
-        input2 = Input(shape=(4,), dtype=tf.int32)
+        input1 = Input(shape=(2, 3, 5), name='inputs')
+        input2 = Input(shape=(4,), dtype=tf.int32, name='begin')
         added = Lambda(my_func_1)([input1, input2])
         model = keras.models.Model(inputs=[input1, input2], outputs=added)
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_slice')
         data1 = np.random.rand(3, 2, 3, 5).astype(np.float32)
         data2 = np.array([[0, 1, 0, 2], [0, 1, 0, 2], [0, 1, 0, 2]]).astype(np.int32)
         expected = model.predict([data1, data2])
-        self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, [data1, data2], expected, self.model_files))
+        self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, {"inputs": data1, 'begin': data2}, expected, self.model_files))
 
         def my_func_2(x):
             return tf.slice(x[0], [0, 1, 0, 2], x[1][0])
 
-        input1 = Input(shape=(2, 3, 5))
-        input2 = Input(shape=(4,), dtype=tf.int32)
+        input1 = Input(shape=(2, 3, 5), name='inputs')
+        input2 = Input(shape=(4,), dtype=tf.int32, name='size')
         added = Lambda(my_func_2)([input1, input2])
         model = keras.models.Model(inputs=[input1, input2], outputs=added)
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_slice')
         data1 = np.random.rand(3, 2, 3, 5).astype(np.float32)
         data2 = np.array([[3, 1, 1, 2], [3, 1, 1, 2], [3, 1, 1, 2]]).astype(np.int32)
         expected = model.predict([data1, data2])
-        self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, [data1, data2], expected, self.model_files))
+        self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, {"inputs": data1, 'size': data2}, expected, self.model_files))
 
     def test_tf_softmax(self):
         for func_ in [lambda x: tf.nn.softmax(x), lambda x: tf.nn.softmax(x, axis=-1), lambda x: tf.nn.softmax(x, axis=1)]:
