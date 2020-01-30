@@ -63,6 +63,7 @@ class TYPES:
     Select = 'Select'
     Shape = 'Shape'
     Size = 'Size'
+    Slice = 'Slice'
     Softmax = 'Softmax'
     Split = 'Split'
     SplitV = 'SplitV'
@@ -1353,6 +1354,64 @@ def convert_tf_read_variable_op(scope, operator, container):
                                   operator.input_full_names,
                                   operator.output_full_names,
                                   name=operator.full_name)
+
+
+@converter_func(TYPES.Slice)
+def convert_tf_slice(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    begin = _cal_tensor_value(node.inputs[1])
+    size = _cal_tensor_value(node.inputs[2])
+
+    if begin is not None and size is not None:
+        begin_value = begin.tolist()
+        size_value = size.tolist()
+        end_value = []
+        for begin_, size_ in zip(begin_value, size_value):
+            if size_ == -1:
+                end_value.append(np.iinfo(np.int64).max)
+            else:
+                end_value.append(begin_ + size_)
+    else:
+        if operator.target_opset < 10:
+            raise ValueError("Dynamic inputs for tf.slice is not supported until opset 10")
+
+        dtype = _to_onnx_type(node.inputs[1].dtype)
+        if dtype != oopb.int64:
+            cast_begin = oopb.apply_cast(operator.inputs[1].full_name,
+                                         to=oopb.int64,
+                                         name=operator.full_name + '_begin_cast')
+        else:
+            cast_begin = [operator.inputs[1].full_name]
+
+        dtype = _to_onnx_type(node.inputs[2].dtype)
+        if dtype != oopb.int64:
+            cast_size = oopb.apply_cast(operator.inputs[2].full_name,
+                                        to=oopb.int64,
+                                        name=operator.full_name + '_size_cast')
+        else:
+            cast_size = [operator.inputs[2].full_name]
+
+        neg_one_size = oopb.add_node('Equal',
+                                     cast_size + [('_neg_one', oopb.int64, np.array(-1, dtype=np.int64))],
+                                     operator.full_name + '_equal_neg_one')
+        cast_equal = oopb.apply_cast(neg_one_size,
+                                     to=oopb.int64,
+                                     name=operator.full_name + '_equal_cast')
+        value_offset = oopb.apply_mul(cast_equal + [('_max_int', oopb.int64, np.array(np.iinfo(np.int64).max, dtype=np.int64))],
+                                      name=operator.full_name + '_mul_max')
+        size_adjust = oopb.apply_add(cast_size + value_offset,
+                                     name=operator.full_name + '_size_adjust')
+        begin_value = cast_begin[0]
+        end_value = oopb.apply_add(cast_begin + size_adjust,
+                                   name=operator.full_name + '_ends')[0]
+
+    oopb.apply_op_with_output("apply_slice",
+                              operator.inputs[0].full_name,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              starts=begin_value,
+                              ends=end_value)
 
 
 @converter_func(TYPES.Softmax)
