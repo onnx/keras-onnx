@@ -28,7 +28,6 @@ def convert_tf_crop_and_resize(scope, operator, container):
                                   transpose_node + operator.input_full_names[1:],
                                   operator.full_name + '_crop_and_resize',
                                   op_domain='com.microsoft',
-                                  op_version=1,
                                   mode=mode_value)
     oopb.apply_op_with_output("apply_transpose",
                               cropandresize,
