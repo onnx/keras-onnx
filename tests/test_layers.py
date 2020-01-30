@@ -436,6 +436,15 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_tf_size', onnx_model, data, expected, self.model_files))
 
+    def test_tf_softmax(self):
+        for func_ in [lambda x: tf.nn.softmax(x), lambda x: tf.nn.softmax(x, axis=-1), lambda x: tf.nn.softmax(x, axis=1)]:
+            model = Sequential()
+            model.add(Lambda(func_, input_shape=[2, 3, 5]))
+            onnx_model = keras2onnx.convert_keras(model, 'test_tf_softmax')
+            data = np.random.rand(3, 2, 3, 5).astype(np.float32)
+            expected = model.predict(data)
+            self.assertTrue(run_onnx_runtime('onnx_tf_softmax', onnx_model, data, expected, self.model_files))
+
     def test_tf_splitv(self):
         def my_func_1(x):
             return tf.split(x, [4, 15, 11], 2)[0]
