@@ -223,6 +223,7 @@ def extract_outputs_from_inbound_nodes(model):
 
 def build_layer_output_from_model(model, output_dict, output_names):
     if is_subclassing(model):
+        tf.compat.v1.enable_tensor_equality()  # re-enable tensor tensor equality for subclassing model.
         return extract_outputs_from_subclassing_model(model, output_dict, output_names)
     else:
         graph = model.outputs[0].graph
