@@ -449,7 +449,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             return
 
         def my_func_1(x):
-            return tf.slice(x[0], x[1][0], [3, 1, 1, 2])
+            return tf.slice(x[0], tf.cast(x[1][0], tf.int32), [3, 1, 1, 2])
 
         input1 = Input(shape=(2, 3, 5), name='inputs')
         input2 = Input(shape=(4,), dtype=tf.int32, name='begin')
@@ -462,7 +462,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, {"inputs": data1, 'begin': data2}, expected, self.model_files))
 
         def my_func_2(x):
-            return tf.slice(x[0], [0, 1, 0, 2], x[1][0])
+            return tf.slice(x[0], [0, 1, 0, 2], tf.cast(x[1][0], tf.int32))
 
         input1 = Input(shape=(2, 3, 5), name='inputs')
         input2 = Input(shape=(4,), dtype=tf.int32, name='size')
