@@ -28,6 +28,8 @@ or install from source:
 pip install git+https://github.com/microsoft/onnxconverter-common
 pip install git+https://github.com/onnx/keras-onnx
 ```
+Before running the converter, please notice that tensorflow has to be installed in your python environment,
+you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
 
 # Notes
 Keras2ONNX supports the new Keras subclassing model which was introduced in tensorflow 2.0 since the version **1.6.5**. Some typical subclassing models like [huggingface/transformers](https://github.com/huggingface/transformers) have been converted into ONNX and validated by ONNXRuntime.<br>
@@ -39,10 +41,6 @@ Both Keras model types are now supported in the keras2onnx converter. If the use
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
 # Development
 Keras2ONNX depends on [onnxconverter-common](https://github.com/microsoft/onnxconverter-common). In practice, the latest code of this converter requires the latest version of onnxconverter-common, so if you install this converter from its source code, please install the onnxconverter-common in source code mode before keras2onnx installation.
-
-# Usage
-Before running the converter, please notice that tensorflow has to be installed in your python environment,
-you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
 
 # Validated pre-trained Keras models
 Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. However some models with a lot of custom operations need custom conversion, the following are some examples.
