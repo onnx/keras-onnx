@@ -106,13 +106,13 @@ def is_subclassing(model):
 
 
 def _get_layers(tf_utils, layer):
+    if hasattr(layer, 'layers'):
+        return layer.layers
     if hasattr(layer, '_layers'):
         sub_layers = layer._layers
         if len(sub_layers) == 0:
             return None
         return sub_layers[0].layers if isinstance(sub_layers[0], tf_utils.ListWrapper) else sub_layers
-    if hasattr(layer, 'layers'):
-        return layer.layers
     return None
 
 

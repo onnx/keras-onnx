@@ -202,6 +202,13 @@ def _remove_unused_initializers(nodes, initializers):
     return adjusted_initializers
 
 
+def _blindly_converter_for_debug(scope, operator, container):
+    container.add_node(operator.type,
+                       operator.input_full_names,
+                       operator.output_full_names,
+                       name=operator.full_name)
+
+
 def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
     This function is used to convert our Topology object defined in _parser.py into a ONNX model (type: ModelProto).
@@ -265,7 +272,13 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     for operator in topology.topological_operator_iterator():
         scope = next(scope for scope in topology.scopes if scope.name == operator.scope)
         k2o_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
-        get_converter(operator.type)(scope, operator, container)
+        cvt = get_converter(operator.type)
+        if cvt is None:
+            if topology.debug_mode:
+                cvt = _blindly_converter_for_debug
+            else:
+                raise RuntimeError("Unexpected error on find the converter for op {}".format(operator.type))
+        cvt(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
     # However, In ONNX, for target opset < 9, initializers should also be model's (GraphProto) inputs.
@@ -284,6 +297,15 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
     # enable the ONNX optimizations
     graph = None
+    import onnxconverter_common
+    graph = onnxconverter_common.optimizer.optimize_onnx_graph(container.nodes, nchw_inputs=nchw_inputs,
+                                                               inputs=container.inputs,
+                                                               outputs=container.outputs,
+                                                               initializers=container.initializers,
+                                                               model_value_info=container.value_info,
+                                                               model_name=model_name,
+                                                               target_opset=container.target_opset)
+
     try:
         import onnxconverter_common
         if target_opset < 9:

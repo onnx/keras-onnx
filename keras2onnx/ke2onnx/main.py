@@ -216,6 +216,8 @@ _keras_layer_spec = {
     _layer.AveragePooling1D: (["{}/AvgPool"], _default_extract_layer_name),
     _layer.AveragePooling2D: (["{}/AvgPool"], _default_extract_layer_name),
     _layer.AveragePooling3D: (["{}/AvgPool"], _default_extract_layer_name),
+    _layer.Conv2DTranspose: (["{}/conv2d_transpose"], _default_extract_layer_name),
+    _layer.LeakyReLU: (["{}/LeakyRelu"], _default_extract_layer_name)
 }
 
 

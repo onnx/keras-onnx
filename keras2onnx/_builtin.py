@@ -1398,8 +1398,9 @@ def convert_tf_slice(scope, operator, container):
         cast_equal = oopb.apply_cast(neg_one_size,
                                      to=oopb.int64,
                                      name=operator.full_name + '_equal_cast')
-        value_offset = oopb.apply_mul(cast_equal + [('_max_int', oopb.int64, np.array(np.iinfo(np.int64).max, dtype=np.int64))],
-                                      name=operator.full_name + '_mul_max')
+        value_offset = oopb.apply_mul(
+            cast_equal + [('_max_int', oopb.int64, np.array(np.iinfo(np.int64).max, dtype=np.int64))],
+            name=operator.full_name + '_mul_max')
         size_adjust = oopb.apply_add(cast_size + value_offset,
                                      name=operator.full_name + '_size_adjust')
         begin_value = cast_begin[0]
