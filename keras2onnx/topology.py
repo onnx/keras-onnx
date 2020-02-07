@@ -351,7 +351,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
                                 'which requires at least opset %d.') % (container.target_opset, op_version))
         elif container.target_opset > op_version:
-            k2o_logger().warning('The maximum opset needed by this model is only %d.' % op_version)
+            k2o_logger().warning('The maximum opset needed by this model is only %d for domain %s.' % (op_version, op_domain))
 
     # Add extra information
     onnx_model.ir_version = onnx_proto.IR_VERSION
