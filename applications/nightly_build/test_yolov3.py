@@ -34,7 +34,6 @@ class TestYoloV3(unittest.TestCase):
         self.model_files = []
 
     def tearDown(self):
-        return
         for fl in self.model_files:
             os.remove(fl)
 
