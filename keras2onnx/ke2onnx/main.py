@@ -135,6 +135,30 @@ def _default_extract_layer_name(fstr_list, node_name):
     return None
 
 
+def _conv_layer_extract_name(fstr_list, node_name):
+    ri = node_name.rindex('/')
+    return node_name[:ri + 1]
+
+
+def _conv_layer_spec_outputs(layer, node):
+    import tensorflow as tf
+    activation_map = {
+        keras.activations.linear: '',
+        tf.nn.sigmoid: 'Sigmoid',
+        tf.nn.softmax: 'Softmax',
+        tf.nn.relu: 'Relu',
+        tf.nn.elu: 'Elu',
+        tf.nn.tanh: 'Tanh'}
+
+    node_act = activation_map.get(layer.activation, None)
+    assert node_act is not None, "Unsupported activation in the layer({})".format(layer.activation)
+    if node_act:
+        ri = node.name.rindex('/')
+        return node.name[:ri + 1] + node_act
+    else:
+        return node.name
+
+
 _layer = keras.layers
 _adv_activations = keras.layers.advanced_activations
 
@@ -213,16 +237,17 @@ keras_layer_to_operator = {
 }
 
 _keras_layer_spec = {
-    _layer.AveragePooling1D: (["{}/AvgPool"], _default_extract_layer_name),
-    _layer.AveragePooling2D: (["{}/AvgPool"], _default_extract_layer_name),
-    _layer.AveragePooling3D: (["{}/AvgPool"], _default_extract_layer_name),
-    _layer.Conv2DTranspose: (["{}/conv2d_transpose"], _default_extract_layer_name),
-    _layer.LeakyReLU: (["{}/LeakyRelu"], _default_extract_layer_name)
+    # layer-type: ([pattern-list], [extract-layer-name, output-name-generator(optional)]
+    _layer.AveragePooling1D: (["{}/AvgPool"], [_default_extract_layer_name]),
+    _layer.AveragePooling2D: (["{}/AvgPool"], [_default_extract_layer_name]),
+    _layer.AveragePooling3D: (["{}/AvgPool"], [_default_extract_layer_name]),
+    _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_conv_layer_extract_name, _conv_layer_spec_outputs]),
+    _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_extract_layer_name])
 }
 
 
 def keras_layer_spec(layer_type):
-    return _keras_layer_spec.get(layer_type, (None, None))
+    return _keras_layer_spec.get(layer_type, (None, []))
 
 
 if not is_keras_older_than('2.1.3'):
