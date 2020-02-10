@@ -70,12 +70,12 @@ class LayerInfo(object):
         # find the output
         next_itr = set()
         if node.type == TYPES.Identity:  # the case on not subclassing model
-            fstr_list, func_c = (None, None)
+            fstr_list, fx_list = (None, None)
         else:
-            fstr_list, func_c = keras_layer_spec(type(layer))
+            fstr_list, fx_list = keras_layer_spec(type(layer))
         layer_name = _get_layer_name(node.name)
         if fstr_list is not None:
-            layer_name = func_c(fstr_list, node.name)
+            layer_name = fx_list[0](fstr_list, node.name)
         for nn_, layer_info_ in outputs_map.items():
             if layer_info_[0] == layer and _get_layer_name(nn_) == layer_name:
                 op_node = graph.get_operation_by_name(tsname_to_node(nn_))
@@ -106,13 +106,13 @@ def is_subclassing(model):
 
 
 def _get_layers(tf_utils, layer):
+    if hasattr(layer, 'layers'):
+        return layer.layers
     if hasattr(layer, '_layers'):
         sub_layers = layer._layers
         if len(sub_layers) == 0:
             return None
         return sub_layers[0].layers if isinstance(sub_layers[0], tf_utils.ListWrapper) else sub_layers
-    if hasattr(layer, 'layers'):
-        return layer.layers
     return None
 
 
@@ -155,13 +155,17 @@ def build_layer_outputs(model, graph, outputs):
         # assert layer_name in layer_dict, "Cannot find the Keras layer of the output tensor({}).".format(ou_.name)
         if layer_name in layer_dict:
             lobj, _ = layer_dict[layer_name]
-            fstr_list, _ = keras_layer_spec(type(lobj))
+            fstr_list, fx_list = keras_layer_spec(type(lobj))
             if fstr_list is None:
                 continue
 
             for fstr in fstr_list:
                 if fstr and fstr.format(orig_layer_name) == op_.name:
-                    output_dict[op_.name] = layer_dict[layer_name]
+                    if len(fx_list) <= 1:
+                        output_dict[op_.name] = layer_dict[layer_name]
+                    else:
+                        # fx_[1] is output node inference function.
+                        output_dict[fx_list[1](lobj, op_)] = layer_dict[layer_name]
 
     return output_dict
 

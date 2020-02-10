@@ -292,21 +292,22 @@ def _check_tfnode_converter_availability(graph, node):
         return cvt is not None
 
 
-def _check_tfnodes_converter_availability(graph, nodelist):
+def _check_tfnodes_converter_availability(graph, nodelist, debug_mode):
     for n_ in nodelist:
-        flag = _check_tfnode_converter_availability(graph, n_)
-        if not flag:
+        if not _check_tfnode_converter_availability(graph, n_):
             k2o_logger().warning(
-                "node {} of type {} cannot be converted, fall back to tf2onnx".format(n_.name, n_.type))
+                "The tf.op node {} of type {} cannot be converted".format(n_.name, n_.type))
+            if debug_mode:
+                continue
             return False
 
     return True
 
 
-def _on_parsing_tf_nodes(nodelist, varset):
+def _on_parsing_tf_nodes(graph, nodelist, varset, debug_mode):
+    if not (_check_tfnodes_converter_availability(graph, nodelist, debug_mode) or debug_mode):
+        return
     for node_ in nodelist:
-        cvt = get_converter(node_.type)
-        assert cvt is not None, "Cannot find the tf.op({}) converter for the node {}.".format(node_.type, node_.name)
         k2o_logger().debug("Processing a tf node - %s" % node_.name)
         operator = varset.declare_local_operator(node_.type, raw_model=node_, op_name=node_.name)
 
@@ -325,14 +326,6 @@ def _on_parsing_tf_nodes(nodelist, varset):
         cvt = get_converter(operator.type)
         if cvt is not None and hasattr(cvt, 'shape_infer'):
             operator.shape_infer = cvt.shape_infer
-
-
-def _on_parsing_tf_subgraph(graph, node_list, varset):
-    if _check_tfnodes_converter_availability(graph, node_list):
-        _on_parsing_tf_nodes(node_list, varset)
-        return
-    else:
-        raise RuntimeError("Some tensorflow operation doesn't support, stop converting.")
 
 
 def _infer_graph_shape(topology, top_level, varset):
@@ -592,7 +585,7 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         if isinstance(layer_key_, keras.layers.TimeDistributed):
             _on_parsing_time_distributed_layer(graph, nodes, layer_key_, model_, varset)
         elif layer_key_ is None or get_converter(type(layer_key_)) is None:
-            _on_parsing_tf_subgraph(graph, nodes, varset)
+            _on_parsing_tf_nodes(graph, nodes, varset, topology.debug_mode)
         else:
             kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), nodes[0].name)
             on_parsing_keras_layer(graph, nodes, layer_key_, kenode, model_, varset)
@@ -711,7 +704,7 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
         if layer_info.layer and get_converter(type(layer_info.layer)):
             on_parsing_keras_layer_v2(graph, layer_info, varset)
         else:
-            _on_parsing_tf_nodes(layer_info.nodelist, varset)
+            _on_parsing_tf_nodes(graph, layer_info.nodelist, varset, topology.debug_mode)
 
     for nd_ in input_nodes:
         var_ts = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.
