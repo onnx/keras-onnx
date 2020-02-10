@@ -155,17 +155,17 @@ def build_layer_outputs(model, graph, outputs):
         # assert layer_name in layer_dict, "Cannot find the Keras layer of the output tensor({}).".format(ou_.name)
         if layer_name in layer_dict:
             lobj, _ = layer_dict[layer_name]
-            fstr_list, fx_ = keras_layer_spec(type(lobj))
+            fstr_list, fx_list = keras_layer_spec(type(lobj))
             if fstr_list is None:
                 continue
 
             for fstr in fstr_list:
                 if fstr and fstr.format(orig_layer_name) == op_.name:
-                    if len(fx_) <= 1:
+                    if len(fx_list) <= 1:
                         output_dict[op_.name] = layer_dict[layer_name]
                     else:
                         # fx_[1] is output node inference function.
-                        output_dict[fx_[1](lobj, op_)] = layer_dict[layer_name]
+                        output_dict[fx_list[1](lobj, op_)] = layer_dict[layer_name]
 
     return output_dict
 
