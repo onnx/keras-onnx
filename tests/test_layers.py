@@ -501,12 +501,10 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(Lambda(lambda x: tf.nn.depthwise_conv2d(
             x, filter=filter_constant, strides=(1, 1, 1, 1), padding="VALID",
             data_format='NHWC', dilations=(2, 2)), input_shape=(8, 8, 2)))
-        import onnx
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_space_to_batch_nd')
-        onnx.save_model(onnx_model, 'space.onnx')
         data = np.random.rand(3, 8, 8, 2).astype(np.float32)
         expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('onnx_test_tf_space_to_batch_nd', onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_onnx_runtime('onnx_tf_space_to_batch_nd', onnx_model, data, expected, self.model_files))
 
     def test_tf_splitv(self):
         def my_func_1(x):

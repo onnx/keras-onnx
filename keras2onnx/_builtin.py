@@ -180,7 +180,6 @@ def convert_tf_batch_to_space(scope, operator, container):
         assert len(blocksize) == 2 and blocksize[0] == blocksize[1]
 
         if len(input_shape) == 3:
-            # insert automatically an Unsqueeze op if the input is 3d
             unsqueeze_node_1 = oopb.apply_unsqueeze(operator.inputs[0].full_name,
                                                     name=operator.full_name + '_unsqueeze_0',
                                                     axes=[3])
@@ -198,12 +197,14 @@ def convert_tf_batch_to_space(scope, operator, container):
         transpose_node_2 = oopb.apply_transpose(depth_to_space_node,
                                                 name=operator.full_name + '_transpose_2',
                                                 perm=[1, 2, 3, 0])
-        '''
-        oopb.apply_op_with_output("apply_identity",
-                                  transpose_node_2,
-                                  operator.output_full_names,
-                                  name=operator.full_name + '_slice')
-        '''
+
+        if np.count_nonzero(crops) == 0:
+            oopb.apply_op_with_output("apply_identity",
+                                      transpose_node_2,
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_slice')
+            return
+
         slice_axis = [1, 2]
         top, bottom = crops[0]
         left, right = crops[1]
@@ -312,9 +313,12 @@ def convert_tf_space_to_batch(scope, operator, container):
         pads = [0, top, left, 0,
                 0, bottom, right, 0]
 
-        pad_op = oopb.apply_pad(operator.inputs[0].full_name,
-                                name=operator.full_name + '_pad_1',
-                                pads=pads)
+        if np.count_nonzero(pads) > 0:
+            pad_op = oopb.apply_pad(operator.inputs[0].full_name,
+                                    name=operator.full_name + '_pad_1',
+                                    pads=pads)
+        else:
+            pad_op = operator.inputs[0].full_name
 
         transpose_node_1 = oopb.apply_transpose(pad_op,
                                                 name=operator.full_name + '_transpose_1',
@@ -428,7 +432,6 @@ def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shap
                            perm):
     to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
     input_size = to_nchw(input_size, perm)[2:]
-    output_shape = to_nchw(output_shape, perm)[2:]
 
     spatial = len(kernel_shape)
     total_padding = []
