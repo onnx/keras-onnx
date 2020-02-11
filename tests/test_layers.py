@@ -180,6 +180,17 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict([data1, data2])
             self.assertTrue(run_onnx_runtime('onnx_concat', onnx_model, [data1, data2], expected, self.model_files))
 
+    def test_depthwise_conv2d(self):
+        model = Sequential()
+        model.add(InputLayer(input_shape=(8, 8, 2)))
+        model.add(keras.layers.DepthwiseConv2D(
+            kernel_size=(3, 3), strides=(1, 1), padding="VALID",
+            data_format='channels_last'))
+        onnx_model = keras2onnx.convert_keras(model, 'test_depthwise_conv2d')
+        data = np.random.rand(3, 8, 8, 2).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_depthwise_conv2d', onnx_model, data, expected, self.model_files))
+
     def test_tf_expand_dims(self):
         for dim in [0, 1, -1]:
             model = Sequential()
@@ -482,6 +493,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
             data = np.random.rand(3, 2, 3, 5).astype(np.float32)
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_tf_softmax', onnx_model, data, expected, self.model_files))
+
+    def test_tf_space_to_batch_nd(self):
+        model = Sequential()
+        filter_value = np.random.rand(3, 3, 2, 2).astype(np.float32)
+        filter_constant = tf.constant(filter_value.tolist(), dtype=tf.float32)
+        model.add(Lambda(lambda x: tf.nn.depthwise_conv2d(
+            x, filter=filter_constant, strides=(1, 1, 1, 1), padding="VALID",
+            data_format='NHWC', dilations=(2, 2)), input_shape=(8, 8, 2)))
+        import onnx
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_space_to_batch_nd')
+        onnx.save_model(onnx_model, 'space.onnx')
+        data = np.random.rand(3, 8, 8, 2).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime('onnx_test_tf_space_to_batch_nd', onnx_model, data, expected, self.model_files))
 
     def test_tf_splitv(self):
         def my_func_1(x):
