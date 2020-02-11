@@ -23,12 +23,14 @@ class TYPES:
     All = 'All'
     BatchMatMul = 'BatchMatMul'
     BatchMatMulV2 = 'BatchMatMulV2'
+    BatchToSpaceND = 'BatchToSpaceND'
     BiasAdd = 'BiasAdd'
     BiasAddV1 = 'BiasAddV1'
     Cast = 'Cast'
     ConcatV2 = 'ConcatV2'
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
+    DepthwiseConv2dNative = 'DepthwiseConv2dNative'
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
     FusedBatchNorm = 'FusedBatchNorm'
@@ -65,6 +67,7 @@ class TYPES:
     Size = 'Size'
     Slice = 'Slice'
     Softmax = 'Softmax'
+    SpaceToBatchND = 'SpaceToBatchND'
     Split = 'Split'
     SplitV = 'SplitV'
     SquaredDifference = 'SquaredDifference'
@@ -165,6 +168,242 @@ def convert_tf_identity(scope, operator, container):
     default_convert(scope, operator, container)
 
 
+@converter_func(TYPES.BatchToSpaceND)
+def convert_tf_batch_to_space(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    blocksize = _cal_tensor_value(node.inputs[1])
+    crops = _cal_tensor_value(node.inputs[2])
+    if operator.target_opset <= 10 or (blocksize is not None and crops is not None):
+        input_shape = _cal_tensor_shape(node.outputs[0])
+        assert len(input_shape) in (4, 3)
+        assert len(blocksize) == 2 and blocksize[0] == blocksize[1]
+
+        if len(input_shape) == 3:
+            unsqueeze_node_1 = oopb.apply_unsqueeze(operator.inputs[0].full_name,
+                                                    name=operator.full_name + '_unsqueeze_0',
+                                                    axes=[3])
+            transpose_node_1 = oopb.apply_transpose(unsqueeze_node_1,
+                                                    name=operator.full_name + '_transpose_1',
+                                                    perm=[3, 0, 1, 2])
+        else:
+            transpose_node_1 = oopb.apply_transpose(operator.inputs[0].full_name,
+                                                    name=operator.full_name + '_transpose_1',
+                                                    perm=[3, 0, 1, 2])
+        depth_to_space_node = oopb.add_node('DepthToSpace',
+                                            transpose_node_1,
+                                            operator.inputs[0].full_name + '_depth_to_space',
+                                            blocksize=blocksize[0])
+        transpose_node_2 = oopb.apply_transpose(depth_to_space_node,
+                                                name=operator.full_name + '_transpose_2',
+                                                perm=[1, 2, 3, 0])
+
+        if np.count_nonzero(crops) == 0:
+            oopb.apply_op_with_output("apply_identity",
+                                      transpose_node_2,
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_slice')
+            return
+
+        slice_axis = [1, 2]
+        top, bottom = crops[0]
+        left, right = crops[1]
+        starts = [top, left]
+        ends = []
+        for end in [bottom, right]:
+            if end != 0:
+                ends.append(-end)
+            else:
+                ends.append(np.iinfo(np.int32).max)
+
+        if len(input_shape) == 3:
+            slice_node = oopb.apply_slice(transpose_node_2,
+                                          name=operator.full_name + '_slice',
+                                          starts=starts, ends=ends, axes=slice_axis)
+            oopb.apply_op_with_output("apply_squeeze",
+                                      slice_node,
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_squeeze_output',
+                                      axes=[3])
+        else:
+            oopb.apply_op_with_output("apply_slice",
+                                      transpose_node_2,
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_slice',
+                                      starts=starts, ends=ends, axes=slice_axis)
+
+    else:
+        shape_x = oopb.add_node('Shape', [operator.inputs[0].full_name],
+                                operator.full_name + '_input_0_shape')
+        block_shape = oopb.apply_cast(operator.inputs[1].full_name,
+                                      to=oopb.int64,
+                                      name=operator.full_name + '_input_1_cast')
+        crop = oopb.apply_cast(operator.inputs[2].full_name,
+                               to=oopb.int64,
+                               name=operator.full_name + '_input_2_cast')
+        block_size = oopb.apply_slice(block_shape,
+                                      name=operator.full_name + '_slice_0',
+                                      starts=[0], ends=[1])
+        block_prod = oopb.apply_mul(block_size + block_size,
+                                    name=operator.full_name + '_mul_0')
+        padded_block_prod = oopb.apply_pad([block_prod,
+                                           ('const_zero_three', oopb.int64, np.array([0, 3], dtype='int64')),
+                                           ('one', oopb.int64, np.array([1], dtype='int64'))],
+                                           name=operator.full_name + '_pad_0')
+        new_shape_x = oopb.apply_div([shape_x] + padded_block_prod,
+                                     name=operator.full_name + '_div')
+        concat_new_shape_x = oopb.apply_concat(block_shape + new_shape_x,
+                                               name=operator.full_name + '_concat',
+                                               axis=0)
+        reshaped_x = oopb.apply_reshape([operator.inputs[0].full_name] + concat_new_shape_x,
+                                        name=operator.full_name + '_reshape_0')
+        transposed_x = oopb.apply_transpose(reshaped_x,
+                                            name=operator.full_name + '_transpose_0',
+                                            perm=[2, 3, 0, 4, 1, 5])
+        padded_block_shape = oopb.apply_pad([block_shape[0],
+                                            ('const_one_one', oopb.int64, np.array([1, 1], dtype='int64')),
+                                            ('one', oopb.int64, np.array([1], dtype='int64'))],
+                                             name=operator.full_name + '_pad_1')
+        new_shape_x_v2 = oopb.apply_mul(new_shape_x + padded_block_shape,
+                                        name=operator.full_name + '_mul_1')
+        reshaped_x_v2 = oopb.apply_reshape(transposed_x + new_shape_x_v2,
+                                           name=operator.full_name + '_reshape_1')
+        transposed_crop = oopb.apply_transpose(crop,
+                                               name=operator.full_name + '_transpose_1',
+                                               perm=[1, 0])
+        slice_crop_starts = oopb.apply_slice(transposed_crop,
+                                             name=operator.full_name + '_slice_starts',
+                                             starts=[0, 0], ends=[1, 2])
+        reshaped_slice_crop_starts = oopb.apply_reshape(slice_crop_starts +
+                                            [('const_one_one', oopb.int64, np.array([2], dtype='int64'))],
+                                            name=operator.full_name + '_reshape_starts')
+        slice_crop_ends = oopb.apply_slice(transposed_crop,
+                                           name=operator.full_name + '_slice_ends',
+                                           starts=[1, 0], ends=[2, 2])
+        reshaped_slice_crop_ends = oopb.apply_reshape(slice_crop_ends +
+                                            [('const_two', oopb.int64, np.array([2], dtype='int64'))],
+                                            name=operator.full_name + '_reshape_ends')
+        sliced_new_shape_x_v2 = oopb.apply_slice(new_shape_x_v2,
+                                                 name=operator.full_name + '_slice_3',
+                                                 starts=[1], ends=[3])
+        neged_reshaped_slice_crop_ends = oopb.apply_sub(sliced_new_shape_x_v2 + reshaped_slice_crop_ends,
+                                     name=operator.full_name + '_sub')
+        oopb.apply_op_with_output("apply_slice",
+                                  reshaped_x_v2,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_slice_final',
+                                  starts=reshaped_slice_crop_starts[0],
+                                  ends=neged_reshaped_slice_crop_ends[0],
+                                  axes=[1, 2])
+
+
+@converter_func(TYPES.SpaceToBatchND)
+def convert_tf_space_to_batch(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    blocksize = _cal_tensor_value(node.inputs[1])
+    paddings = _cal_tensor_value(node.inputs[2])
+    if operator.target_opset <= 10 or (blocksize is not None and paddings is not None):
+        input_shape = _cal_tensor_shape(node.outputs[0])
+        assert len(input_shape) == 4
+        assert len(blocksize) == 2 and blocksize[0] == blocksize[1]
+
+        top, bottom = paddings[0]
+        left, right = paddings[1]
+        pads = [0, top, left, 0,
+                0, bottom, right, 0]
+
+        if np.count_nonzero(pads) > 0:
+            pad_op = oopb.apply_pad(operator.inputs[0].full_name,
+                                    name=operator.full_name + '_pad_1',
+                                    pads=pads)
+        else:
+            pad_op = operator.inputs[0].full_name
+
+        transpose_node_1 = oopb.apply_transpose(pad_op,
+                                                name=operator.full_name + '_transpose_1',
+                                                perm=[3, 0, 1, 2])
+        space_to_depth_node = oopb.add_node('SpaceToDepth',
+                                            transpose_node_1,
+                                            operator.inputs[0].full_name + '_space_to_depth',
+                                            blocksize=blocksize[0])
+        oopb.apply_op_with_output("apply_transpose",
+                                  space_to_depth_node,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_transpose_2',
+                                  perm=[1, 2, 3, 0])
+    else:
+        shape_x = oopb.add_node('Shape', [operator.inputs[0].full_name],
+                                operator.full_name + '_input_0_shape')
+        block_shape = oopb.apply_cast(operator.inputs[1].full_name,
+                                      to=oopb.int64,
+                                      name=operator.full_name + '_input_1_cast')
+        pad_x = oopb.apply_cast(operator.inputs[2].full_name,
+                               to=oopb.int64,
+                               name=operator.full_name + '_input_2_cast')
+        concated_pad_x = oopb.apply_concat([('_const_zero_zero', oopb.int64, np.array([[0, 0]], dtype='int64'))] + pad_x,
+                                           name=operator.full_name + '_concat_1',
+                                           axis=0)
+        concated_pad_x_v2 = oopb.apply_concat(concated_pad_x + [('_const_zero_zero', oopb.int64, np.array([[0, 0]], dtype='int64'))],
+                                              name=operator.full_name + '_concat_2',
+                                              axis=0)
+        transposed_concated_pad_x_v2 = oopb.apply_transpose(concated_pad_x_v2,
+                                                            name=operator.full_name + '_transpose_0',
+                                                            perm=[1, 0])
+        reshaped_transposed_pad_x = oopb.apply_reshape(transposed_concated_pad_x_v2 +
+                                                       [('_const_eight', oopb.int64, np.array([8], dtype='int64'))],
+                                                       name=operator.full_name + '_reshape_0')
+        padded_input_x = oopb.apply_pad(operator.inputs[0].full_name,
+                                        name=operator.full_name + '_pad_1',
+                                        pads=reshaped_transposed_pad_x)
+        padded_block_shape = oopb.apply_pad(block_shape,
+                                            name=operator.full_name + '_pad_2',
+                                            pads=[1, 1], value=1)
+        new_shape_x = oopb.apply_div([shape_x] + padded_block_shape,
+                                     name=operator.full_name + '_div')
+        first_row_new_shape_x = oopb.apply_slice(new_shape_x,
+                                                 name=operator.full_name + '_slice_0',
+                                                 starts=[0], ends=[2])
+        block_size = oopb.apply_slice(block_shape,
+                                      name=operator.full_name + '_slice_1',
+                                      starts=[0], ends=[1])
+        new_first_row_new_shape_x = oopb.apply_concat(first_row_new_shape_x + block_size,
+                                                      name=operator.full_name + '_concat_3',
+                                                      axis=0)
+        second_row_new_shape_x_first_half = oopb.apply_slice(new_shape_x,
+                                                             name=operator.full_name + '_slice_second_first',
+                                                             starts=[2], ends=[3])
+        second_row_new_shape_x_second_half = oopb.apply_slice(new_shape_x,
+                                                              name=operator.full_name + '_slice_second_second',
+                                                              starts=[3], ends=[4])
+        new_second_row_new_shape_x_first_half = oopb.apply_concat(second_row_new_shape_x_first_half + block_size,
+                                                                  name=operator.full_name + '_concat_second_first',
+                                                                  axis=0)
+        new_second_row_new_shape_x = oopb.apply_concat(new_second_row_new_shape_x_first_half + second_row_new_shape_x_second_half,
+                                                       name=operator.full_name + '_concat_second_shape',
+                                                       axis=0)
+        new_shape_x_v2 = oopb.apply_concat(new_first_row_new_shape_x + new_second_row_new_shape_x,
+                                           name=operator.full_name + '_concat_shape',
+                                           axis=0)
+        new_x = oopb.apply_reshape(padded_input_x + new_shape_x_v2,
+                                   name=operator.full_name + '_reshape_new_x')
+        transposed_new_x = oopb.apply_transpose(new_x,
+                                                name=operator.full_name + '_transpose_new',
+                                                perm=[2, 4, 0, 1, 3, 5])
+        block_size_prod = oopb.apply_mul(block_size + block_size,
+                                         name=operator.full_name + '_mul_0')
+        padded_block_size_prod = oopb.apply_pad(block_size_prod,
+                                                name=operator.full_name + '_pad_block_size',
+                                                pads=[0, 3], value=1)
+        new_shape_x_v3 = oopb.apply_mul(new_shape_x + padded_block_size_prod,
+                                        name=operator.full_name + '_mul_shape_v3')
+        oopb.apply_op_with_output("apply_reshape",
+                                  transposed_new_x,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_transpose_2',
+                                  desired_shape=new_shape_x_v3)
+
+
 @converter_func(TYPES.BiasAdd, TYPES.BiasAddV1)
 def convert_tf_bias_add(scope, operator, container):
     node = operator.raw_operator
@@ -187,6 +426,97 @@ def convert_tf_bias_add(scope, operator, container):
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name + '_add')
+
+
+def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation,
+                           perm):
+    to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
+    input_size = to_nchw(input_size, perm)[2:]
+
+    spatial = len(kernel_shape)
+    total_padding = []
+    pads = [None] * 2 * spatial
+    for i in range(spatial):
+        total_padding[i:] = [stride[i] * ((input_size[i] - 1) // stride[i]) + 1 +
+                             output_padding[i] + (kernel_shape[i] - 1) * dilation[i] - input_size[i]]
+        total_padding[i] = max(total_padding[i], 0)
+        pads[i] = total_padding[i] // 2
+        pads[i + spatial] = total_padding[i] - (total_padding[i] // 2)
+
+    return pads
+
+
+@converter_func(TYPES.DepthwiseConv2dNative)
+def convert_tf_depthwise_conv2d(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+
+    channels_first = node.get_attr('data_format') == 'NCHW'
+
+    if channels_first:
+        adjusted_input_name = [operator.inputs[0].full_name]
+    else:
+        adjusted_input_name = oopb.apply_transpose(operator.inputs[0].full_name,
+                                                   name=operator.full_name + '_transpose_0',
+                                                   perm=[0, 3, 1, 2])
+
+    weight_perm_axes = [3, 2, 0, 1]
+    weight_shape = _cal_tensor_shape(node.inputs[1])
+    new_shape = weight_shape[:2] + [1, weight_shape[2] * weight_shape[3]]
+    weight_reshape =  oopb.apply_reshape(operator.inputs[1].full_name,
+                                         name=operator.full_name + '_reshape_ends',
+                                         desired_shape=new_shape)
+    transposed_weight = oopb.apply_transpose(weight_reshape,
+                                             name=operator.full_name + '_transpose_new',
+                                             perm=weight_perm_axes)
+
+    attrs = {}
+    dilation_rate = node.get_attr('dilations')
+    dilation_rate = dilation_rate[2:] if channels_first else dilation_rate[1:3]
+    attrs['dilations'] = dilation_rate
+    strides = node.get_attr('strides')
+    strides = strides[2:] if channels_first else strides[1:3]
+    attrs['strides'] = strides
+    kernel_size = weight_shape[:2]
+    input_channels, output_channels = weight_shape[-2:]
+    group = input_channels
+    attrs['group'] = group
+
+    input_shape = _cal_tensor_shape(node.inputs[0])
+    output_shape = _cal_tensor_shape(node.outputs[0])
+
+    if node.get_attr('padding') == 'valid':
+        attrs['auto_pad'] = 'VALID'
+    elif node.get_attr('padding') == 'same':
+        if input_shape.count(None) > 1:
+            attrs['auto_pad'] = 'SAME_UPPER'
+        else:
+            attrs['auto_pad'] = 'NOTSET'
+            output_padding = [0] * len(kernel_size)
+            attrs['pads'] = _calc_explicit_padding(input_shape,
+                                                   output_shape,
+                                                   output_padding,
+                                                   kernel_size,
+                                                   strides,
+                                                   dilation_rate,
+                                                   list(range(
+                                                       len(input_shape))) if channels_first else [0, 2, 3, 1])
+
+    intermediate_output_name = oopb.apply_conv(adjusted_input_name + transposed_weight,
+                                               name=operator.full_name + '_conv',
+                                               **attrs)
+
+    if not channels_first:
+        oopb.apply_op_with_output("apply_transpose",
+                                  intermediate_output_name,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_transpose_final',
+                                  perm=[0, 2, 3, 1])
+    else:
+        oopb.apply_op_with_output("apply_identity",
+                                  intermediate_output_name,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_identity_final')
 
 
 @converter_func(TYPES.MatMul, TYPES.BatchMatMul, TYPES.BatchMatMulV2)
