@@ -321,6 +321,10 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     except Exception as e:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
         k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
+        k2o_logger().warning(str(e))
+        import traceback
+        tb = traceback.format_exc()
+        k2o_logger().warning(tb)
         nodes = container.nodes
 
     if graph is None:

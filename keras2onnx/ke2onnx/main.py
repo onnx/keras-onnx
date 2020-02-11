@@ -137,7 +137,7 @@ def _default_extract_layer_name(fstr_list, node_name):
 
 def _conv_layer_extract_name(fstr_list, node_name):
     ri = node_name.rindex('/')
-    return node_name[:ri + 1]
+    return node_name[:ri]
 
 
 def _conv_layer_spec_outputs(layer, node):
