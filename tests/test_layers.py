@@ -9,7 +9,7 @@ import keras2onnx
 import numpy as np
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
-                              get_opset_number_from_onnx, is_tensorflow_later_than,
+                              get_opset_number_from_onnx, is_tensorflow_older_than, is_tensorflow_later_than,
                               is_keras_older_than, is_keras_later_than)
 from test_utils import run_onnx_runtime
 
@@ -494,6 +494,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_tf_softmax', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tensorflow_older_than('1.14.0'),
+                     "dilations in tf.nn.depthwise_conv2d not supported.")
     def test_tf_space_to_batch_nd(self):
         model = Sequential()
         filter_value = np.random.rand(3, 3, 2, 2).astype(np.float32)

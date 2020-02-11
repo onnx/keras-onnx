@@ -519,7 +519,6 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
                                   name=operator.full_name + '_identity_final')
 
 
-
 @converter_func(TYPES.MatMul, TYPES.BatchMatMul, TYPES.BatchMatMulV2)
 def convert_tf_batchmatmul(scope, operator, container):
     node = operator.raw_operator  # type: tensorflow.Operation
