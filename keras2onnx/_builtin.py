@@ -198,6 +198,12 @@ def convert_tf_batch_to_space(scope, operator, container):
         transpose_node_2 = oopb.apply_transpose(depth_to_space_node,
                                                 name=operator.full_name + '_transpose_2',
                                                 perm=[1, 2, 3, 0])
+        '''
+        oopb.apply_op_with_output("apply_identity",
+                                  transpose_node_2,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_slice')
+        '''
         slice_axis = [1, 2]
         top, bottom = crops[0]
         left, right = crops[1]
@@ -224,6 +230,7 @@ def convert_tf_batch_to_space(scope, operator, container):
                                       operator.output_full_names,
                                       name=operator.full_name + '_slice',
                                       starts=starts, ends=ends, axes=slice_axis)
+
     else:
         shape_x = oopb.add_node('Shape', [operator.inputs[0].full_name],
                                 operator.full_name + '_input_0_shape')
@@ -448,7 +455,7 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
     else:
         adjusted_input_name = oopb.apply_transpose(operator.inputs[0].full_name,
                                                    name=operator.full_name + '_transpose_0',
-                                                   perm=[0, 2, 3, 1])
+                                                   perm=[0, 3, 1, 2])
 
     weight_perm_axes = [3, 2, 0, 1]
     weight_shape = _cal_tensor_shape(node.inputs[1])
@@ -468,6 +475,9 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
     strides = strides[2:] if channels_first else strides[1:3]
     attrs['strides'] = strides
     kernel_size = weight_shape[:2]
+    input_channels, output_channels = weight_shape[-2:]
+    group = input_channels
+    attrs['group'] = group
 
     input_shape = _cal_tensor_shape(node.inputs[0])
     output_shape = _cal_tensor_shape(node.outputs[0])
@@ -1716,8 +1726,9 @@ def convert_tf_slice(scope, operator, container):
         cast_equal = oopb.apply_cast(neg_one_size,
                                      to=oopb.int64,
                                      name=operator.full_name + '_equal_cast')
-        value_offset = oopb.apply_mul(cast_equal + [('_max_int', oopb.int64, np.array(np.iinfo(np.int64).max, dtype=np.int64))],
-                                      name=operator.full_name + '_mul_max')
+        value_offset = oopb.apply_mul(
+            cast_equal + [('_max_int', oopb.int64, np.array(np.iinfo(np.int64).max, dtype=np.int64))],
+            name=operator.full_name + '_mul_max')
         size_adjust = oopb.apply_add(cast_size + value_offset,
                                      name=operator.full_name + '_size_adjust')
         begin_value = cast_begin[0]
