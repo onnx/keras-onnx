@@ -737,6 +737,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_dense_add', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, "const is not initialized this way for tf2")
     def test_conv_add(self):
         input1 = Input(shape=(10, 10, 1))
         x1 = Conv2D(32, strides=(2, 2), kernel_size=3,
