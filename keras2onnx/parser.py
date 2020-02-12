@@ -631,11 +631,7 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
             current_layer_outputs.update({ts_.op.name: (layer_key, None) for ts_ in list_output_tensors(kenode)})
 
     if layer_key is None:
-        info = LayerInfo(None)
-        info.inputs = list(node.inputs)
-        info.outputs = list(node.outputs)
-        info.nodelist = [node]
-        layer_info = info
+        layer_info = LayerInfo.create_single_node(node, visited)
     else:
         if isinstance(layer_key, keras.Model):
             k2o_logger().debug("Processing a keras model layer - %s" % layer_key.name)

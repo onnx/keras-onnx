@@ -64,6 +64,18 @@ class LayerInfo(object):
         self.nodelist = []
 
     @staticmethod
+    def create_single_node(node, visited):
+        info = LayerInfo(None)
+        info.inputs = list(node.inputs)
+        info.outputs = list(node.outputs)
+        info.nodelist = [node]
+
+        # const_nodes = [ts_.op for ts_ in info.inputs if ts_.op.type == "Const" and ts_.op not in visited]
+        # info.nodelist.extend(const_nodes)
+        # info.inputs = [ts_ for ts_ in info.inputs if ts_.op not in info.nodelist]
+        return info
+
+    @staticmethod
     def create(node, layer, outputs_map, inference_nodeset):
         graph = node.graph
         layer_info = LayerInfo(layer)
@@ -177,13 +189,13 @@ def extract_outputs_from_subclassing_model(model, output_dict, output_names):
     from tensorflow.core.protobuf import config_pb2
     from tensorflow.python.keras.saving import saving_utils as _saving_utils
     from tensorflow.lite.python.util import run_graph_optimizations as _run_graph_optimizations
-    from tensorflow.python.framework import convert_to_constants as _convert_to_constants
+    from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
     function = _saving_utils.trace_model_call(model)
     concrete_func = function.get_concrete_function()
     output_names.extend([ts_.name for ts_ in concrete_func.outputs])
     output_dict.update(build_layer_outputs(model, concrete_func.graph, concrete_func.outputs))
-    frozen_func = _convert_to_constants.convert_variables_to_constants_v2(
+    frozen_func = _convert_to_constants(
         concrete_func, lower_control_flow=True)
     graph_def = frozen_func.graph.as_graph_def()
     if TF_GRAPH_OPTIMIZATION:
@@ -264,5 +276,13 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
     cvt = get_converter(operator.type)
     if cvt is not None and hasattr(cvt, 'shape_infer'):
         operator.shape_infer = cvt.shape_infer
+
+    # in some cases, some constants will be used by an operator outside of this layer.
+    for nd_ in layer_info.nodelist:
+        if nd_.type == 'Const' and nd_.name not in varset.variable_name_mapping:
+            operator = varset.declare_local_operator(nd_.type, raw_model=nd_, op_name=nd_.name)
+            o1 = varset.get_local_variable_or_declare_one(nd_.name,
+                                                          infer_variable_type(nd_.outputs[0], varset.target_opset))
+            operator.add_output(o1)
 
     return operator
