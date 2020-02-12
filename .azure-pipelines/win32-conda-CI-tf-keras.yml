@@ -18,16 +18,19 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         TENSORFLOW_PATH: tensorflow==1.11.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         TENSORFLOW_PATH: tensorflow==1.14.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         TENSORFLOW_PATH: tensorflow-cpu
+        INSTALL_ORT:
 
     maxParallel: 3
 
@@ -56,6 +59,7 @@ jobs:
       cd ..
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
+      %INSTALL_ORT%
     displayName: 'Install dependencies'
 
   - script: |
