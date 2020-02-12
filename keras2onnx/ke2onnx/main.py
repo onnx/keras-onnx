@@ -264,6 +264,9 @@ if is_tf_keras and is_tf2:
     keras_layer_to_operator.update({
         _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
+    _keras_layer_spec.update({
+        _layer.normalization_v2.BatchNormalization: (["{}/FusedBatchNormV3"], [_default_extract_layer_name])
+    })
 
 
 @with_variable('loaded')
