@@ -243,7 +243,6 @@ _keras_layer_spec = {
     _layer.AveragePooling3D: (["{}/AvgPool"], [_default_extract_layer_name]),
     _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_conv_layer_extract_name, _conv_layer_spec_outputs]),
     _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_extract_layer_name]),
-    _layer.normalization_v2.BatchNormalization: (["{}/FusedBatchNormV3"], [_default_extract_layer_name])
 }
 
 
@@ -264,6 +263,9 @@ if not is_keras_older_than('2.2.0'):
 if is_tf_keras and is_tf2:
     keras_layer_to_operator.update({
         _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
+    })
+    _keras_layer_spec.update({
+        _layer.normalization_v2.BatchNormalization: (["{}/FusedBatchNormV3"], [_default_extract_layer_name])
     })
 
 
