@@ -737,6 +737,20 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_dense_add', onnx_model, data, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, "const is not initialized this way for tf2")
+    def test_conv_add(self):
+        input1 = Input(shape=(10, 10, 1))
+        x1 = Conv2D(32, strides=(2, 2), kernel_size=3,
+                    bias_initializer=keras.initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None))(input1)
+        input2 = Input(tensor = tf.constant(np.random.rand(1, 32).astype(np.float32)))
+        added = Add()([x1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = [np.random.rand(1, 10, 10, 1).astype(np.float32)]
+        expected = model.predict(data)
+        data += [np.random.rand(1, 32).astype(np.float32)]
+        self.assertTrue(run_onnx_runtime('onnx_conv_add', onnx_model, data, expected, self.model_files))
+
     def test_dense_softmax(self):
         data = self.asarray(1, 2, 3, 4)
         model = Sequential()

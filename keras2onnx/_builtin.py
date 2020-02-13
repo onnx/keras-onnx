@@ -594,7 +594,7 @@ def convert_tf_concat_v2(scope, operator, container):
 def convert_tf_const(scope, operator, container):
     node = operator.raw_operator
     np_arr = _cal_tensor_value(node.outputs[0])
-    onnx_tensor = numpy_helper.from_array(np_arr, node.outputs[0].name)
+    onnx_tensor = numpy_helper.from_array(np_arr, operator.outputs[0].onnx_name)
     container.add_initializer_from_tensor(onnx_tensor)
 
 
