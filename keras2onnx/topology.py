@@ -299,10 +299,12 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     graph = None
     try:
         import onnxconverter_common
+        origin_node_number = len(container.nodes)
         if target_opset < 9:
             nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
                                                                  inputs=container.inputs + extra_inputs,
                                                                  outputs=container.outputs)
+            node_number = len(nodes)
         else:
             graph = onnxconverter_common.optimizer.optimize_onnx_graph(container.nodes, nchw_inputs=nchw_inputs,
                                                                        inputs=container.inputs,
@@ -311,6 +313,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
                                                                        model_value_info=container.value_info,
                                                                        model_name=model_name,
                                                                        target_opset=container.target_opset)
+            node_number = len(graph.node)
+        k2o_logger().info("The node number after optimization: {} -> {}".format(origin_node_number, node_number))
     except ImportError:
         onnx_not_imported = 'onnxconverter_common is not imported,'
         if nchw_inputs:
