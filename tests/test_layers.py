@@ -1797,9 +1797,11 @@ class TestKerasTF2ONNX(unittest.TestCase):
         ])
 
         x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
-        expected = model.predict(x)
+        # Fill one of the entries with all zeros
+        x[1, :, :] = 0
 
         # Test with the default bias
+        expected = model.predict(x)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
@@ -1809,10 +1811,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         weights[2] = np.random.uniform(size=weights[2].shape)
         rnn_layer.set_weights(weights)
 
-        # Fill one of the entries with all zeros
-        x[1, :, :] = 0
+        # Test with random bias
         expected = model.predict(x)
-
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
