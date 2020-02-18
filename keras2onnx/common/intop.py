@@ -26,6 +26,7 @@ class Operator:
         self.input_masks = []
         self.outputs = []
         self.output_masks = []
+        self.mask_value = None
         self.nodelist = None
         self.is_evaluated = None
         self.target_opset = target_opset
