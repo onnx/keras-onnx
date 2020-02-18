@@ -31,8 +31,6 @@ from .gru import convert_keras_gru
 from .lstm import convert_keras_lstm
 from .bidirectional import convert_bidirectional
 
-from .layer_spec import keras_layer_spec
-
 
 def convert_keras_reshape(scope, operator, container):
     iop = operator.raw_operator

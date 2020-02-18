@@ -59,9 +59,13 @@ _keras_layer_spec = {
     _layer.AveragePooling3D: (["{}/AvgPool"], [_default_layer_name_extractor]),
     _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_layer_name_extractor]),
-    _layer.ReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs]),
     _adv_activations.PReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs])
 }
+
+if not is_keras_older_than('2.2.0'):
+    _keras_layer_spec.update({
+        _adv_activations.ReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs]),
+    })
 
 if is_tf_keras and is_tf2:
     _keras_layer_spec.update({
