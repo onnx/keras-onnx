@@ -20,7 +20,7 @@ keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.
 You can install latest release of Keras2ONNX from PyPi:
 
 ```
-pip install keras-onnx
+pip install keras2onnx
 ```
 or install from source:
 
