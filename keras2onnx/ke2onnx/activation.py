@@ -8,7 +8,6 @@ from ..proto import keras, is_tf_keras
 from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_sigmoid, apply_tanh, \
     apply_softmax, apply_identity, apply_selu, apply_clip, apply_mul
 
-
 activation_get = keras.activations.get
 
 relu6 = None
@@ -19,7 +18,6 @@ if not is_tf_keras:
         pass
 if not relu6 and hasattr(keras.applications.mobilenet, 'relu6'):
     relu6 = keras.applications.mobilenet.relu6
-
 
 activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   activation_get('softmax'): apply_softmax,
