@@ -127,40 +127,6 @@ def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
 
 
-def _default_extract_layer_name(fstr_list, node_name):
-    for fstr in fstr_list:
-        idx = fstr.rfind('{}/')
-        if node_name.endswith(fstr[idx + 3:]):
-            klen = len(fstr) + idx - 2  # 2 = len('{}')
-            return node_name[:len(node_name) - klen]
-
-    return None
-
-
-def _conv_layer_extract_name(fstr_list, node_name):
-    ri = node_name.rindex('/')
-    return node_name[:ri]
-
-
-def _conv_layer_spec_outputs(layer, node):
-    import tensorflow as tf
-    activation_map = {
-        keras.activations.linear: '',
-        tf.nn.sigmoid: 'Sigmoid',
-        tf.nn.softmax: 'Softmax',
-        tf.nn.relu: 'Relu',
-        tf.nn.elu: 'Elu',
-        tf.nn.tanh: 'Tanh'}
-
-    node_act = activation_map.get(layer.activation, None)
-    assert node_act is not None, "Unsupported activation in the layer({})".format(layer.activation)
-    if node_act:
-        ri = node.name.rindex('/')
-        return node.name[:ri + 1] + node_act
-    else:
-        return node.name
-
-
 _layer = keras.layers
 _adv_activations = keras.layers.advanced_activations
 
@@ -237,20 +203,6 @@ keras_layer_to_operator = {
     _layer.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
-
-_keras_layer_spec = {
-    # layer-type: ([pattern-list], [extract-layer-name, output-name-generator(optional)]
-    _layer.AveragePooling1D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.AveragePooling2D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.AveragePooling3D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_conv_layer_extract_name, _conv_layer_spec_outputs]),
-    _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_extract_layer_name])
-}
-
-
-def keras_layer_spec(layer_type):
-    return _keras_layer_spec.get(layer_type, (None, []))
-
 
 if not is_keras_older_than('2.1.3'):
     keras_layer_to_operator.update({
