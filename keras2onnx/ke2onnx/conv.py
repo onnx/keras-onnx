@@ -7,7 +7,8 @@ import numpy
 from .activation import activation_map
 from ..proto import keras
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_identity, apply_pad, apply_softmax, apply_transpose
+from ..common.onnx_ops import (apply_identity, apply_pad, apply_softmax, 
+        apply_transpose, apply_mul, apply_sigmoid)
 
 activation_get = keras.activations.get
 SeparableConv2D = keras.layers.SeparableConv2D
@@ -194,11 +195,15 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
 
     # The construction of convolution is done. Now, we create an activation operator to apply the activation specified
     # in this Keras layer.
-    apply_activation_function = activation_map[op.activation]
-    if op.activation in [activation_get('softmax'), keras.activations.softmax]:
-        apply_softmax(scope, transpose_output_name, operator.outputs[0].full_name, container, axis=-1)
+    if op.activation.__name__ == 'swish':
+        apply_sigmoid(scope, transpose_output_name, transpose_output_name + '_sig', container)
+        apply_mul(scope, [transpose_output_name, transpose_output_name + '_sig'], operator.outputs[0].full_name, container)
     else:
-        apply_activation_function(scope, transpose_output_name, operator.outputs[0].full_name, container)
+        apply_activation_function = activation_map[op.activation]
+        if op.activation in [activation_get('softmax'), keras.activations.softmax]:
+            apply_softmax(scope, transpose_output_name, operator.outputs[0].full_name, container, axis=-1)
+        else:
+            apply_activation_function(scope, transpose_output_name, operator.outputs[0].full_name, container)
 
 
 def get_converter_config(dims, is_conv_transpose):
