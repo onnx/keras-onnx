@@ -1789,6 +1789,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
+    def test_masking_value(self):
+        timesteps, features = (3, 5)
+        mask_value = 5.
+        model = Sequential([
+            keras.layers.Masking(mask_value=mask_value, input_shape=(timesteps, features)),
+            LSTM(8, return_state=False, return_sequences=False)
+        ])
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+        x[1, :, :] = mask_value
+        expected = model.predict(x)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_custom(self):
         class MyPoolingMask(keras.layers.Layer):
             def __init__(self, **kwargs):

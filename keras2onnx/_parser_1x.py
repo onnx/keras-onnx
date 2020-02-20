@@ -111,6 +111,9 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
             mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(om_, varset.target_opset))
             operator.add_output_mask(mts_var)
 
+    if hasattr(layer, 'mask_value') and layer.mask_value is not None:
+        operator.mask_value = layer.mask_value
+
     cvt = get_converter(operator.type)
     if cvt is not None and hasattr(cvt, 'shape_infer'):
         operator.shape_infer = cvt.shape_infer

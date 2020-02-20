@@ -68,8 +68,10 @@ def convert_keras_flatten(scope, operator, container):
 
 
 def _apply_not_equal(oopb, target_opset, operator):
+    if operator.mask_value is None:
+        raise ValueError("Masking value was not properly parsed for layer '{}'".format(operator.full_name))
     if target_opset >= 11:
-        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([operator.mask_value], dtype='float32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
@@ -78,7 +80,7 @@ def _apply_not_equal(oopb, target_opset, operator):
                              "the masking layer result may be incorrect if the model input is in range (0, 1.0).")
         equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
                                       operator.full_name + '_input_cast', to=6)
-        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
+        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([operator.mask_value], dtype='int32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
