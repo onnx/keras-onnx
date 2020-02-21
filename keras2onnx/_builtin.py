@@ -454,7 +454,7 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
     node = operator.raw_operator
     oopb = OnnxOperatorBuilder(container, scope)
 
-    channels_first = node.get_attr('data_format') == 'NCHW'
+    channels_first = node.get_attr('data_format') == b'NCHW'
 
     if channels_first:
         adjusted_input_name = [operator.inputs[0].full_name]
@@ -488,9 +488,9 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
     input_shape = _cal_tensor_shape(node.inputs[0])
     output_shape = _cal_tensor_shape(node.outputs[0])
 
-    if node.get_attr('padding') == 'valid':
+    if node.get_attr('padding') == b'VALID':
         attrs['auto_pad'] = 'VALID'
-    elif node.get_attr('padding') == 'same':
+    elif node.get_attr('padding') == b'SAME':
         if input_shape.count(None) > 1:
             attrs['auto_pad'] = 'SAME_UPPER'
         else:
