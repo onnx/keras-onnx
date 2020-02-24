@@ -68,8 +68,10 @@ def convert_keras_flatten(scope, operator, container):
 
 
 def _apply_not_equal(oopb, target_opset, operator):
+    if operator.mask_value is None:
+        raise ValueError("Masking value was not properly parsed for layer '{}'".format(operator.full_name))
     if target_opset >= 11:
-        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([operator.mask_value], dtype='float32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
@@ -78,7 +80,7 @@ def _apply_not_equal(oopb, target_opset, operator):
                              "the masking layer result may be incorrect if the model input is in range (0, 1.0).")
         equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
                                       operator.full_name + '_input_cast', to=6)
-        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
+        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([operator.mask_value], dtype='int32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
@@ -123,40 +125,6 @@ def convert_keras_repeat_vector(scope, operator, container):
 
 def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
-
-
-def _default_extract_layer_name(fstr_list, node_name):
-    for fstr in fstr_list:
-        idx = fstr.rfind('{}/')
-        if node_name.endswith(fstr[idx + 3:]):
-            klen = len(fstr) + idx - 2  # 2 = len('{}')
-            return node_name[:len(node_name) - klen]
-
-    return None
-
-
-def _conv_layer_extract_name(fstr_list, node_name):
-    ri = node_name.rindex('/')
-    return node_name[:ri]
-
-
-def _conv_layer_spec_outputs(layer, node):
-    import tensorflow as tf
-    activation_map = {
-        keras.activations.linear: '',
-        tf.nn.sigmoid: 'Sigmoid',
-        tf.nn.softmax: 'Softmax',
-        tf.nn.relu: 'Relu',
-        tf.nn.elu: 'Elu',
-        tf.nn.tanh: 'Tanh'}
-
-    node_act = activation_map.get(layer.activation, None)
-    assert node_act is not None, "Unsupported activation in the layer({})".format(layer.activation)
-    if node_act:
-        ri = node.name.rindex('/')
-        return node.name[:ri + 1] + node_act
-    else:
-        return node.name
 
 
 _layer = keras.layers
@@ -235,20 +203,6 @@ keras_layer_to_operator = {
     _layer.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
-
-_keras_layer_spec = {
-    # layer-type: ([pattern-list], [extract-layer-name, output-name-generator(optional)]
-    _layer.AveragePooling1D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.AveragePooling2D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.AveragePooling3D: (["{}/AvgPool"], [_default_extract_layer_name]),
-    _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_conv_layer_extract_name, _conv_layer_spec_outputs]),
-    _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_extract_layer_name])
-}
-
-
-def keras_layer_spec(layer_type):
-    return _keras_layer_spec.get(layer_type, (None, []))
-
 
 if not is_keras_older_than('2.1.3'):
     keras_layer_to_operator.update({
