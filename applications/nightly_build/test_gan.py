@@ -7,7 +7,6 @@ import os
 import sys
 import unittest
 import keras2onnx
-import onnx
 import numpy as np
 from keras2onnx.proto import keras
 from os.path import dirname, abspath
