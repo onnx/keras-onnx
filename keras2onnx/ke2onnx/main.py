@@ -79,7 +79,7 @@ def _apply_not_equal(oopb, target_opset, operator):
         k2o_logger().warning("On converting a model with opset < 11, " +
                              "the masking layer result may be incorrect if the model input is in range (0, 1.0).")
         equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
-                                      operator.full_name + '_input_cast', to=6)
+                                      operator.full_name + '_input_cast', to=oopb.int32)
         equal_out = oopb.add_node('Equal', [equal_input_0, np.array([operator.mask_value], dtype='int32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
