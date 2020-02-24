@@ -18,32 +18,44 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
+        INSTALL_KERAS: pip install keras==2.1.6
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET:
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras==2.2.4
+        INSTALL_KERAS: pip install keras==2.2.4
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        KERAS: keras
+        INSTALL_KERAS: pip install keras
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
       Python37-official-ort:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        KERAS: keras
+        INSTALL_KERAS: pip install keras
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
 
-    maxParallel: 4
+      Python37-tf2:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.6.0
+        INSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
+        INSTALL_KERAS_RESNET: pip install keras-resnet
+
+    maxParallel: 3
 
   steps:
   - task: UsePythonVersion@0
@@ -63,8 +75,8 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      pip install tensorflow==1.14.0
-      pip install %KERAS%
+      %INSTALL_TENSORFLOW%
+      %INSTALL_KERAS%
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
