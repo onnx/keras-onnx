@@ -72,7 +72,7 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
-      $(INSTALL_TENSORFLOW)$
+      $(INSTALL_TENSORFLOW)
       $(INSTALL_KERAS)
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
