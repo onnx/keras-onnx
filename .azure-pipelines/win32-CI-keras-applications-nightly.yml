@@ -15,30 +15,6 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      Python35:
-        python.version: '3.5'
-        ONNX_PATH: onnx==1.2.3
-        INSTALL_KERAS: pip install keras==2.1.6
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET:
-
-      Python36:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
-        INSTALL_KERAS: pip install keras==2.2.4
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-
-      Python37:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-
       Python37-official-ort:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
