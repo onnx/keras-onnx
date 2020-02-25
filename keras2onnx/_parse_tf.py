@@ -186,7 +186,10 @@ def build_layer_outputs(model, graph, outputs):
                     output_dict[op_.name] = layer_dict[ln_]
                 else:
                     # fx_[1] is output node redirect function.
-                    output_dict[fx_list[1](lobj, op_)] = layer_dict[ln_]
+                    output_tensor = fx_list[1](lobj, op_)
+                    assert graph.get_operation_by_name(output_tensor) is not None, "Parsing layer({}) failed.".format(
+                        lobj)
+                    output_dict[output_tensor] = layer_dict[ln_]
 
     return output_dict
 
