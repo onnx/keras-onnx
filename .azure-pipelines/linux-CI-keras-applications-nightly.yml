@@ -18,32 +18,54 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
+        INSTALL_KERAS: pip install keras==2.1.6
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET:
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras==2.2.4
+        INSTALL_KERAS: pip install keras==2.2.4
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python37:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.6.0
-        KERAS: keras
+        INSTALL_KERAS: pip install keras
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python37-official-ort:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.6.0
-        KERAS: keras
+        INSTALL_KERAS: pip install keras
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
-    maxParallel: 4
+      Python37-tf2:
+        python.version: '3.7.3'
+        ONNX_PATH: onnx==1.6.0
+        INSTALL_KERAS:
+        UNINSTALL_KERAS: pip uninstall keras -y
+        INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
+        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
+        INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py --doctest-modules --junitxml=junit/test-results-keras_applications_v2.xml
+
+    maxParallel: 3
 
   steps:
   - script: sudo install -d -m 0777 /home/vsts/.conda/envs
@@ -60,8 +82,8 @@ jobs:
       conda config --set always_yes yes --set changeps1 no
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
-      pip install tensorflow==1.15.0
-      pip install $(KERAS)
+      $(INSTALL_TENSORFLOW)
+      $(INSTALL_KERAS)
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
@@ -82,6 +104,7 @@ jobs:
       $(INSTALL_KERAS_RESNET)
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
+      $(UNINSTALL_KERAS)
     displayName: 'Install dependencies'
 
   - script: |
@@ -89,7 +112,7 @@ jobs:
       python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
       cd applications/nightly_build
-      python run_all.py
+      $(NIGHTLY_BUILD_TEST)
     displayName: 'pytest'
 
   - script: |

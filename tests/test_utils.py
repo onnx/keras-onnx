@@ -153,8 +153,11 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
 
 
 def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb",
-              target_size=224):
-    preprocess_input = keras.applications.resnet50.preprocess_input
+              target_size=224, tf_v2=False):
+    if tf_v2:
+        preprocess_input = keras.applications.imagenet_utils.preprocess_input
+    else:
+        preprocess_input = keras.applications.resnet50.preprocess_input
     image = keras.preprocessing.image
 
     try:

@@ -70,6 +70,7 @@ class TYPES:
     SpaceToBatchND = 'SpaceToBatchND'
     Split = 'Split'
     SplitV = 'SplitV'
+    Square = 'Square'
     SquaredDifference = 'SquaredDifference'
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
@@ -1753,6 +1754,15 @@ def convert_tf_softmax(scope, operator, container):
                               operator.output_full_names,
                               name=operator.full_name,
                               axis=axis)
+
+
+@converter_func(TYPES.Square)
+def convert_tf_square(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_mul',
+                              operator.input_full_names + operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 def _process_begin_end(new_begin, new_end, stride):
