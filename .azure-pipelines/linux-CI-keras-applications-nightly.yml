@@ -73,6 +73,7 @@ jobs:
     displayName: 'Install dependencies'
 
   - script: |
+      export TF_KERAS="1"
       pip install -e .
       python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml

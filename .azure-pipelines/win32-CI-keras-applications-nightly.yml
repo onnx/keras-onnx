@@ -81,6 +81,7 @@ jobs:
 
   - script: |
       call activate py$(python.version)
+      set TF_KERAS="1"
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
