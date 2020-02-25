@@ -27,6 +27,10 @@ def _simple_layer_name_extractor(fstr_list, node_name):
 
 
 def _conv_layer_spec_outputs(layer, node):
+    if type(layer) == _layer.DepthwiseConv2D:
+        ri = node.name.rindex('/')
+        return node.name[:ri + 1] + 'BiasAdd'
+
     activation_map = {
         keras.activations.linear: '',
         tf.nn.sigmoid: 'Sigmoid',
@@ -58,6 +62,7 @@ _keras_layer_spec = {
     _layer.AveragePooling2D: (["{}/AvgPool"], [_default_layer_name_extractor]),
     _layer.AveragePooling3D: (["{}/AvgPool"], [_default_layer_name_extractor]),
     _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
+    _layer.DepthwiseConv2D: (["{}/depthwise"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_layer_name_extractor]),
     _adv_activations.PReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs])
 }

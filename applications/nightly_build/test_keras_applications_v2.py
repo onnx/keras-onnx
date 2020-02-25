@@ -27,7 +27,7 @@ class TestKerasApplications(unittest.TestCase):
 
     def test_MobileNet(self):
         MobileNet = keras.applications.mobilenet.MobileNet
-        model = MobileNet(weights='imagenet')
+        model = MobileNet(weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
@@ -35,25 +35,25 @@ class TestKerasApplications(unittest.TestCase):
                      "Test mobilenet_v2 in tf2.")
     def test_MobileNetV2(self):
         MobileNetV2 = keras.applications.mobilenet_v2.MobileNetV2
-        model = MobileNetV2(weights='imagenet')
+        model = MobileNetV2(weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
     def test_ResNet50(self):
         ResNet50 = keras.applications.resnet_v2.ResNet50V2
-        model = ResNet50(include_top=True, weights='imagenet')
+        model = ResNet50(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
     def test_DenseNet121(self):
         DenseNet121 = keras.applications.densenet.DenseNet121
-        model = DenseNet121(include_top=True, weights='imagenet')
+        model = DenseNet121(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
     def test_Xception(self):
         Xception = keras.applications.xception.Xception
-        model = Xception(include_top=True, weights='imagenet')
+        model = Xception(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299, tf_v2=True)
         self.assertTrue(*res)
 
