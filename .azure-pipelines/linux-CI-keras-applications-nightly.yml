@@ -26,7 +26,7 @@ jobs:
       Python37-tf2:
         python.version: '3.7.3'
         ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip uninstall keras
+        INSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet

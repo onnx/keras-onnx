@@ -26,7 +26,7 @@ jobs:
       Python37-tf2:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip uninstall keras
+        INSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
@@ -72,6 +72,7 @@ jobs:
 
   - script: |
       call activate py$(python.version)
+      set TF_KERAS="1"
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
@@ -81,7 +82,6 @@ jobs:
 
   - script: |
       call activate py$(python.version)
-      set TF_KERAS="1"
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
