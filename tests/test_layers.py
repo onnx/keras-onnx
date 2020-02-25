@@ -1800,7 +1800,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
             # Fill one of the entries with all zeros
-            x[1, :, :] = 0
+            x[1, 1:, :] = 0
 
             # Test with the default bias
             expected = model.predict(x)
