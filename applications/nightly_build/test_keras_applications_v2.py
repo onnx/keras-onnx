@@ -6,7 +6,8 @@
 import os
 import sys
 import unittest
-from keras2onnx.proto import keras, is_keras_older_than
+from keras2onnx.proto import keras
+from keras2onnx.proto.tfcompat import is_tf2
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
@@ -30,8 +31,8 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    @unittest.skipIf(is_keras_older_than("2.2.3"),
-                     "There is no mobilenet_v2 module before keras 2.2.3.")
+    @unittest.skipIf(not is_tf2,
+                     "Test mobilenet_v2 in tf2.")
     def test_MobileNetV2(self):
         MobileNetV2 = keras.applications.mobilenet_v2.MobileNetV2
         model = MobileNetV2(weights='imagenet')

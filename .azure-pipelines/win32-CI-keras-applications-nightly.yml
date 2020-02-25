@@ -29,7 +29,7 @@ jobs:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         INSTALL_KERAS:
-        UNINSTALL_KERAS: pip uninstall keras
+        UNINSTALL_KERAS: pip uninstall keras -y
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
