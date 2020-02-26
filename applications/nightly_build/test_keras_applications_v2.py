@@ -25,6 +25,12 @@ class TestKerasApplications(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    def test_DenseNet121(self):
+        DenseNet121 = keras.applications.densenet.DenseNet121
+        model = DenseNet121(include_top=True, weights='imagenet')
+        res = run_image(model, self.model_files, img_path, tf_v2=True)
+        self.assertTrue(*res)
+
     def test_MobileNet(self):
         MobileNet = keras.applications.mobilenet.MobileNet
         model = MobileNet(weights='imagenet')
@@ -39,15 +45,21 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
+    def test_NASNet(self):
+        NASNetMobile = keras.applications.nasnet.NASNetMobile
+        model = NASNetMobile(weights='imagenet')
+        res = run_image(model, self.model_files, img_path, tf_v2=True)
+        self.assertTrue(*res)
+
     def test_ResNet50(self):
         ResNet50 = keras.applications.resnet_v2.ResNet50V2
         model = ResNet50(include_top=True, weights='imagenet')
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    def test_DenseNet121(self):
-        DenseNet121 = keras.applications.densenet.DenseNet121
-        model = DenseNet121(include_top=True, weights='imagenet')
+    def test_VGG16(self):
+        VGG16 = keras.applications.vgg16.VGG16
+        model = VGG16(include_top=True, weights='imagenet')
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
