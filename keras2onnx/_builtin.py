@@ -9,6 +9,7 @@ import tensorflow
 import numpy as np
 from typing import Union
 from onnx import numpy_helper, mapping
+from .common.utils import count_dynamic_dim
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
 from .proto import keras
@@ -492,7 +493,7 @@ def convert_tf_depthwise_conv2d(scope, operator, container):
     if node.get_attr('padding') == b'VALID':
         attrs['auto_pad'] = 'VALID'
     elif node.get_attr('padding') == b'SAME':
-        if input_shape.count(None) > 1:
+        if count_dynamic_dim(input_shape) > 1:
             attrs['auto_pad'] = 'SAME_UPPER'
         else:
             attrs['auto_pad'] = 'NOTSET'
