@@ -29,7 +29,7 @@ pip install git+https://github.com/microsoft/onnxconverter-common
 pip install git+https://github.com/onnx/keras-onnx
 ```
 Before running the converter, please notice that tensorflow has to be installed in your python environment,
-you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
+you can choose **tensorflow**/**tensorflow-cpu** package(CPU version) or **tensorflow-gpu**(GPU version)
 
 # Notes
 Keras2ONNX supports the new Keras subclassing model which was introduced in tensorflow 2.0 since the version **1.6.5**. Some typical subclassing models like [huggingface/transformers](https://github.com/huggingface/transformers) have been converted into ONNX and validated by ONNXRuntime.<br>
