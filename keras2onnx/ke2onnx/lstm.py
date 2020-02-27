@@ -92,7 +92,13 @@ def convert_keras_lstm(scope, operator, container):
         lstm_input_names.append('')
 
     # sequence_lens
-    lstm_input_names.append('')
+    uses_masking_layer = len(operator.input_masks) == 1
+    if uses_masking_layer:
+        # Mask using sequence_lens input
+        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
+        lstm_input_names.append(sequence_lengths)
+    else:
+        lstm_input_names.append('')
     # inital_h
     if len(operator.inputs) <= 1:
         lstm_input_names.append('')
@@ -149,6 +155,11 @@ def convert_keras_lstm(scope, operator, container):
     lstm_output_names.append(lstm_c_name)
 
     oopb = OnnxOperatorBuilder(container, scope)
+
+    if uses_masking_layer:
+        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
+        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
+
     oopb.apply_op_with_output('apply_lstm',
                               lstm_input_names,
                               lstm_output_names,

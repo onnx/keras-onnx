@@ -48,7 +48,13 @@ def convert_keras_simple_rnn(scope, operator, container):
         rnn_input_names.append('')
 
     # sequence_lens is not able to be converted from input_length
-    rnn_input_names.append('')
+    uses_masking_layer = len(operator.input_masks) == 1
+    if uses_masking_layer:
+        # Mask using sequence_lens input
+        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
+        rnn_input_names.append(sequence_lengths)
+    else:
+        rnn_input_names.append('')
     # inital_h: none
     if len(operator.inputs) == 1:
         rnn_input_names.append('')
@@ -77,6 +83,11 @@ def convert_keras_simple_rnn(scope, operator, container):
     rnn_output_names.append(rnn_y_name)
     rnn_output_names.append(rnn_h_name)
     oopb = OnnxOperatorBuilder(container, scope)
+
+    if uses_masking_layer:
+        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
+        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
+
     oopb.apply_op_with_output('apply_rnn',
                               rnn_input_names,
                               rnn_output_names,

@@ -1797,6 +1797,36 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
+    def test_masking_bias(self):
+        for rnn_class in [LSTM, GRU, SimpleRNN]:
+
+            timesteps, features = (3, 5)
+            model = Sequential([
+                keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
+                rnn_class(8, return_state=False, return_sequences=False, use_bias=True, name='rnn')
+            ])
+
+            x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+            # Fill one of the entries with all zeros except the first timestep
+            x[1, 1:, :] = 0
+
+            # Test with the default bias
+            expected = model.predict(x)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+            # Set bias values to random floats
+            rnn_layer = model.get_layer('rnn')
+            weights = rnn_layer.get_weights()
+            weights[2] = np.random.uniform(size=weights[2].shape)
+            rnn_layer.set_weights(weights)
+
+            # Test with random bias
+            expected = model.predict(x)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+
+    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_value(self):
         timesteps, features = (3, 5)
         mask_value = 5.
