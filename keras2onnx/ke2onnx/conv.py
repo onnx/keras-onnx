@@ -7,6 +7,7 @@ import numpy
 from .activation import activation_map
 from ..proto import keras
 from ..proto import onnx_proto
+from ..common.utils import count_dynamic_dim
 from ..common.onnx_ops import (apply_identity, apply_pad, apply_softmax,
                                apply_transpose, apply_mul, apply_sigmoid)
 
@@ -144,7 +145,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
     if op.padding == 'valid':
         attrs['auto_pad'] = 'VALID'
     elif op.padding == 'same':
-        if input_shape.count(None) > 1:
+        if count_dynamic_dim(input_shape) > 1:
             if is_transpose:
                 attrs['auto_pad'] = 'SAME_LOWER'  # the controversial def in onnx spec.
             else:
