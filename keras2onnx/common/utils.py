@@ -55,12 +55,11 @@ def get_default_batch_size():
 
 
 def count_dynamic_dim(shape):
-    batch_dim = get_default_batch_size()
     num = 0
     for s_ in shape:
-        if s_ is None or s_ == batch_dim:
+        if isinstance(s_, int) and s_ >= 0:
             num += 1
-    return num
+    return len(shape) - num
 
 
 def get_producer():
