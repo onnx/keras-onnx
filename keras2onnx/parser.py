@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import re
 import queue
 
 from .proto import keras, is_tf_keras
@@ -481,8 +482,11 @@ def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_o
     for input_ in cur_node.inputs:
         predecessor = input_.op
         if is_placeholder_node(predecessor):
-            inputs.add(predecessor)
-            graph_inputs.add(predecessor)
+            # mysteriously, some bn layer create a placeholder node 'scale' in tf2.x.
+            # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
+            if not re.match(r"batch_normalization_\d+\/scale$", predecessor.name):
+                inputs.add(predecessor)
+                graph_inputs.add(predecessor)
         if predecessor in layer_nodes or len(layer_nodes) == 0:
             subgraph.append(predecessor)
         else:
