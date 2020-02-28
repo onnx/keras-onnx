@@ -11,11 +11,12 @@ from keras2onnx.proto.tfcompat import is_tf2
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_image, run_onnx_runtime
+from test_utils import run_image
+
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
-Sequential = keras.models.Sequential
 
+@unittest.skipIf(not is_tf2, "Tensorflow 2.x only tests")
 class TestKerasApplications(unittest.TestCase):
 
     def setUp(self):
@@ -37,8 +38,6 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    @unittest.skipIf(not is_tf2,
-                     "Test mobilenet_v2 in tf2.")
     def test_MobileNetV2(self):
         MobileNetV2 = keras.applications.mobilenet_v2.MobileNetV2
         model = MobileNetV2(weights=None)
@@ -49,6 +48,14 @@ class TestKerasApplications(unittest.TestCase):
         NASNetMobile = keras.applications.nasnet.NASNetMobile
         model = NASNetMobile(weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
+        self.assertTrue(*res)
+
+    def test_InceptionV3(self):
+        keras.backend.set_learning_phase(0)
+        InceptionV3 = keras.applications.inception_v3.InceptionV3
+        model = InceptionV3(include_top=True)
+        model.save('inception.h5')
+        res = run_image(model, self.model_files, img_path, target_size=299, tf_v2=True)
         self.assertTrue(*res)
 
     def test_ResNet50(self):
