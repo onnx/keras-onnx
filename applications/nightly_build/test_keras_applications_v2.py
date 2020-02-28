@@ -64,12 +64,6 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    def test_VGG16(self):
-        VGG16 = keras.applications.vgg16.VGG16
-        model = VGG16(include_top=True, weights=None)
-        res = run_image(model, self.model_files, img_path, tf_v2=True)
-        self.assertTrue(*res)
-
     def test_Xception(self):
         Xception = keras.applications.xception.Xception
         model = Xception(include_top=True, weights=None)
