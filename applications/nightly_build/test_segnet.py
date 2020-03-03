@@ -32,7 +32,7 @@ class TestSegNet(unittest.TestCase):
     def test_vgg_segnet(self):
         # From https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py
         model = keras_segmentation.models.segnet.vgg_segnet(101)
-        res = run_image(model, self.model_files, img_path, target_size=(416, 608))
+        res = run_image(model, self.model_files, img_path, rtol=3.e-3, target_size=(416, 608))
         self.assertTrue(*res)
 
     def test_mobilenet_segnet(self):
