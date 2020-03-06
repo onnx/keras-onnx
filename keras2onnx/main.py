@@ -39,7 +39,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     if is_tf2:
         from tensorflow.python.eager import context
         k2o_logger().info("tf executing eager_mode: {}".format(context.executing_eagerly()))
-        k2o_logger().info("tf.keras model eager_mode: {}".format(model.run_eagerly))
+        if hasattr(model, 'run_eagerly'):
+            k2o_logger().info("tf.keras model eager_mode: {}".format(model.run_eagerly))
     if debug_mode:
         print(model.summary())
 
