@@ -167,6 +167,15 @@ def _to_tf_ops(layer_name, graph, fstr):
     return ops
 
 
+def _advance_output_node_if_successor(graph, layer, output):
+    for op_ in graph.get_operations():
+        if op_.name.find(layer) == 0:
+            if output in [ts_.op.name for ts_ in op_.inputs]:
+                return op_.name
+
+    return output
+
+
 def build_layer_outputs(model, graph, outputs):
     # type: (keras.Model, tf.Graph, []) -> {}
 
@@ -186,10 +195,11 @@ def build_layer_outputs(model, graph, outputs):
                     output_dict[op_.name] = layer_dict[ln_]
                 else:
                     # fx_[1] is output node redirect function.
-                    output_tensor = fx_list[1](lobj, op_)
-                    assert graph.get_operation_by_name(output_tensor) is not None, "Parsing layer({}) failed.".format(
+                    output_node = fx_list[1](lobj, op_)
+                    output_node = _advance_output_node_if_successor(graph, ln_, output_node)
+                    assert graph.get_operation_by_name(output_node) is not None, "Parsing layer({}) failed.".format(
                         lobj)
-                    output_dict[output_tensor] = layer_dict[ln_]
+                    output_dict[output_node] = layer_dict[ln_]
 
     return output_dict
 

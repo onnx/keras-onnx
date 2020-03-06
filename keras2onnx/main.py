@@ -12,7 +12,7 @@ from .topology import convert_topology
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph
 from .topology import Topology
-from .common.utils import set_logger_level
+from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
 from ._parse_tf import tsname_to_node, build_layer_output_from_model
 from ._parser_1x import build_opdict_from_keras
@@ -36,6 +36,10 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
                         " Please set environment variable TF_KERAS = 1.")
 
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
+    if is_tf2:
+        from tensorflow.python.eager import context
+        k2o_logger().info("tf executing eager_mode: {}".format(context.executing_eagerly()))
+        k2o_logger().info("tf.keras model eager_mode: {}".format(model.run_eagerly))
     if debug_mode:
         print(model.summary())
 
