@@ -150,7 +150,13 @@ def convert_bidirectional(scope, operator, container):
         lstm_input_names.append('')  # the name of a non-existing optional variable is an empty string
 
     # sequence_lens, this input is not used when converting Keras Bidirectional.
-    lstm_input_names.append('')
+    uses_masking_layer = len(operator.input_masks) == 1
+    if uses_masking_layer:
+        # Mask using sequence_lens input
+        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
+        lstm_input_names.append(sequence_lengths)
+    else:
+        lstm_input_names.append('')
     oopb = OnnxOperatorBuilder(container, scope)
 
     if container.target_opset < 9:
@@ -259,6 +265,10 @@ def convert_bidirectional(scope, operator, container):
     lstm_output_names.append(lstm_y_name)
     lstm_output_names.append(lstm_h_name)
     lstm_output_names.append(lstm_c_name)
+
+    if uses_masking_layer:
+        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
+        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
 
     # Create the major node, ONNX LSTM
     oopb.apply_op_with_output('apply_lstm',
