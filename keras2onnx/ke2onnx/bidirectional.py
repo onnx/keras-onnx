@@ -10,7 +10,7 @@ from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_split, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from .common import extract_recurrent_activation
-from .lstm import extract_lstm_params
+from . import simplernn, lstm
 
 LSTM = keras.layers.LSTM
 
@@ -33,12 +33,8 @@ def convert_bidirectional(scope, operator, container):
     op = operator.raw_operator
     forward_layer = op.forward_layer
     backward_layer = op.backward_layer
-    input_shape = op.get_input_shape_at(0)
-    # TODO: Add a test case for list
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
@@ -51,8 +47,8 @@ def convert_bidirectional(scope, operator, container):
         raise TypeError('The bidirectional module only works with LSTM in Keras but we got %s' % type(forward_layer))
 
     # Extract the parameters for the forward and backward layers
-    W_x, W_h, b = extract_lstm_params(forward_layer, hidden_size, input_size)
-    W_x_back, W_h_back, b_back = extract_lstm_params(backward_layer, hidden_size, input_size)
+    W_x, W_h, b = lstm.extract_params(forward_layer, hidden_size, input_size)
+    W_x_back, W_h_back, b_back = lstm.extract_params(backward_layer, hidden_size, input_size)
 
     if (b is None and b_back is not None) or (b is not None and b_back is None):
         raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')

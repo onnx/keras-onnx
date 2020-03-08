@@ -10,6 +10,7 @@ from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto
 from .common import extract_recurrent_activation
+from . import simplernn
 
 
 
@@ -21,20 +22,8 @@ def convert_ifco_to_iofc(tensor_ifco):
     return np.concatenate((splits[0], splits[3], splits[1], splits[2]))
 
 
-def extract_lstm_shapes(op):
-    """ Returns a tuple of the (hidden size, input size, sequence length) for an LSTM.
-    """
-    hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
-    return hidden_size, input_size, seq_length
-
-
-def extract_lstm_params(op, hidden_size, input_size):
-    """ Returns a tuple of the LSTM parameters, and converts them into the format for ONNX.
+def extract_params(op, hidden_size, input_size):
+    """Returns a tuple of the LSTM parameters, and converts them into the format for ONNX.
     """
     params = op.get_weights()
 
@@ -63,8 +52,10 @@ def _calculate_keras_lstm_output_shapes(operator):
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
-    hidden_size, input_size, seq_length = extract_lstm_shapes(op)
-    W_x, W_h, b = extract_lstm_params(op, hidden_size, input_size)
+    hidden_size = op.units
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+
+    W_x, W_h, b = extract_params(op, hidden_size, input_size)
 
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:

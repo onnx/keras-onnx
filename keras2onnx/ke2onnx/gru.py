@@ -7,21 +7,10 @@ import numpy as np
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
+from . import simplernn
 
 
-def extract_gru_shapes(op):
-    """Returns a tuple of the (hidden size, input size, sequence length) for a GRU.
-    """
-    hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
-    return hidden_size, input_size, seq_length
-
-
-def extract_gru_params(op):
+def extract_params(op):
     """Returns a tuple of the GRU paramters, and converts them into the format for ONNX.
     """
     params = op.get_weights()
@@ -33,7 +22,8 @@ def extract_gru_params(op):
 
 def convert_keras_gru(scope, operator, container):
     op = operator.raw_operator
-    hidden_size, input_size, seq_length = extract_gru_shapes(op)
+    hidden_size = op.units
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
@@ -45,7 +35,7 @@ def convert_keras_gru(scope, operator, container):
     apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
     gru_input_names.append(gru_x_name)
 
-    W, R, B = extract_gru_params(op)
+    W, R, B = extract_params(op)
 
     tensor_w_name = scope.get_unique_variable_name('tensor_w')
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
