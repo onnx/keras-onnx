@@ -13,7 +13,6 @@ from .common import extract_recurrent_activation
 from . import simplernn
 
 
-
 def convert_ifco_to_iofc(tensor_ifco):
     """Returns a tensor in input (i), output (o), forget (f), cell (c) ordering. The
     Keras ordering is ifco, while the ONNX ordering is iofc.

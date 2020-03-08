@@ -16,7 +16,11 @@ def extract_params(op):
     params = op.get_weights()
     W = params[0].T
     R = params[1].T
-    B = params[2]
+
+    B = None
+    if op.use_bias:
+        B = params[2]
+
     return W, R, B
 
 
@@ -47,7 +51,7 @@ def convert_keras_gru(scope, operator, container):
                               [1, 3 * hidden_size, hidden_size], R.flatten())
     gru_input_names.append(tensor_r_name)
 
-    if op.use_bias and len(B) > 0:
+    if B is not None and len(B) > 0:
         tensor_b_name = scope.get_unique_variable_name('tensor_b')
         if B.size == 3 * hidden_size:
             B = np.concatenate([B, np.zeros(3 * hidden_size)])
