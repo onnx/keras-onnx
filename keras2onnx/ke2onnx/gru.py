@@ -9,13 +9,31 @@ from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilde
 from .common import extract_recurrent_activation
 
 
-def convert_keras_gru(scope, operator, container):
-    op = operator.raw_operator
+def extract_gru_shapes(op):
+    """Returns a tuple of the (hidden size, input size, sequence length) for a GRU.
+    """
     hidden_size = op.units
     input_shape = op.get_input_shape_at(0)
     if isinstance(input_shape, list):
         input_shape = input_shape[0]
     input_size = input_shape[-1]
+    seq_length = input_shape[-2]
+    return hidden_size, input_size, seq_length
+
+
+def extract_gru_params(op):
+    """Returns a tuple of the GRU paramters, and converts them into the format for ONNX.
+    """
+    params = op.get_weights()
+    W = params[0].T
+    R = params[1].T
+    B = params[2]
+    return W, R, B
+
+
+def convert_keras_gru(scope, operator, container):
+    op = operator.raw_operator
+    hidden_size, input_size, seq_length = extract_gru_shapes(op)
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
@@ -27,19 +45,18 @@ def convert_keras_gru(scope, operator, container):
     apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
     gru_input_names.append(gru_x_name)
 
+    W, R, B = extract_gru_params(op)
+
     tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    W = op.get_weights()[0].T
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
                               [1, 3 * hidden_size, input_size], W.flatten())
     gru_input_names.append(tensor_w_name)
 
     tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    R = op.get_weights()[1].T
     container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
                               [1, 3 * hidden_size, hidden_size], R.flatten())
     gru_input_names.append(tensor_r_name)
 
-    B = op.get_weights()[2]
     if op.use_bias and len(B) > 0:
         tensor_b_name = scope.get_unique_variable_name('tensor_b')
         if B.size == 3 * hidden_size:
