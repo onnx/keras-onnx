@@ -21,6 +21,36 @@ def convert_ifco_to_iofc(tensor_ifco):
     return np.concatenate((splits[0], splits[3], splits[1], splits[2]))
 
 
+def extract_lstm_shapes(op):
+    """ Returns a tuple of the (hidden size, input size, sequence length) for an LSTM.
+    """
+    hidden_size = op.units
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    input_size = input_shape[-1]
+    seq_length = input_shape[-2]
+    return hidden_size, input_size, seq_length
+
+
+def extract_lstm_params(op, hidden_size, input_size):
+    """ Returns a tuple of the LSTM parameters, and converts them into the format for ONNX.
+    """
+    params = op.get_weights()
+
+    # Keras: [W_x, W_h, b] each in I F C O
+    # ONNX: W[iofc] I O F C
+    W_x = convert_ifco_to_iofc(params[0].T).reshape(4, hidden_size, input_size)
+    W_h = convert_ifco_to_iofc(params[1].T).reshape(4, hidden_size, hidden_size)
+
+    b = None
+    if op.use_bias:
+        b = np.zeros((8, hidden_size), dtype=np.float32)
+        b[:4] = convert_ifco_to_iofc(params[2]).reshape(4, hidden_size)
+
+    return W_x, W_h, b
+
+
 def _calculate_keras_lstm_output_shapes(operator):
     op = operator.raw_operator
     if isinstance(op.output_shape[0], Iterable):
@@ -33,30 +63,15 @@ def _calculate_keras_lstm_output_shapes(operator):
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
-    hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
+    hidden_size, input_size, seq_length = extract_lstm_shapes(op)
+    W_x, W_h, b = extract_lstm_params(op, hidden_size, input_size)
+
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
-
-    params = op.get_weights()
-
-    # Keras: [W_x, W_h, b] each in I F C O
-    # ONNX: W[iofc] I O F C
-    W_x = convert_ifco_to_iofc(params[0].T).reshape(4, hidden_size, input_size)
-    W_h = convert_ifco_to_iofc(params[1].T).reshape(4, hidden_size, hidden_size)
-
-    b = None
-    if op.use_bias:
-        b = np.zeros((8, hidden_size), dtype=np.float32)
-        b[:4] = convert_ifco_to_iofc(params[2]).reshape(4, hidden_size)
 
     # Declare essential attributes of ONNX LSTM
     lstm_input_names = []

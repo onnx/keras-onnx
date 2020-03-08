@@ -10,7 +10,7 @@ from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_split, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from .common import extract_recurrent_activation
-from .lstm import convert_ifco_to_iofc
+from .lstm import extract_lstm_params
 
 LSTM = keras.layers.LSTM
 
@@ -50,28 +50,9 @@ def convert_bidirectional(scope, operator, container):
     if not isinstance(forward_layer, LSTM):
         raise TypeError('The bidirectional module only works with LSTM in Keras but we got %s' % type(forward_layer))
 
-    # Extract the forward transformation matrix used to adjust input features
-    forward_params = forward_layer.get_weights()
-    W_x = convert_ifco_to_iofc(forward_params[0].T).reshape(4, hidden_size, input_size)
-    W_h = convert_ifco_to_iofc(forward_params[1].T).reshape(4, hidden_size, hidden_size)
-
-    # Bias vectors of forward layer
-    b = None
-    if forward_layer.use_bias:
-        b = np.zeros(shape=(8, hidden_size), dtype=np.float32)
-        b[:4] = convert_ifco_to_iofc(forward_params[2]).reshape(4, hidden_size)
-
-    # Extract the backward transformation matrix used to adjust input features. Note that the weight format for the
-    # backward layer is identical to that of the forward layer.
-    backward_params = backward_layer.get_weights()
-    W_x_back = convert_ifco_to_iofc(backward_params[0].T).reshape(4, hidden_size, input_size)
-    W_h_back = convert_ifco_to_iofc(backward_params[1].T).reshape(4, hidden_size, hidden_size)
-
-    # Bias vectors of backward layer
-    b_back = None
-    if backward_layer.use_bias:
-        b_back = np.zeros(shape=(8, hidden_size), dtype=np.float32)
-        b_back[:4] = convert_ifco_to_iofc(backward_params[2]).reshape(4, hidden_size)
+    # Extract the parameters for the forward and backward layers
+    W_x, W_h, b = extract_lstm_params(forward_layer, hidden_size, input_size)
+    W_x_back, W_h_back, b_back = extract_lstm_params(backward_layer, hidden_size, input_size)
 
     if (b is None and b_back is not None) or (b is not None and b_back is None):
         raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')
