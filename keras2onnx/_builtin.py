@@ -173,7 +173,6 @@ def convert_tf_identity(scope, operator, container):
 
 @converter_func(TYPES.AddN)
 def convert_tf_addn(scope, operator, container):
-    node = operator.raw_operator
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output("apply_add",
                               operator.input_full_names,
