@@ -10,6 +10,7 @@ from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_split, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from .common import extract_recurrent_activation
+from . import simplernn, lstm
 
 LSTM = keras.layers.LSTM
 
@@ -32,12 +33,8 @@ def convert_bidirectional(scope, operator, container):
     op = operator.raw_operator
     forward_layer = op.forward_layer
     backward_layer = op.backward_layer
-    input_shape = op.get_input_shape_at(0)
-    # TODO: Add a test case for list
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
@@ -49,70 +46,9 @@ def convert_bidirectional(scope, operator, container):
     if not isinstance(forward_layer, LSTM):
         raise TypeError('The bidirectional module only works with LSTM in Keras but we got %s' % type(forward_layer))
 
-    # Extract the forward transformation matrix used to adjust input features
-    W_x = np.empty(shape=(4, hidden_size, input_size))
-    K_W_x = forward_layer.get_weights()[0].T  # This matrix is a concatenation of W[ifco] in Keras
-    # Set up W_i
-    W_x[0:] = K_W_x[0 * hidden_size:][:hidden_size]
-    # Set up W_o
-    W_x[1:] = K_W_x[3 * hidden_size:][:hidden_size]
-    # Set up W_f
-    W_x[2:] = K_W_x[1 * hidden_size:][:hidden_size]
-    # Set up W_c
-    W_x[3:] = K_W_x[2 * hidden_size:][:hidden_size]
-
-    # Extract the forward transformation matrix used to adjust hidden state
-    W_h = np.empty(shape=(4, hidden_size, hidden_size))
-    K_W_h = forward_layer.get_weights()[1].T  # This matrix is a concatenation of R[ifco] in Keras
-    # Set up W_i
-    W_h[0:] = K_W_h[0 * hidden_size:][:hidden_size]
-    # Set up W_o
-    W_h[1:] = K_W_h[3 * hidden_size:][:hidden_size]
-    # Set up W_f
-    W_h[2:] = K_W_h[1 * hidden_size:][:hidden_size]
-    # Set up W_c
-    W_h[3:] = K_W_h[2 * hidden_size:][:hidden_size]
-
-    # Bias vectors of forward layer
-    b = None
-    if forward_layer.use_bias:
-        b = np.zeros(shape=(8, hidden_size))
-        keras_b = forward_layer.get_weights()[2]  # This matrix is a concatenation of B[ifco] in Keras
-        # Set up B_i
-        b[0] = keras_b[0 * hidden_size:][:hidden_size]
-        # Set up B_o
-        b[1] = keras_b[3 * hidden_size:][:hidden_size]
-        # Set up B_f
-        b[2] = keras_b[1 * hidden_size:][:hidden_size]
-        # Set up B_c
-        b[3] = keras_b[2 * hidden_size:][:hidden_size]
-
-    # Extract the backward transformation matrix used to adjust input features. Note that the weight format for the
-    # backward layer is identical to that of the forward layer.
-    W_x_back = np.empty(shape=(4, hidden_size, input_size))
-    keras_W_x = backward_layer.get_weights()[0].T
-    W_x_back[0:] = keras_W_x[0 * hidden_size:][:hidden_size]
-    W_x_back[1:] = keras_W_x[3 * hidden_size:][:hidden_size]
-    W_x_back[2:] = keras_W_x[1 * hidden_size:][:hidden_size]
-    W_x_back[3:] = keras_W_x[2 * hidden_size:][:hidden_size]
-
-    # Extract the backward transformation matrix used to adjust hidden state
-    W_h_back = np.empty(shape=(4, hidden_size, hidden_size))
-    keras_W_h = backward_layer.get_weights()[1].T
-    W_h_back[0:] = keras_W_h[0 * hidden_size:][:hidden_size]
-    W_h_back[1:] = keras_W_h[3 * hidden_size:][:hidden_size]
-    W_h_back[2:] = keras_W_h[1 * hidden_size:][:hidden_size]
-    W_h_back[3:] = keras_W_h[2 * hidden_size:][:hidden_size]
-
-    # Bias vectors of backward layer
-    b_back = None
-    if backward_layer.use_bias:
-        b_back = np.zeros(shape=(8, hidden_size))
-        keras_b = backward_layer.get_weights()[2]
-        b_back[0] = keras_b[0 * hidden_size:][:hidden_size]
-        b_back[1] = keras_b[3 * hidden_size:][:hidden_size]
-        b_back[2] = keras_b[1 * hidden_size:][:hidden_size]
-        b_back[3] = keras_b[2 * hidden_size:][:hidden_size]
+    # Extract the parameters for the forward and backward layers
+    W_x, W_h, b = lstm.extract_params(forward_layer, hidden_size, input_size)
+    W_x_back, W_h_back, b_back = lstm.extract_params(backward_layer, hidden_size, input_size)
 
     if (b is None and b_back is not None) or (b is not None and b_back is None):
         raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')
