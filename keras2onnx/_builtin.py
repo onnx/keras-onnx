@@ -20,6 +20,7 @@ class TYPES:
     # tf-node types:
     Identity = 'Identity'
     Const = 'Const'
+    AddN = 'AddN'
     Any = 'Any'
     All = 'All'
     BatchMatMul = 'BatchMatMul'
@@ -168,6 +169,16 @@ def default_convert(scope, operator, container):
 @converter_func(TYPES.Identity)
 def convert_tf_identity(scope, operator, container):
     default_convert(scope, operator, container)
+
+
+@converter_func(TYPES.AddN)
+def convert_tf_addn(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output("apply_add",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name + '_add')
 
 
 @converter_func(TYPES.BatchToSpaceND)
