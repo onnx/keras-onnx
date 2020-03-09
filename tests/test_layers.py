@@ -97,6 +97,21 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
 
+    def test_tf_addn(self):
+        input1 = Input(shape=(5, 3, 4), dtype=tf.float32)
+        input2 = Input(shape=(5, 3, 4), dtype=tf.float32)
+        added = Lambda(tf.math.add_n)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+
+        onnx_model = keras2onnx.convert_keras(model, 'tf_add_n')
+        batch_data1_shape = (2, 5, 3, 4)
+        batch_data2_shape = (2, 5, 3, 4)
+        data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+        data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+        expected = model.predict([data1, data2])
+        self.assertTrue(
+            run_onnx_runtime('tf_add_n', onnx_model, [data1, data2], expected, self.model_files))
+
     def test_tf_conv(self):
         model = Sequential()
         k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
