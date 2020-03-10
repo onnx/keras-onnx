@@ -10,9 +10,9 @@
 The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
 Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). keras2onnx converter development was moved into an [independent repository](https://github.com/onnx/keras-onnx) to support more kinds of Keras models and reduce the complexity of mixing multiple converters.
 
-All Keras layers have been supported for conversion using keras2onnx since **ONNX opset 7**. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded directly into the source tree to avoid version conflicts and installation complexity.
+Most of the common Keras layers have been supported for conversion using keras2onnx. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) or [tf.keras docs](https://www.tensorflow.org/api_docs/python/tf/keras/layers) for details on Keras layers.
 
-Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
+Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) which wrap its call on keras2onnx to convert the Keras models. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset number for your WinML version.
 
 keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x/2.0/2.1**  (CI build). It does not support **Python 2.x**.
 
