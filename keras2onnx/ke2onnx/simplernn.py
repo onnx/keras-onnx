@@ -8,18 +8,39 @@ from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
 
+def extract_input_shape(op):
+    """Returns the input shape for a RNN class.
+    """
+    input_shape = op.get_input_shape_at(0)
+    if isinstance(input_shape, list):
+        input_shape = input_shape[0]
+    return input_shape
+
+def extract_params(op, hidden_size):
+    """Returns a tuple of the SimpleRNN parameters, and converts them into the format for ONNX.
+    """
+    params = op.get_weights()
+
+    W = params[0].T
+    R = params[1].T
+
+    B = None
+    if op.use_bias:
+        B = np.zeros((2, hidden_size), dtype=np.float32)
+        B[0] = params[2]
+
+    return W, R, B
+
 
 def convert_keras_simple_rnn(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    seq_length = input_shape[-2]
+    _, seq_length, input_size = extract_input_shape(op)
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
+
+    W, R, B = extract_params(op, hidden_size)
 
     attrs = {}
     rnn_input_names = []
@@ -30,18 +51,15 @@ def convert_keras_simple_rnn(scope, operator, container):
     rnn_input_names.append(rnn_x_name)
 
     tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    W = op.get_weights()[0].T
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, input_size], W.flatten())
     rnn_input_names.append(tensor_w_name)
 
     tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    R = op.get_weights()[1].T
     container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, hidden_size], R.flatten())
     rnn_input_names.append(tensor_r_name)
 
     if op.use_bias:
         tensor_b_name = scope.get_unique_variable_name('tensor_b')
-        B = np.concatenate([op.get_weights()[2], np.zeros(hidden_size)])
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 2 * hidden_size], B.flatten())
         rnn_input_names.append(tensor_b_name)
     else:

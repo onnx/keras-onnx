@@ -7,15 +7,27 @@ import numpy as np
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
+from . import simplernn
+
+
+def extract_params(op):
+    """Returns a tuple of the GRU paramters, and converts them into the format for ONNX.
+    """
+    params = op.get_weights()
+    W = params[0].T
+    R = params[1].T
+
+    B = None
+    if op.use_bias:
+        B = params[2]
+
+    return W, R, B
 
 
 def convert_keras_gru(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
     output_seq = op.return_sequences
     output_state = op.return_state
     reverse_input = op.go_backwards
@@ -27,20 +39,19 @@ def convert_keras_gru(scope, operator, container):
     apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
     gru_input_names.append(gru_x_name)
 
+    W, R, B = extract_params(op)
+
     tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    W = op.get_weights()[0].T
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
                               [1, 3 * hidden_size, input_size], W.flatten())
     gru_input_names.append(tensor_w_name)
 
     tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    R = op.get_weights()[1].T
     container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
                               [1, 3 * hidden_size, hidden_size], R.flatten())
     gru_input_names.append(tensor_r_name)
 
-    B = op.get_weights()[2]
-    if op.use_bias and len(B) > 0:
+    if B is not None and len(B) > 0:
         tensor_b_name = scope.get_unique_variable_name('tensor_b')
         if B.size == 3 * hidden_size:
             B = np.concatenate([B, np.zeros(3 * hidden_size)])
