@@ -23,14 +23,14 @@ jobs:
 
       Python36-tf1150:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         KERAS: keras==2.2.5
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python37-tf200:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
+        python.version: '3.8'
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
         INSTALL_ORT:
@@ -50,7 +50,7 @@ jobs:
   - script: |
       python -m pip install --upgrade pip
       conda config --set always_yes yes --set changeps1 no
-      pip install $(ONNX_PATH)
+      $(ONNX_PATH)
       pip install h5py==2.9.0
       pip install $(TENSORFLOW_PATH)
       pip install $(KERAS)

@@ -17,7 +17,7 @@ jobs:
       # No python 2.x since tf2onnx does not support it
       Python35:
         python.version: '3.5'
-        ONNX_PATH: onnx==1.2.3
+        ONNX_PATH: pip install onnx==1.2.3
         INSTALL_KERAS: pip install keras==2.1.6
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
@@ -27,7 +27,7 @@ jobs:
 
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS: pip install keras==2.2.4
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
@@ -36,8 +36,8 @@ jobs:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python37:
-        python.version: '3.7.3'
-        ONNX_PATH: onnx==1.6.0
+        python.version: '3.8.2'
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS: pip install keras
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
@@ -47,7 +47,7 @@ jobs:
 
       Python37-official-ort:
         python.version: '3.7.3'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS: pip install keras
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.15.0
@@ -56,8 +56,8 @@ jobs:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python37-tf2:
-        python.version: '3.7.3'
-        ONNX_PATH: onnx==1.6.0
+        python.version: '3.8.2'
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS:
         UNINSTALL_KERAS: pip uninstall keras -y
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
@@ -80,7 +80,7 @@ jobs:
   - script: |
       python -m pip install --upgrade pip
       conda config --set always_yes yes --set changeps1 no
-      pip install $(ONNX_PATH)
+      $(ONNX_PATH)
       pip install h5py==2.9.0
       $(INSTALL_TENSORFLOW)
       $(INSTALL_KERAS)
