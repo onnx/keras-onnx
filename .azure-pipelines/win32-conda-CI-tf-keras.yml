@@ -22,13 +22,13 @@ jobs:
 
       Python36:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         TENSORFLOW_PATH: tensorflow==1.14.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python37:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         TENSORFLOW_PATH: tensorflow-cpu
         INSTALL_ORT:
 
@@ -50,7 +50,7 @@ jobs:
       call activate py$(python.version)
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
-      pip install %ONNX_PATH%
+      %ONNX_PATH%
       pip install h5py==2.9.0
       pip install %TENSORFLOW_PATH%
       git clone https://github.com/microsoft/onnxconverter-common
