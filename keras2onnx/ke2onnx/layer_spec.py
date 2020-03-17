@@ -30,6 +30,8 @@ def _conv_layer_spec_outputs(layer, node):
     if type(layer) == _layer.DepthwiseConv2D:
         ri = node.name.rindex('/')
         return node.name[:ri + 1] + 'BiasAdd'
+    elif type(layer) == _layer.Conv1D:
+        return node.name + '/Squeeze'
 
     activation_map = {
         keras.activations.linear: '',
@@ -61,6 +63,7 @@ _keras_layer_spec = {
     _layer.AveragePooling1D: (["{}/AvgPool"], [_default_layer_name_extractor]),
     _layer.AveragePooling2D: (["{}/AvgPool"], [_default_layer_name_extractor]),
     _layer.AveragePooling3D: (["{}/AvgPool"], [_default_layer_name_extractor]),
+    _layer.Conv1D: (["{}/conv1d"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.DepthwiseConv2D: (["{}/depthwise"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_layer_name_extractor]),
