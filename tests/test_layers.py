@@ -1328,7 +1328,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             input_dim_1 = 10
             input_dim_2 = 20
             input_dim_3 = 30
-
             model = Sequential()
             model.add(InputLayer(input_shape=(input_dim_1,)))
             model.add(BatchNormalization(axis=axis))
@@ -1341,6 +1340,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             model = Sequential()
             model.add(InputLayer(input_shape=(input_dim_1, input_dim_2)))
+            if axis == -1:
+                model.add(Conv1D(32, strides=(2,), kernel_size=3, data_format='channels_last'))
             model.add(BatchNormalization(axis=axis))
             model.add(Dense(5))
             data = np.random.randn(batch_size, input_dim_1, input_dim_2).astype(np.float32)
@@ -1351,6 +1352,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             model = Sequential()
             model.add(InputLayer(input_shape=(input_dim_1, input_dim_2, input_dim_3)))
+            if axis == -1:
+                model.add(Conv2D(32, strides=(2, 2), kernel_size=3, data_format='channels_last'))
             model.add(BatchNormalization(axis=axis))
             model.add(Dense(5))
             data = np.random.randn(batch_size, input_dim_1, input_dim_2, input_dim_3).astype(np.float32)
