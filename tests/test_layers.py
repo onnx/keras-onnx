@@ -1328,6 +1328,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             input_dim_1 = 10
             input_dim_2 = 20
             input_dim_3 = 30
+
             model = Sequential()
             model.add(InputLayer(input_shape=(input_dim_1,)))
             model.add(BatchNormalization(axis=axis))
