@@ -715,6 +715,28 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
     return topology
 
 
+def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, keras_node_dict):
+    top_level = topo.declare_scope('__root')
+    input_tensors = [graph.get_tensor_by_name(n_) for n_ in input_names]
+    output_tensors = [graph.get_tensor_by_name(n_) for n_ in output_names]
+
+    for ts_i_ in input_tensors:
+        var_type = _adjust_input_batch_size(infer_variable_type(ts_i_, target_opset))
+        str_value = ts_i_.name
+        top_level.get_local_variable_or_declare_one(str_value, var_type)
+        topo.raw_model.add_input_name(str_value)
+
+    for ts_o_ in output_tensors:
+        var_type = _adjust_input_batch_size(infer_variable_type(ts_o_, target_opset))
+        str_value = ts_o_.name
+        top_level.get_local_variable_or_declare_one(str_value, var_type)
+        topo.raw_model.add_output_name(str_value)
+
+    return _parse_graph_core_v2(
+        graph, keras_node_dict, topo, top_level, output_names
+    )
+
+
 def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
     # type: (Topology, tf.Graph, int, [], []) -> Topology
     """
