@@ -13,7 +13,6 @@ from .proto import keras
 from .proto.tfcompat import normalize_tensor_shape
 from .ke2onnx import keras_layer_spec
 from ._builtin import TYPES, is_placeholder_node, tsname_to_node
-from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
 
 def infer_variable_type(tensor, opset, inbound_node_shape=None):
@@ -208,6 +207,7 @@ def build_layer_outputs(model, graph, outputs):
 def extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names):
     from tensorflow.python.keras.saving import saving_utils as _saving_utils
     from tensorflow.python.util import object_identity
+    from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
     function = _saving_utils.trace_model_call(model)
     concrete_func = function.get_concrete_function()
@@ -257,6 +257,7 @@ def build_layer_output_from_model(model, output_dict, input_names, output_names)
         tf.compat.v1.enable_tensor_equality()  # re-enable tensor tensor equality for subclassing model.
         return extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names), True
     else:
+        from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
         input_tensor = [n for n in model.inputs.values()] if isinstance(model.inputs, dict) else model.inputs
         input_names.extend([n.name for n in input_tensor])
         output_names.extend([n.name for n in model.outputs])
