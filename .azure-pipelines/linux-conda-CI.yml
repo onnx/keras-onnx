@@ -25,14 +25,14 @@ jobs:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         KERAS: keras==2.2.5
-        TENSORFLOW_PATH: tensorflow==1.14.0
+        TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python37-tf200:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
-        TENSORFLOW_PATH: tensorflow==1.15.0
+        TENSORFLOW_PATH: tensorflow==2.0.0
         INSTALL_ORT:
 
     maxParallel: 3

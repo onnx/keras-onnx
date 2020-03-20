@@ -204,24 +204,37 @@ def build_layer_outputs(model, graph, outputs):
     return output_dict
 
 
-def extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names):
+TF_GRAPH_OPTIMIZATION = False
+
+
+def extract_outputs_from_subclassing_model(model, output_dict, output_names):
+    from tensorflow.core.protobuf import config_pb2
     from tensorflow.python.keras.saving import saving_utils as _saving_utils
-    from tensorflow.python.util import object_identity
+    from tensorflow.lite.python.util import run_graph_optimizations as _run_graph_optimizations
     from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
     function = _saving_utils.trace_model_call(model)
     concrete_func = function.get_concrete_function()
     output_names.extend([ts_.name for ts_ in concrete_func.outputs])
     output_dict.update(build_layer_outputs(model, concrete_func.graph, concrete_func.outputs))
-    graph_def, converted_input_indices = _convert_to_constants(concrete_func.graph,
-                                                               concrete_func.graph.variables, concrete_func.inputs,
-                                                               concrete_func.outputs, lower_control_flow=True)
-    input_tensors = concrete_func.graph.internal_captures
-    converted_inputs = object_identity.ObjectIdentitySet(
-        [input_tensors[index] for index in converted_input_indices])
-    input_names.extend([
-        tensor.name for tensor in concrete_func.inputs if tensor not in converted_inputs])
-
+    frozen_func = _convert_to_constants(
+        concrete_func, lower_control_flow=True)
+    graph_def = frozen_func.graph.as_graph_def()
+    if TF_GRAPH_OPTIMIZATION:
+        input_tensors = [
+            tensor for tensor in frozen_func.inputs
+            if tensor.dtype != tf.dtypes.resource
+        ]
+        output_tensors = frozen_func.outputs
+        config = config_pb2.ConfigProto()
+        rewrite_options = config.graph_options.rewrite_options
+        rewrite_options.constant_folding = rewrite_options.ON
+        graph_def = _run_graph_optimizations(
+            graph_def,
+            input_tensors,
+            output_tensors,
+            config=config,
+            graph=frozen_func.graph)
     with tf.Graph().as_default() as tf_graph:
         tf.import_graph_def(graph_def, name='')
 
@@ -246,42 +259,15 @@ def extract_outputs_from_inbound_nodes(model):
     return output_dict
 
 
-def build_layer_output_from_model(model, output_dict, input_names, output_names):
-    model_trace = True
+def build_layer_output_from_model(model, output_dict, output_names):
     if is_subclassing(model):
-        model_trace = True
-    elif (not model.inputs) or (not model.outputs):
-        model_trace = True
-
-    if model_trace:
         tf.compat.v1.enable_tensor_equality()  # re-enable tensor tensor equality for subclassing model.
-        return extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names), True
+        return extract_outputs_from_subclassing_model(model, output_dict, output_names)
     else:
-        from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
-        input_tensor = [n for n in model.inputs.values()] if isinstance(model.inputs, dict) else model.inputs
-        input_names.extend([n.name for n in input_tensor])
+        graph = model.outputs[0].graph
         output_names.extend([n.name for n in model.outputs])
-
-        dest_nodes = [tsname_to_node(ts_.name) for ts_ in model.outputs]
-        tf_graph0 = model.outputs[0].graph
-        clean_graph_def = tf.compat.v1.graph_util.extract_sub_graph(tf_graph0.as_graph_def(), dest_nodes)
-
-        with tf.Graph().as_default() as tf_graph1:
-            tf.import_graph_def(clean_graph_def, name='')
-
-        from .proto.tfcompat import dump_graph_into_tensorboard
-        dump_graph_into_tensorboard(tf_graph1)
-
-        setattr(tf_graph1, 'external_captures', tf_graph0.external_captures)
-        setattr(tf_graph1, 'captures', tf_graph0.captures)
-        graph_def, converted_input_indices = _convert_to_constants(tf_graph1,
-                                                                   model.variables, input_tensor,
-                                                                   model.outputs, lower_control_flow=True)
-        with tf.Graph().as_default() as tf_graph:
-            tf.import_graph_def(graph_def, name='')
-
         output_dict.update(extract_outputs_from_inbound_nodes(model))
-        return tf_graph, False
+        return graph
 
 
 def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
