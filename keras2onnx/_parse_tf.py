@@ -13,6 +13,7 @@ from .proto import keras
 from .proto.tfcompat import normalize_tensor_shape
 from .ke2onnx import keras_layer_spec
 from ._builtin import TYPES, is_placeholder_node, tsname_to_node
+from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
 
 def infer_variable_type(tensor, opset, inbound_node_shape=None):
@@ -207,14 +208,14 @@ def build_layer_outputs(model, graph, outputs):
 def extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names):
     from tensorflow.python.keras.saving import saving_utils as _saving_utils
     from tensorflow.python.util import object_identity
-    from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
     function = _saving_utils.trace_model_call(model)
     concrete_func = function.get_concrete_function()
     output_names.extend([ts_.name for ts_ in concrete_func.outputs])
     output_dict.update(build_layer_outputs(model, concrete_func.graph, concrete_func.outputs))
-    graph_def, converted_input_indices = _convert_to_constants(
-        concrete_func, lower_control_flow=True)
+    graph_def, converted_input_indices = _convert_to_constants(concrete_func.graph,
+                                                               concrete_func.graph.variables, concrete_func.inputs,
+                                                               concrete_func.outputs, lower_control_flow=True)
     input_tensors = concrete_func.graph.internal_captures
     converted_inputs = object_identity.ObjectIdentitySet(
         [input_tensors[index] for index in converted_input_indices])
@@ -251,16 +252,22 @@ def build_layer_output_from_model(model, output_dict, input_names, output_names)
         model_trace = True
     elif (not model.inputs) or (not model.outputs):
         model_trace = True
-    elif not model.outputs[0].graph.outputs:
-        model_trace = True
 
     if model_trace:
         tf.compat.v1.enable_tensor_equality()  # re-enable tensor tensor equality for subclassing model.
         return extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names), True
     else:
+        input_tensor = [n for n in model.inputs.values()] if isinstance(model.inputs, dict) else model.inputs
+        input_names.extend([n.name for n in input_tensor])
         output_names.extend([n.name for n in model.outputs])
+        graph_def, converted_input_indices = _convert_to_constants(model.outputs[0].graph,
+                                                                   model.variables, input_tensor,
+                                                                   model.outputs, lower_control_flow=True)
+        with tf.Graph().as_default() as tf_graph:
+            tf.import_graph_def(graph_def, name='')
+
         output_dict.update(extract_outputs_from_inbound_nodes(model))
-        return model.outputs[0].graph, False
+        return tf_graph, False
 
 
 def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):

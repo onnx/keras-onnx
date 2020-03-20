@@ -69,7 +69,7 @@ def disable_lower_using_switch_merge(graph_def):
   return output_graph_def
 
 
-def _run_inline_graph_optimization(func, lower_control_flow):
+def _run_inline_graph_optimization(tf_graph, inputs, outputs, lower_control_flow):
   """Apply function inline optimization to the graph.
 
   Returns the GraphDef after Grappler's function inlining optimization is
@@ -83,7 +83,7 @@ def _run_inline_graph_optimization(func, lower_control_flow):
   Returns:
     GraphDef
   """
-  graph_def = func.graph.as_graph_def()
+  graph_def = tf_graph.as_graph_def()
   if not lower_control_flow:
     graph_def = disable_lower_using_switch_merge(graph_def)
 
@@ -98,7 +98,7 @@ def _run_inline_graph_optimization(func, lower_control_flow):
     if "api_implements" in function.attr:
       del function.attr["api_implements"]
 
-  meta_graph = export_meta_graph(graph_def=graph_def, graph=func.graph)
+  meta_graph = export_meta_graph(graph_def=graph_def, graph=tf_graph)
 
   # Clear the initializer_name for the variables collections, since they are not
   # needed after saved to saved_model.
@@ -115,7 +115,7 @@ def _run_inline_graph_optimization(func, lower_control_flow):
 
   # Add a collection 'train_op' so that Grappler knows the outputs.
   fetch_collection = meta_graph_pb2.CollectionDef()
-  for array in func.inputs + func.outputs:
+  for array in inputs + outputs:
     fetch_collection.node_list.value.append(array.name)
   meta_graph.collection_def["train_op"].CopyFrom(fetch_collection)
 
@@ -177,7 +177,7 @@ def _get_node_defs_list(graph_def):
   return node_defs
 
 
-def _get_tensor_data(func):
+def _get_tensor_data(tf_graph, variables):
   """Gets the tensor data for all Placeholders in the model.
 
   Returns a dictionary that maps the tensor name to a dictionary containing:
@@ -193,14 +193,14 @@ def _get_tensor_data(func):
   """
   tensor_data = {}
   map_index_to_variable = {}
-  for var in func.graph.variables:
-    for idx, captured_input in enumerate(func.captured_inputs):
+  for var in variables:
+    for idx, captured_input in enumerate(tf_graph.external_captures):
       if var.handle is captured_input:  # pylint: disable=protected-access
         map_index_to_variable[idx] = var
         break
 
   # Iterates through all captures which are represented as Placeholders.
-  for idx, (val_tensor, name_tensor) in enumerate(func.graph.captures):
+  for idx, (val_tensor, name_tensor) in enumerate(tf_graph.captures):
     tensor_name = _get_tensor_name(name_tensor.name)
     is_variable = idx in map_index_to_variable
     if is_variable:
@@ -404,7 +404,7 @@ def _construct_concrete_function(func, output_graph_def,
   return new_func
 
 
-def convert_variables_to_constants_v2(func, lower_control_flow=True):
+def convert_variables_to_constants_v2(tf_graph, variables, inputs, outputs, lower_control_flow=True):
   """Replaces all the variables in a graph with constants of the same values.
 
   TensorFlow 2.0 function for converting all Variable ops into Const ops holding
@@ -425,7 +425,7 @@ def convert_variables_to_constants_v2(func, lower_control_flow=True):
     ConcreteFunction containing a simplified version of the original.
   """
   # Inline the graph in order to remove functions when possible.
-  graph_def = _run_inline_graph_optimization(func, lower_control_flow)
+  graph_def = _run_inline_graph_optimization(tf_graph, inputs, outputs, lower_control_flow)
 
   # Gets list of all node defs include those in the library.
   node_defs = _get_node_defs_list(graph_def)
@@ -434,7 +434,7 @@ def convert_variables_to_constants_v2(func, lower_control_flow=True):
   name_to_node = {_get_tensor_name(node.name): node for node in node_defs}
 
   # Get mapping from node name to variable value.
-  tensor_data = _get_tensor_data(func)
+  tensor_data = _get_tensor_data(tf_graph, variables)
 
   # Get mapping from function name to argument types.
   function_data = _get_control_flow_function_data(
