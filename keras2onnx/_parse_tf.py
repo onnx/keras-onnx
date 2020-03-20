@@ -247,7 +247,7 @@ def extract_outputs_from_inbound_nodes(model):
 
 
 def build_layer_output_from_model(model, output_dict, input_names, output_names):
-    model_trace = False
+    model_trace = True
     if is_subclassing(model):
         model_trace = True
     elif (not model.inputs) or (not model.outputs):
@@ -261,7 +261,20 @@ def build_layer_output_from_model(model, output_dict, input_names, output_names)
         input_tensor = [n for n in model.inputs.values()] if isinstance(model.inputs, dict) else model.inputs
         input_names.extend([n.name for n in input_tensor])
         output_names.extend([n.name for n in model.outputs])
-        graph_def, converted_input_indices = _convert_to_constants(model.outputs[0].graph,
+
+        dest_nodes = [tsname_to_node(ts_.name) for ts_ in model.outputs]
+        tf_graph0 = model.outputs[0].graph
+        clean_graph_def = tf.compat.v1.graph_util.extract_sub_graph(tf_graph0.as_graph_def(), dest_nodes)
+
+        with tf.Graph().as_default() as tf_graph1:
+            tf.import_graph_def(clean_graph_def, name='')
+
+        from .proto.tfcompat import dump_graph_into_tensorboard
+        dump_graph_into_tensorboard(tf_graph1)
+
+        setattr(tf_graph1, 'external_captures', tf_graph0.external_captures)
+        setattr(tf_graph1, 'captures', tf_graph0.captures)
+        graph_def, converted_input_indices = _convert_to_constants(tf_graph1,
                                                                    model.variables, input_tensor,
                                                                    model.outputs, lower_control_flow=True)
         with tf.Graph().as_default() as tf_graph:

@@ -56,6 +56,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
             tf_graph = model.outputs[0].graph
             k2o_logger().warning("Multi-backend Keras over tensorflow 2.x is not supported any more.")
         else:
+            if model.outputs:
+                dump_graph_into_tensorboard(model.outputs[0].graph)
             tf_graph, modeless = build_layer_output_from_model(model, output_dict, input_names, output_names)
     else:
         tf_graph = keras.backend.get_session().graph
