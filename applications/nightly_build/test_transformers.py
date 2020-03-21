@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 import json
 from os.path import dirname, abspath
+
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 from keras2onnx.proto import is_tensorflow_older_than
@@ -18,7 +19,7 @@ if os.environ.get('ENABLE_TRANSFORMER_TEST', '0') != '0':
     enable_transformer_test = True
 
 
-@unittest.skipIf(is_tensorflow_older_than('2.1.0') or not enable_transformer_test,
+@unittest.skipIf(not enable_transformer_test,
                  "Need enable transformer test before Transformers conversion.")
 class TestTransformers(unittest.TestCase):
 
@@ -38,6 +39,18 @@ class TestTransformers(unittest.TestCase):
         inputs_onnx = {k_: v_.numpy() for k_, v_ in inputs.items()}
         return text, inputs, inputs_onnx
 
+    def test_3layer_gpt2(self):
+        from transformers import GPT2Config, TFGPT2Model, BertTokenizer
+        keras2onnx.proto.keras.backend.set_learning_phase(0)
+        config = GPT2Config(n_layer=3)
+        model = TFGPT2Model(config)
+        tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
+        inputs = tokenizer.encode_plus(text, add_special_tokens=True, return_tensors='tf')
+        predictions = model.predict(inputs)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+
     def test_TFBertModel(self):
         from transformers import BertTokenizer, TFBertModel
         pretrained_weights = 'bert-base-uncased'
@@ -56,7 +69,9 @@ class TestTransformers(unittest.TestCase):
         model = TFBertForPreTraining.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFBertForMaskedLM(self):
         from transformers import BertTokenizer, TFBertForMaskedLM
@@ -66,7 +81,9 @@ class TestTransformers(unittest.TestCase):
         model = TFBertForMaskedLM.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFBertForNextSentencePrediction(self):
         from transformers import BertTokenizer, TFBertForNextSentencePrediction
@@ -146,7 +163,9 @@ class TestTransformers(unittest.TestCase):
         model = TFXLMModel.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFXLMWithLMHeadModel(self):
         from transformers import XLMTokenizer, TFXLMWithLMHeadModel
@@ -156,7 +175,9 @@ class TestTransformers(unittest.TestCase):
         model = TFXLMWithLMHeadModel.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFXLMForSequenceClassification(self):
         from transformers import XLMTokenizer, TFXLMForSequenceClassification
@@ -196,7 +217,9 @@ class TestTransformers(unittest.TestCase):
         model = TFDistilBertForMaskedLM.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFDistilBertForSequenceClassification(self):
         from transformers import DistilBertTokenizer, TFDistilBertForSequenceClassification
@@ -246,7 +269,9 @@ class TestTransformers(unittest.TestCase):
         model = TFRobertaForMaskedLM.from_pretrained(pretrained_weights)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2, atol=1.e-4))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFRobertaForSequenceClassification(self):
         from transformers import RobertaTokenizer, TFRobertaForSequenceClassification

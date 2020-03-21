@@ -216,6 +216,8 @@ if not is_keras_older_than('2.2.0'):
 
 if is_tf_keras and is_tf2:
     keras_layer_to_operator.update({
+        _layer.recurrent_v2.GRU: convert_keras_gru,
+        _layer.recurrent_v2.LSTM: convert_keras_lstm,
         _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
 
