@@ -57,7 +57,7 @@ def convert_bidirectional(scope, operator, container):
     lstm__type = 'LSTM'
     lstm_input_names = []
     lstm_output_names = []
-    lstm_attrs = {}
+    attrs = {}
 
     # Reshape Keras input format into ONNX input format
     lstm_x_name = scope.get_unique_variable_name(operator.full_name + '_X')
@@ -159,32 +159,14 @@ def convert_bidirectional(scope, operator, container):
     # P (optional) : No peep hole in keras.
     lstm_input_names.append('')
 
-    activation_types = []
-    alphas = []
-    betas = []
-    extracted_activations = [
-        extract_recurrent_activation(forward_layer.recurrent_activation),
-        extract_recurrent_activation(forward_layer.activation),
-        extract_recurrent_activation(forward_layer.activation),
-        extract_recurrent_activation(backward_layer.recurrent_activation),
-        extract_recurrent_activation(backward_layer.activation),
-        extract_recurrent_activation(backward_layer.activation)]
+    # Extract the relevant activation information
+    forward_attrs = lstm.extract_activations(forward_layer)
+    backward_attrs = lstm.extract_activations(backward_layer)
+    for k in forward_attrs.keys() | backward_attrs.keys():
+        attrs[k] = forward_attrs.get(k, []) + backward_attrs.get(k, [])
 
-    for (activation_type, alpha, beta) in extracted_activations:
-        activation_types.append(activation_type.encode('utf-8'))
-        if alpha is not None:
-            alphas.append(alpha)
-        if beta is not None:
-            betas.append(beta)
-
-    lstm_attrs['activations'] = activation_types
-    if alphas:
-        lstm_attrs['activation_alpha'] = alphas
-    if betas:
-        lstm_attrs['activation_beta'] = betas
-
-    lstm_attrs['direction'] = 'bidirectional'
-    lstm_attrs['hidden_size'] = hidden_size
+    attrs['direction'] = 'bidirectional'
+    attrs['hidden_size'] = hidden_size
 
     if hasattr(op, 'merge_mode'):
         if op.merge_mode not in ['concat', None]:
@@ -212,7 +194,7 @@ def convert_bidirectional(scope, operator, container):
                               lstm_output_names,
                               name=operator.raw_operator.name,
                               output_seq=output_seq,
-                              **lstm_attrs)
+                              **attrs)
 
     if output_seq:
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
