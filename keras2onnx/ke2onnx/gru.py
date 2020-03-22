@@ -37,13 +37,14 @@ def convert_keras_gru(scope, operator, container):
 
     input_name = operator.inputs[0].full_name
     get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    # Inputs
     gru_x_name = get_name('_X')
     tensor_w_name = get_name('_W')
     tensor_r_name = get_name('_R')
-    tensor_b_name = get_name('_B')
-    initial_h_name = get_name('_initial_h')
-
-    apply_transpose(scope, input_name, gru_x_name, container, perm=[1, 0, 2])
+    tensor_b_name = ''
+    sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
+    initial_h_name = simplernn.build_initial_states(scope, operator, container)
 
     W, R, B = extract_params(op)
     W_shape = [1, 3 * hidden_size, input_size]
@@ -55,24 +56,9 @@ def convert_keras_gru(scope, operator, container):
     if B is not None and len(B) > 0:
         if B.size == 3 * hidden_size:
             B = np.concatenate([B, np.zeros(3 * hidden_size)])
+        tensor_b_name = get_name('_B')
         B_shape = [1, 6 * hidden_size]
         container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B.flatten())
-    else:
-        tensor_b_name = ''
-
-    sequence_lengths = ''
-    uses_masking_layer = len(operator.input_masks) == 1
-    if uses_masking_layer:
-        # Mask using sequence_lens input
-        sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-
-    # inital_h
-    if len(operator.inputs) == 1:
-        initial_h_name = ''
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        input_h_name = operator.inputs[1].full_name
-        apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
 
     attrs.update(simplernn.extract_activations([op.recurrent_activation, op.activation]))
 
@@ -94,8 +80,10 @@ def convert_keras_gru(scope, operator, container):
     gru_y_name = scope.get_unique_variable_name('gru_y')
     gru_h_name = scope.get_unique_variable_name('gru_h')
     gru_output_names = [gru_y_name, gru_h_name]
-    oopb = OnnxOperatorBuilder(container, scope)
 
+    apply_transpose(scope, input_name, gru_x_name, container, perm=[1, 0, 2])
+
+    oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_gru',
                               input_names,
                               gru_output_names,

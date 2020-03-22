@@ -57,20 +57,15 @@ def convert_bidirectional(scope, operator, container):
 
     input_name = operator.inputs[0].full_name
     get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    # Inputs
     lstm_x_name = get_name('_X')
     tensor_w_name = get_name('_W')
     tensor_r_name = get_name('_R')
-    tensor_b_name = get_name('_B')
-
-    # Use sequence lengths to provide support for masking
-    sequence_lengths = ''
-    uses_masking_layer = len(operator.input_masks) == 1
-    if uses_masking_layer:
-        sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-
+    tensor_b_name = ''
+    sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h_name = get_name('_initial_h')
     initial_c_name = get_name('_initial_c')
-
 
     # Extract the parameters for the forward and backward layers
     W_x, W_h, b = lstm.extract_params(forward_layer, hidden_size, input_size)
@@ -90,9 +85,8 @@ def convert_bidirectional(scope, operator, container):
     if b is not None:
         B = np.concatenate([b, b_back]).flatten()
         B_shape = [2, 8 * hidden_size]
+        tensor_b_name = get_name('_B')
         container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B)
-    else:
-        tensor_b_name = ''
 
     # Output variable names
     lstm_y_name = get_name('_Y')

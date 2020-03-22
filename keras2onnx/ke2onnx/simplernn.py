@@ -82,8 +82,13 @@ def extract_activations(fields):
 
 
 def build_sequence_lengths(scope, operator, container):
-    """Uses the masking layer to calculate the sequence lengths.
+    """Uses the masking layer to calculate the sequence lengths. If there is no
+    masking layer, then it returns an empty input for the sequence lengths.
     """
+    # Masking input must be present
+    if len(operator.input_masks) != 1:
+        return ''
+
     input_mask_name = operator.input_masks[0].full_name
     mask_cast = scope.get_unique_operator_name(operator.full_name + '_mask_cast')
     sequence_lengths = scope.get_unique_operator_name(operator.full_name + '_seq_lens')
@@ -91,6 +96,21 @@ def build_sequence_lengths(scope, operator, container):
     apply_cast(scope, input_mask_name, mask_cast, container, to=TensorProto.INT32)
     container.add_node('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1])
     return sequence_lengths
+
+
+def build_initial_states(scope, operator, container):
+    """Reshapes the initial input states. If there are no states present as inputs, then
+    it returns an empty input for the initial hidden states.
+    """
+    # Initial hidden states
+    if len(operator.inputs) == 1:
+        return ''
+
+    # Add a reshape after initial_h, 2d -> 3d
+    input_h_name = operator.inputs[1].full_name
+    initial_h_name = get_name('_initial_h')
+    apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
+    return initial_h_name
 
 
 def convert_keras_simple_rnn(scope, operator, container):
@@ -109,8 +129,8 @@ def convert_keras_simple_rnn(scope, operator, container):
     tensor_w_name = get_name('_W')
     tensor_r_name = get_name('_R')
     tensor_b_name = ''
-    sequence_lengths = ''
-    initial_h_name = ''
+    sequence_lengths = build_sequence_lengths(scope, operator, container)
+    initial_h_name = build_initial_states(scope, operator, container)
 
     W, R, B = extract_params(op, hidden_size)
     W_shape = [1, hidden_size, input_size]
@@ -123,19 +143,6 @@ def convert_keras_simple_rnn(scope, operator, container):
         tensor_b_name = get_name('_B')
         B_shape = [1, 2 * hidden_size]
         container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B.flatten())
-
-    apply_transpose(scope, input_name, rnn_x_name, container, perm=[1, 0, 2])
-
-    uses_masking_layer = len(operator.input_masks) == 1
-    if uses_masking_layer:
-        # Mask using sequence_lens input
-        sequence_lengths = build_sequence_lengths(scope, operator, container)
-
-    # Initial hidden states
-    if len(operator.inputs) != 1:
-        # Add a reshape after initial_h, 2d -> 3d
-        input_h_name = operator.inputs[1].full_name
-        apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
 
     input_names = [
         rnn_x_name,
@@ -163,6 +170,8 @@ def convert_keras_simple_rnn(scope, operator, container):
         rnn_h_name,
     ]
 
+
+    apply_transpose(scope, input_name, rnn_x_name, container, perm=[1, 0, 2])
 
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_rnn',
