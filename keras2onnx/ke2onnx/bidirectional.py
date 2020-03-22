@@ -65,7 +65,10 @@ def convert_bidirectional(scope, operator, container):
 
     # Use sequence lengths to provide support for masking
     uses_masking_layer = len(operator.input_masks) == 1
-    sequence_lengths = get_name('_seq_lens') if uses_masking_layer else ''
+    if uses_masking_layer:
+        sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
+    else:
+        sequence_lengths = ''
 
     initial_h_name = get_name('_initial_h')
     initial_c_name = get_name('_initial_c')
@@ -156,13 +159,6 @@ def convert_bidirectional(scope, operator, container):
                                        [batch_size_tensor],
                                        input_name + '_state_shape_constant_c')
 
-
-    if uses_masking_layer:
-        input_mask_name = operator.input_masks[0].full_name,
-        mask_cast = oopb.apply_cast(input_mask_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
-        oopb.add_node_with_output('ReduceSum',
-                                  mask_cast, sequence_lengths,
-                                  keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
 
     input_names = [
         lstm_x_name,

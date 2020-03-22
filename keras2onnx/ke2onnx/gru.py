@@ -64,7 +64,7 @@ def convert_keras_gru(scope, operator, container):
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
-        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
+        sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
         gru_input_names.append(sequence_lengths)
     else:
         gru_input_names.append('')
@@ -105,11 +105,6 @@ def convert_keras_gru(scope, operator, container):
     gru_h_name = scope.get_unique_variable_name('gru_h')
     gru_output_names = [gru_y_name, gru_h_name]
     oopb = OnnxOperatorBuilder(container, scope)
-
-    if uses_masking_layer:
-        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
-        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
-
 
     oopb.apply_op_with_output('apply_gru',
                               gru_input_names,
