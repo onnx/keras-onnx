@@ -57,36 +57,63 @@ def extract_params(op, hidden_size, input_size):
 
     return W_x, W_h, b
 
-def build_parameters(scope, operator, container):
+def build_parameters(scope, operator, container, bidirectional=False):
     """
     """
     op = operator.raw_operator
-    hidden_size = op.units
     _, seq_length, input_size = simplernn.extract_input_shape(op)
 
     _name = name_func(scope, operator)
 
     tensor_w = _name('W')
     tensor_r = _name('R')
-    tensor_b = _name('B')
+    tensor_b = ''
 
-    # Extract the parameters for the LSTM
-    W_x, W_h, b = extract_params(op, hidden_size, input_size)
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+        hidden_size = forward_layer.units
 
-    W = W_x.flatten()
-    W_shape = [1, 4 * hidden_size, input_size]
+        W_x, W_h, b = extract_params(forward_layer, hidden_size, input_size)
+        W_x_back, W_h_back, b_back = extract_params(backward_layer, hidden_size, input_size)
+
+        W = np.concatenate([W_x, W_x_back]).flatten()
+        W_shape = [2, 4 * hidden_size, input_size]
+
+        R = np.concatenate([W_h, W_h_back]).flatten()
+        R_shape = [2, 4 * hidden_size, hidden_size]
+
+        if (b is None and b_back is not None) or (b is not None and b_back is None):
+            raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward '
+                             'and backward layers.')
+
+        if b is not None:
+            B = np.concatenate([b, b_back]).flatten()
+            B_shape = [2, 8 * hidden_size]
+
+    else:
+        hidden_size = op.units
+
+        W_x, W_h, b = extract_params(op, hidden_size, input_size)
+
+        W = W_x.flatten()
+        W_shape = [1, 4 * hidden_size, input_size]
+
+        R = W_h.flatten()
+        R_shape = [1, 4 * hidden_size, hidden_size]
+
+        if b is not None:
+            B = b.flatten()
+            B_shape = [1, 8 * hidden_size]
+
+    # Create initializers
     container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W)
-
-    R = W_h.flatten()
-    R_shape = [1, 4 * hidden_size, hidden_size]
     container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R)
 
     if b is not None:
-        B = b.flatten()
-        B_shape = [1, 8 * hidden_size]
+        tensor_b = _name('B')
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B)
-    else:
-        tensor_b = ''
+
 
     return tensor_w, tensor_r, tensor_b
 

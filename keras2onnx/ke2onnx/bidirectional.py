@@ -24,45 +24,6 @@ LSTM = keras.layers.LSTM
 TensorProto = onnx_proto.TensorProto
 
 
-def build_parameters(scope, operator, container):
-    """
-    """
-    op = operator.raw_operator
-    forward_layer = op.forward_layer
-    backward_layer = op.backward_layer
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
-    hidden_size = forward_layer.units
-
-    _name = name_func(scope, operator)
-
-    tensor_w = _name('W')
-    tensor_r = _name('R')
-    tensor_b = ''
-
-    # Extract the parameters for the forward and backward layers
-    W_x, W_h, b = lstm.extract_params(forward_layer, hidden_size, input_size)
-    W_x_back, W_h_back, b_back = lstm.extract_params(backward_layer, hidden_size, input_size)
-
-    W = np.concatenate([W_x, W_x_back]).flatten()
-    W_shape = [2, 4 * hidden_size, input_size]
-    container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W)
-
-    R = np.concatenate([W_h, W_h_back]).flatten()
-    R_shape = [2, 4 * hidden_size, hidden_size]
-    container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R)
-
-    if (b is None and b_back is not None) or (b is not None and b_back is None):
-        raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward and backward layers.')
-
-    if b is not None:
-        B = np.concatenate([b, b_back]).flatten()
-        B_shape = [2, 8 * hidden_size]
-        tensor_b = _name('B')
-        container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B)
-
-    return tensor_w, tensor_r, tensor_b
-
-
 def build_initial_states(scope, operator, container):
     """
     """
@@ -297,7 +258,7 @@ def convert_bidirectional(scope, operator, container):
 
     # Inputs
     lstm_x = _name('X')
-    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
+    tensor_w, tensor_r, tensor_b = lstm.build_parameters(scope, operator, container, bidirectional=True)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h, initial_c, seq_len_tensor = build_initial_states(scope, operator, container)
 
