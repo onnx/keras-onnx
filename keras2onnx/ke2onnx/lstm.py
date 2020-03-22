@@ -430,17 +430,22 @@ def _calculate_keras_lstm_output_shapes(operator):
 
 
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
-def convert_keras_lstm(scope, operator, container):
+def convert_keras_lstm(scope, operator, container, bidirectional=False):
     op = operator.raw_operator
     _name = name_func(scope, operator)
+
+    if bidirectional:
+        output_seq = op.forward_layer.return_sequences
+    else:
+        output_seq = op.return_sequences
 
     check_sequence_lengths(operator, container)
 
     # Inputs
     lstm_x = _name('X')
-    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-    initial_h, initial_c = build_initial_states(scope, operator, container)
+    initial_h, initial_c = build_initial_states(scope, operator, container, bidirectional)
 
     input_names = [
         lstm_x,
@@ -454,7 +459,7 @@ def convert_keras_lstm(scope, operator, container):
     ]
 
     # Attributes
-    attrs = build_attributes(scope, operator, container)
+    attrs = build_attributes(scope, operator, container, bidirectional)
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h'), _name('Y_c')]
@@ -468,7 +473,7 @@ def convert_keras_lstm(scope, operator, container):
                               input_names,
                               output_names,
                               name=op.name,
-                              output_seq=op.return_sequences,
+                              output_seq=output_seq,
                               **attrs)
 
-    build_output(scope, operator, container, output_names)
+    build_output(scope, operator, container, output_names, bidirectional)
