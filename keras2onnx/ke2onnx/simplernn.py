@@ -142,13 +142,36 @@ def build_initial_states(scope, operator, container):
     return initial_h
 
 
-def convert_keras_simple_rnn(scope, operator, container):
+def build_output(scope, operator, container, output_names):
+    """Builds the output stages for the RNN.
+    """
+    rnn_y, rnn_h = output_names
+
     op = operator.raw_operator
-    hidden_size = op.units
     _, seq_length, input_size = extract_input_shape(op)
+    hidden_size = op.units
     output_seq = op.return_sequences
     output_state = op.return_state
-    reverse_input = op.go_backwards
+
+    output_name = operator.outputs[0].full_name
+    tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
+
+    if output_seq:
+        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
+        apply_transpose(scope, rnn_y, tranposed_y, container, perm=perm)
+        apply_reshape(scope, tranposed_y, output_name, container,
+                      desired_shape=[-1, seq_length, hidden_size])
+    else:
+        # Here we ingore ONNX RNN's first output because it's useless.
+        apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
+        apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
+
+    if output_state:
+        apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+
+
+def convert_keras_simple_rnn(scope, operator, container):
+    op = operator.raw_operator
 
     _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
 
@@ -169,8 +192,9 @@ def convert_keras_simple_rnn(scope, operator, container):
 
     # Attributes
     attrs = {}
+    reverse_input = op.go_backwards
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+    attrs['hidden_size'] = op.units
 
     if hasattr(op, 'activation'):
         attrs.update(extract_activations([op.activation]))
@@ -188,20 +212,8 @@ def convert_keras_simple_rnn(scope, operator, container):
     oopb.apply_op_with_output('apply_rnn',
                               input_names,
                               output_names,
-                              name=operator.raw_operator.name,
-                              output_seq=output_seq,
+                              name=op.name,
+                              output_seq=op.return_sequences,
                               **attrs)
 
-    # Create operators to adjust ONNX output to meet Keras format
-    if output_seq:
-        permuted_rnn_y = _name('_y_permuted')
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, rnn_y, permuted_rnn_y, container, perm=perm)
-        apply_reshape(scope, permuted_rnn_y, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, seq_length, hidden_size])
-    else:
-        # Here we ingore ONNX RNN's first output because it's useless.
-        apply_reshape(scope, rnn_h, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
-
-    if output_state:
-        apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+    build_output(scope, operator, container, output_names)

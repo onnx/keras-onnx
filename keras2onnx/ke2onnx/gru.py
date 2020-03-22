@@ -105,19 +105,4 @@ def convert_keras_gru(scope, operator, container):
                               reset_after=op.reset_after,
                               **attrs)
 
-    intermediate_result_name = _name('_intermediate_result')
-
-    # Create output-adjusting operators
-    if output_seq:
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, gru_y, intermediate_result_name, container, perm=perm)
-        apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, 0, hidden_size])
-    else:
-        # Here we ignore ONNX GRU's first output because it's useless.
-        apply_transpose(scope, gru_h, intermediate_result_name, container, perm=[1, 0, 2])
-        apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, hidden_size])
-
-    if output_state:
-        apply_reshape(scope, gru_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+    simplernn.build_output(scope, operator, container, output_names)
