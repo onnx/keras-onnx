@@ -155,8 +155,8 @@ def convert_keras_simple_rnn(scope, operator, container):
 
     # We use the collected information to build ONNX's RNN. ONNX RNN's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
-    rnn_y_name = scope.get_unique_variable_name('rnn_y')
-    rnn_h_name = scope.get_unique_variable_name('rnn_h')
+    rnn_y_name = get_name('_y')
+    rnn_h_name = get_name('_h')
 
     output_names = [
         rnn_y_name,
@@ -174,7 +174,7 @@ def convert_keras_simple_rnn(scope, operator, container):
 
     # Create operators to adjust ONNX output to meet Keras format
     if output_seq:
-        permuted_rnn_y_name = scope.get_unique_variable_name('rnn_y_permuted')
+        permuted_rnn_y_name = get_name('_y_permuted')
         perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
         apply_transpose(scope, rnn_y_name, permuted_rnn_y_name, container, perm=perm)
         apply_reshape(scope, permuted_rnn_y_name, operator.outputs[0].full_name, container,
