@@ -55,44 +55,44 @@ def convert_bidirectional(scope, operator, container):
 
     # Declare ONNX LSTM (bidirectional is naturally supported)
     lstm__type = 'LSTM'
-    lstm_input_names = []
-    lstm_output_names = []
+    input_names = []
+    output_names = []
     attrs = {}
 
     # Reshape Keras input format into ONNX input format
     lstm_x_name = scope.get_unique_variable_name(operator.full_name + '_X')
     apply_transpose(scope, operator.inputs[0].full_name, lstm_x_name, container, perm=[1, 0, 2])
-    lstm_input_names.append(lstm_x_name)
+    input_names.append(lstm_x_name)
 
     # Allocate input transformation matrix in ONNX and add its name into LSTM input list
     tensor_w_name = scope.get_unique_variable_name(operator.full_name + '_W')
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
                               [2, 4 * hidden_size, input_size], np.concatenate([W_x, W_x_back]).flatten())
-    lstm_input_names.append(tensor_w_name)
+    input_names.append(tensor_w_name)
 
     # Allocate hidden transformation matrix in ONNX and add its name into LSTM input list
     tensor_r_name = scope.get_unique_variable_name(operator.full_name + '_R')
     container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
                               [2, 4 * hidden_size, hidden_size], np.concatenate([W_h, W_h_back]).flatten())
-    lstm_input_names.append(tensor_r_name)
+    input_names.append(tensor_r_name)
 
     # Add bias vectors at different places in the original LSTM if needed
     if b is not None:
         tensor_b_name = scope.get_unique_variable_name(operator.full_name + '_B')
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [2, 8 * hidden_size],
                                   np.concatenate([b, b_back]).flatten())
-        lstm_input_names.append(tensor_b_name)
+        input_names.append(tensor_b_name)
     else:
-        lstm_input_names.append('')  # the name of a non-existing optional variable is an empty string
+        input_names.append('')  # the name of a non-existing optional variable is an empty string
 
     # sequence_lens, this input is not used when converting Keras Bidirectional.
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
         sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
-        lstm_input_names.append(sequence_lengths)
+        input_names.append(sequence_lengths)
     else:
-        lstm_input_names.append('')
+        input_names.append('')
     oopb = OnnxOperatorBuilder(container, scope)
 
     if container.target_opset < 9:
@@ -101,11 +101,11 @@ def convert_bidirectional(scope, operator, container):
         initial_h_name = scope.get_unique_variable_name(operator.full_name + '_initial_h')
         container.add_initializer(initial_h_name, onnx_proto.TensorProto.FLOAT, state_shape,
                                   np.zeros(shape=state_shape).flatten())
-        lstm_input_names.append(initial_h_name)
+        input_names.append(initial_h_name)
         initial_c_name = scope.get_unique_variable_name(operator.full_name + '_initial_c')
         container.add_initializer(initial_c_name, onnx_proto.TensorProto.FLOAT, state_shape,
                                   np.zeros(shape=state_shape).flatten())
-        lstm_input_names.append(initial_c_name)
+        input_names.append(initial_c_name)
     else:
         input_shape_tensor = oopb.add_node('Shape',
                                            [operator.input_full_names[0]],
@@ -153,11 +153,11 @@ def convert_bidirectional(scope, operator, container):
         state_constant_shape_c = oopb.add_node('ConstantOfShape',
                                                [batch_size_tensor],
                                                operator.inputs[0].full_name + '_state_shape_constant_c')
-        lstm_input_names.append(state_constant_shape_h)
-        lstm_input_names.append(state_constant_shape_c)
+        input_names.append(state_constant_shape_h)
+        input_names.append(state_constant_shape_c)
 
     # P (optional) : No peep hole in keras.
-    lstm_input_names.append('')
+    input_names.append('')
 
     # Extract the relevant activation information
     forward_attrs = lstm.extract_activations(forward_layer)
@@ -180,9 +180,9 @@ def convert_bidirectional(scope, operator, container):
     lstm_y_name = scope.get_unique_variable_name(operator.full_name + '_Y')
     lstm_h_name = scope.get_unique_variable_name(operator.full_name + '_Y_h')
     lstm_c_name = scope.get_unique_variable_name(operator.full_name + '_Y_c')
-    lstm_output_names.append(lstm_y_name)
-    lstm_output_names.append(lstm_h_name)
-    lstm_output_names.append(lstm_c_name)
+    output_names.append(lstm_y_name)
+    output_names.append(lstm_h_name)
+    output_names.append(lstm_c_name)
 
     if uses_masking_layer:
         mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
@@ -190,8 +190,8 @@ def convert_bidirectional(scope, operator, container):
 
     # Create the major node, ONNX LSTM
     oopb.apply_op_with_output('apply_lstm',
-                              lstm_input_names,
-                              lstm_output_names,
+                              input_names,
+                              output_names,
                               name=operator.raw_operator.name,
                               output_seq=output_seq,
                               **attrs)
