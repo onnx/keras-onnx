@@ -7,16 +7,7 @@ import collections
 import numbers
 import numpy as np
 from ..common import cvtfunc, name_func
-from ..common.onnx_ops import (
-    apply_transpose,
-    apply_split,
-    apply_slice,
-    apply_reshape,
-    apply_identity,
-    apply_constant,
-    apply_squeeze,
-    OnnxOperatorBuilder
-)
+from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from . import simplernn, lstm
 
@@ -40,7 +31,6 @@ def _calculate_keras_bidirectional_output_shapes(operator):
 def convert_bidirectional(scope, operator, container):
     op = operator.raw_operator
     forward_layer = op.forward_layer
-    backward_layer = op.backward_layer
 
     lstm.check_sequence_lengths(operator, container)
 
@@ -64,17 +54,7 @@ def convert_bidirectional(scope, operator, container):
     ]
 
     # Attributes
-    attrs = {}
-    attrs['direction'] = 'bidirectional'
-    attrs['hidden_size'] = forward_layer.units
-    attrs.update(simplernn.extract_activations([
-        forward_layer.recurrent_activation,
-        forward_layer.activation,
-        forward_layer.activation,
-        backward_layer.recurrent_activation,
-        backward_layer.activation,
-        backward_layer.activation,
-    ]))
+    attrs = lstm.build_attributes(scope, operator, container, bidirectional=True)
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h'), _name('Y_c')]

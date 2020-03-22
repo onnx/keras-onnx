@@ -165,6 +165,38 @@ def build_initial_states(scope, operator, container, bidirectional=False):
     return initial_h, initial_c
 
 
+def build_attributes(scope, operator, container, bidirectional=False):
+    """Returns a dictionary of attributes for the LSTM layer.
+    """
+    op = operator.raw_operator
+
+    attrs = {}
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+
+        attrs['direction'] = 'bidirectional'
+        attrs['hidden_size'] = forward_layer.units
+        attrs.update(simplernn.extract_activations([
+            forward_layer.recurrent_activation,
+            forward_layer.activation,
+            forward_layer.activation,
+            backward_layer.recurrent_activation,
+            backward_layer.activation,
+            backward_layer.activation,
+        ]))
+
+    else:
+        attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
+        attrs['hidden_size'] = op.units
+        attrs.update(simplernn.extract_activations([
+            op.recurrent_activation,
+            op.activation,
+            op.activation,
+        ]))
+    return attrs
+
 def build_output(scope, operator, container, output_names, bidirectional=False):
     """
     """
@@ -422,14 +454,7 @@ def convert_keras_lstm(scope, operator, container):
     ]
 
     # Attributes
-    attrs = {}
-    attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
-    attrs['hidden_size'] = op.units
-    attrs.update(simplernn.extract_activations([
-        op.recurrent_activation,
-        op.activation,
-        op.activation,
-    ]))
+    attrs = build_attributes(scope, operator, container)
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h'), _name('Y_c')]
