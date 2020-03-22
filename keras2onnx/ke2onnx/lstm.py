@@ -20,6 +20,18 @@ from . import simplernn
 TensorProto = onnx_proto.TensorProto
 
 
+def check_sequence_lengths(operator, container):
+    """Raises an exception if the shape is expected to be static, but the sequence lenghts
+    are not provided. This only applies to opsets below 9.
+    """
+    op = operator.raw_operator
+
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+    is_static_shape = seq_length is not None
+    if not is_static_shape and container.target_opset < 9:
+        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
+
+
 def convert_ifco_to_iofc(tensor_ifco):
     """Returns a tensor in input (i), output (o), forget (f), cell (c) ordering. The
     Keras ordering is ifco, while the ONNX ordering is iofc.
@@ -161,13 +173,9 @@ def _calculate_keras_lstm_output_shapes(operator):
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
-
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
-    is_static_shape = seq_length is not None
-    if not is_static_shape and container.target_opset < 9:
-        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
-
     _name = name_func(scope, operator)
+
+    check_sequence_lengths(operator, container)
 
     # Inputs
     lstm_x = _name('_X')
@@ -188,8 +196,7 @@ def convert_keras_lstm(scope, operator, container):
 
     # Attributes
     attrs = {}
-    reverse_input = op.go_backwards
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
+    attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
     attrs['hidden_size'] = op.units
     attrs.update(simplernn.extract_activations([
         op.recurrent_activation,
