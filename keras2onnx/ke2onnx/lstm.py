@@ -39,6 +39,55 @@ def extract_params(op, hidden_size, input_size):
 
     return W_x, W_h, b
 
+def build_parameters(scope, operator, container):
+    """
+    """
+    op = operator.raw_operator
+    hidden_size = op.units
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+
+    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    tensor_w = _name('_W')
+    tensor_r = _name('_R')
+    tensor_b = _name('_B')
+
+    # Extract the parameters for the LSTM
+    W_x, W_h, b = extract_params(op, hidden_size, input_size)
+
+    W = W_x.flatten()
+    W_shape = [1, 4 * hidden_size, input_size]
+    container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W)
+
+    R = W_h.flatten()
+    R_shape = [1, 4 * hidden_size, hidden_size]
+    container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R)
+
+    if b is not None:
+        B = b.flatten()
+        B_shape = [1, 8 * hidden_size]
+        container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B)
+    else:
+        tensor_b = ''
+
+    return tensor_w, tensor_r, tensor_b
+
+def build_initial_states(scope, operator, container):
+    """
+    """
+    initial_h = simplernn.build_initial_states(scope, operator, container)
+    initial_c = ''
+
+    if len(operator.inputs) > 1:
+        # Add a reshape after initial_h, 2d -> 3d
+        hidden_size = operator.raw_operator.units
+        input_c = operator.inputs[2].full_name
+        initial_c = scope.get_unique_variable_name(operator.full_name + '_initial_c')
+        apply_reshape(scope, operator.inputs[2].full_name, initial_c, container,
+                      desired_shape=[1, -1, hidden_size])
+
+    return initial_h, initial_c
+
 
 def _calculate_keras_lstm_output_shapes(operator):
     op = operator.raw_operator
@@ -63,88 +112,46 @@ def convert_keras_lstm(scope, operator, container):
     output_state = op.return_state
     reverse_input = op.go_backwards
 
-    input_name = operator.inputs[0].full_name
-    get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
-    lstm_x_name = get_name('_X')
-    tensor_w_name = get_name('_W')
-    tensor_r_name = get_name('_R')
-    tensor_b_name = get_name('_B')
+    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    # Inputs
+    lstm_x = _name('_X')
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-    initial_h_name = get_name('_initial_h')
-    initial_c_name = get_name('_initial_c')
+    initial_h, initial_c = build_initial_states(scope, operator, container)
 
-    # Extract the parameters for the LSTM
-    W_x, W_h, b = extract_params(op, hidden_size, input_size)
+    input_names = [
+        lstm_x,
+        tensor_w,
+        tensor_r,
+        tensor_b,
+        sequence_lengths,
+        initial_h,
+        initial_c,
+        '',  # P (optional) : No peep hole in Keras.
+    ]
 
-    W = W_x.flatten()
-    W_shape = [1, 4 * hidden_size, input_size]
-    container.add_initializer(tensor_w_name, TensorProto.FLOAT, W_shape, W)
-
-    R = W_h.flatten()
-    R_shape = [1, 4 * hidden_size, hidden_size]
-    container.add_initializer(tensor_r_name, TensorProto.FLOAT, R_shape, R)
-
-    if b is not None:
-        B = b.flatten()
-        B_shape = [1, 8 * hidden_size]
-        container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B)
-    else:
-        tensor_b_name = ''
-
-    # Output variable names
-    lstm_y_name = get_name('_Y')
-    lstm_h_name = get_name('_Y_h')
-    lstm_c_name = get_name('_Y_c')
-
+    # Attributes
     attrs = {}
-    # Extract the relevant activation information
+    attrs['direction'] = 'reverse' if reverse_input else 'forward'
+    attrs['hidden_size'] = hidden_size
     attrs.update(simplernn.extract_activations([
         op.recurrent_activation,
         op.activation,
         op.activation,
     ]))
 
-    # Set up other attributes
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+    # Outputs
+    lstm_y = _name('_Y')
+    lstm_h = _name('_Y_h')
+    lstm_c = _name('_Y_c')
+    output_names = [lstm_y, lstm_h, lstm_c]
 
     # Reshape Keras input format into ONNX input format
-    apply_transpose(scope, input_name, lstm_x_name, container, perm=[1, 0, 2])
-
-    # inital_h
-    if len(operator.inputs) <= 1:
-        initial_h_name = ''
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        apply_reshape(scope, operator.inputs[1].full_name, initial_h_name, container,
-                      desired_shape=[1, -1, hidden_size])
-    # initial_c
-    if len(operator.inputs) <= 2:
-        initial_c_name = ''
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        apply_reshape(scope, operator.inputs[2].full_name, initial_c_name, container,
-                      desired_shape=[1, -1, hidden_size])
+    input_name = operator.inputs[0].full_name
+    apply_transpose(scope, input_name, lstm_x, container, perm=[1, 0, 2])
 
     oopb = OnnxOperatorBuilder(container, scope)
-
-    input_names = [
-        lstm_x_name,
-        tensor_w_name,
-        tensor_r_name,
-        tensor_b_name,
-        sequence_lengths,
-        initial_h_name,
-        initial_c_name,
-        '',  # P (optional) : No peep hole in Keras.
-    ]
-
-    output_names = [
-        lstm_y_name,
-        lstm_h_name,
-        lstm_c_name,
-    ]
-
     oopb.apply_op_with_output('apply_lstm',
                               input_names,
                               output_names,
@@ -156,7 +163,7 @@ def convert_keras_lstm(scope, operator, container):
     if output_seq:
         lstm_y_name_transposed = scope.get_unique_variable_name('lstm_y_transposed')
         perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, lstm_y_name, lstm_y_name_transposed, container, perm=perm)
+        apply_transpose(scope, lstm_y, lstm_y_name_transposed, container, perm=perm)
         if is_static_shape:
             apply_reshape(scope, lstm_y_name_transposed, operator.outputs[0].full_name, container,
                           desired_shape=[-1, seq_length, hidden_size])
@@ -192,10 +199,10 @@ def convert_keras_lstm(scope, operator, container):
                                                 operator.inputs[0].full_name + '_output_seq_shape_1')
             apply_identity(scope, shape_tensor_output, operator.outputs[0].full_name, container)
     else:
-        apply_reshape(scope, lstm_h_name, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, lstm_h, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
 
     if output_state:
         # state_h
-        apply_reshape(scope, lstm_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, lstm_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
         # state_c
-        apply_reshape(scope, lstm_c_name, operator.outputs[2].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, lstm_c, operator.outputs[2].full_name, container, desired_shape=[-1, hidden_size])

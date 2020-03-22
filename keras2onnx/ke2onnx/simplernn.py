@@ -90,23 +90,23 @@ def build_parameters(scope, operator, container):
 
     _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
 
-    tensor_w_name = _name('_W')
-    tensor_r_name = _name('_R')
-    tensor_b_name = ''
+    tensor_w = _name('_W')
+    tensor_r = _name('_R')
+    tensor_b = ''
 
     W, R, B = extract_params(op, hidden_size)
     W_shape = [1, hidden_size, input_size]
     R_shape = [1, hidden_size, hidden_size]
 
-    container.add_initializer(tensor_w_name, TensorProto.FLOAT, W_shape, W.flatten())
-    container.add_initializer(tensor_r_name, TensorProto.FLOAT, R_shape, R.flatten())
+    container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W.flatten())
+    container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R.flatten())
 
     if op.use_bias:
-        tensor_b_name = _name('_B')
+        tensor_b = _name('_B')
         B_shape = [1, 2 * hidden_size]
-        container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B.flatten())
+        container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
 
-    return tensor_w_name, tensor_r_name, tensor_b_name
+    return tensor_w, tensor_r, tensor_b
 
 
 def build_sequence_lengths(scope, operator, container):
@@ -135,10 +135,11 @@ def build_initial_states(scope, operator, container):
         return ''
 
     # Add a reshape after initial_h, 2d -> 3d
-    input_h_name = operator.inputs[1].full_name
-    initial_h_name = _name('_initial_h')
-    apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
-    return initial_h_name
+    hidden_size = operator.raw_operator.units
+    input_h = operator.inputs[1].full_name
+    initial_h = scope.get_unique_variable_name(operator.full_name + '_initial_h')
+    apply_reshape(scope, input_h, initial_h, container, desired_shape=[1, -1, hidden_size])
+    return initial_h
 
 
 def convert_keras_simple_rnn(scope, operator, container):
@@ -152,18 +153,18 @@ def convert_keras_simple_rnn(scope, operator, container):
     _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
 
     # Inputs
-    rnn_x_name = _name('_X')
-    tensor_w_name, tensor_r_name, tensor_b_name = build_parameters(scope, operator, container)
+    rnn_x = _name('_X')
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = build_sequence_lengths(scope, operator, container)
-    initial_h_name = build_initial_states(scope, operator, container)
+    initial_h = build_initial_states(scope, operator, container)
 
     input_names = [
-        rnn_x_name,
-        tensor_w_name,
-        tensor_r_name,
-        tensor_b_name,
+        rnn_x,
+        tensor_w,
+        tensor_r,
+        tensor_b,
         sequence_lengths,
-        initial_h_name,
+        initial_h,
     ]
 
     # Attributes
@@ -175,13 +176,13 @@ def convert_keras_simple_rnn(scope, operator, container):
         attrs.update(extract_activations([op.activation]))
 
     # Outputs
-    rnn_y_name = _name('_y')
-    rnn_h_name = _name('_h')
-    output_names = [rnn_y_name, rnn_h_name]
+    rnn_y = _name('_y')
+    rnn_h = _name('_h')
+    output_names = [rnn_y, rnn_h]
 
     # Transpose input values
     input_name = operator.inputs[0].full_name
-    apply_transpose(scope, input_name, rnn_x_name, container, perm=[1, 0, 2])
+    apply_transpose(scope, input_name, rnn_x, container, perm=[1, 0, 2])
 
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_rnn',
@@ -193,14 +194,14 @@ def convert_keras_simple_rnn(scope, operator, container):
 
     # Create operators to adjust ONNX output to meet Keras format
     if output_seq:
-        permuted_rnn_y_name = _name('_y_permuted')
+        permuted_rnn_y = _name('_y_permuted')
         perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, rnn_y_name, permuted_rnn_y_name, container, perm=perm)
-        apply_reshape(scope, permuted_rnn_y_name, operator.outputs[0].full_name, container,
+        apply_transpose(scope, rnn_y, permuted_rnn_y, container, perm=perm)
+        apply_reshape(scope, permuted_rnn_y, operator.outputs[0].full_name, container,
                       desired_shape=[-1, seq_length, hidden_size])
     else:
         # Here we ingore ONNX RNN's first output because it's useless.
-        apply_reshape(scope, rnn_h_name, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, rnn_h, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
 
     if output_state:
-        apply_reshape(scope, rnn_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
