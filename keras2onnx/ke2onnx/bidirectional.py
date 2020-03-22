@@ -11,9 +11,6 @@ from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
 from ..proto import onnx_proto, keras
 from . import simplernn, lstm
 
-LSTM = keras.layers.LSTM
-TensorProto = onnx_proto.TensorProto
-
 
 def _calculate_keras_bidirectional_output_shapes(operator):
     op = operator.raw_operator

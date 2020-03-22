@@ -81,13 +81,11 @@ def extract_activations(fields):
         attrs['activation_beta'] = betas
     return attrs
 
-def build_parameters(scope, operator, container):
-    """
+def build_parameters(scope, operator, container, bidirectional=False):
+    """Returns the parameter initialization values after extracting them from the RNN layer.
     """
     op = operator.raw_operator
-    hidden_size = op.units
     _, seq_length, input_size = extract_input_shape(op)
-
 
     _name = name_func(scope, operator)
 
@@ -95,16 +93,44 @@ def build_parameters(scope, operator, container):
     tensor_r = _name('R')
     tensor_b = ''
 
-    W, R, B = extract_params(op, hidden_size)
-    W_shape = [1, hidden_size, input_size]
-    R_shape = [1, hidden_size, hidden_size]
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+        hidden_size = forward_layer.units
 
+        W, R, B = extract_params(forward_layer, hidden_size)
+        W_back, R_back, B_back = extract_params(backward_layer, hidden_size)
+
+        W = np.concatenate([W, W_back])
+        W_shape = [2, hidden_size, input_size]
+
+        R = np.concatenate([R, R_back])
+        R_shape = [2, hidden_size, hidden_size]
+
+        if (B is None and B_back is not None) or (B is not None and B_back is None):
+            raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward '
+                             'and backward layers.')
+
+        if B is not None:
+            B = np.concatenate([B, B_back])
+            B_shape = [2, 2 * hidden_size]
+
+    else:
+        hidden_size = op.units
+
+        W, R, B = extract_params(op, hidden_size)
+        W_shape = [1, hidden_size, input_size]
+        R_shape = [1, hidden_size, hidden_size]
+
+        if B is not None:
+            B_shape = [1, 2 * hidden_size]
+
+    # Create initializers
     container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W.flatten())
     container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R.flatten())
 
-    if op.use_bias:
+    if B is not None:
         tensor_b = _name('B')
-        B_shape = [1, 2 * hidden_size]
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
 
     return tensor_w, tensor_r, tensor_b
@@ -127,7 +153,7 @@ def build_sequence_lengths(scope, operator, container):
     return sequence_lengths
 
 
-def build_initial_states(scope, operator, container):
+def build_initial_states(scope, operator, container, bidirectional=False):
     """Reshapes the initial input states. If there are no states present as inputs, then
     it returns an empty input for the initial hidden states.
     """
@@ -139,13 +165,49 @@ def build_initial_states(scope, operator, container):
     hidden_size = operator.raw_operator.units
     input_h = operator.inputs[1].full_name
     initial_h = scope.get_unique_variable_name(operator.full_name + '_initial_h')
-    apply_reshape(scope, input_h, initial_h, container, desired_shape=[1, -1, hidden_size])
+    desired_shape = [2, -1, hidden_size] if bidirectional else [1, -1, hidden_size]
+    apply_reshape(scope, input_h, initial_h, container, desired_shape=desired_shape)
     return initial_h
 
 
-def build_output(scope, operator, container, output_names):
+def build_attributes(scope, operator, container, bidirectional=False):
+    """Returns a dictionary of attributes for the LSTM layer.
+    """
+    op = operator.raw_operator
+
+    attrs = {}
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+
+        attrs['direction'] = 'bidirectional'
+        attrs['hidden_size'] = forward_layer.units
+
+        activations = []
+        if hasattr(forward_layer, 'activation'):
+            activations.append(forward_layer.activation)
+
+        if hasattr(backward_layer, 'activation'):
+            activations.append(backward_layer.activation)
+
+        if len(activations) > 0:
+            attrs.update(extract_activations(activations))
+
+    else:
+        attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
+        attrs['hidden_size'] = op.units
+
+        if hasattr(op, 'activation'):
+            attrs.update(extract_activations([op.activation]))
+
+    return attrs
+
+
+def build_output(scope, operator, container, output_names, bidirectional=False):
     """Builds the output stages for the RNN.
     """
+    # TODO: Add bidirectional support
     rnn_y, rnn_h = output_names
 
     op = operator.raw_operator
@@ -171,16 +233,21 @@ def build_output(scope, operator, container, output_names):
         apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
 
 
-def convert_keras_simple_rnn(scope, operator, container):
+def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):
     op = operator.raw_operator
 
     _name = name_func(scope, operator)
 
+    if bidirectional:
+        output_seq = op.forward_layer.return_sequences
+    else:
+        output_seq = op.return_sequences
+
     # Inputs
     rnn_x = _name('X')
-    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
     sequence_lengths = build_sequence_lengths(scope, operator, container)
-    initial_h = build_initial_states(scope, operator, container)
+    initial_h = build_initial_states(scope, operator, container, bidirectional)
 
     input_names = [
         rnn_x,
@@ -192,12 +259,7 @@ def convert_keras_simple_rnn(scope, operator, container):
     ]
 
     # Attributes
-    attrs = {}
-    attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
-    attrs['hidden_size'] = op.units
-
-    if hasattr(op, 'activation'):
-        attrs.update(extract_activations([op.activation]))
+    attrs = build_attributes(scope, operator, container, bidirectional)
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h')]
@@ -211,7 +273,7 @@ def convert_keras_simple_rnn(scope, operator, container):
                               input_names,
                               output_names,
                               name=op.name,
-                              output_seq=op.return_sequences,
+                              output_seq=output_seq,
                               **attrs)
 
-    build_output(scope, operator, container, output_names)
+    build_output(scope, operator, container, output_names, bidirectional)

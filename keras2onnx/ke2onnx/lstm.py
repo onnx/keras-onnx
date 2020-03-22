@@ -62,7 +62,7 @@ def extract_params(op, hidden_size, input_size):
     return W_x, W_h, b
 
 def build_parameters(scope, operator, container, bidirectional=False):
-    """
+    """Returns the parameter initialization values after extracting them from the LSTM layer.
     """
     op = operator.raw_operator
     _, seq_length, input_size = simplernn.extract_input_shape(op)
