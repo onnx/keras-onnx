@@ -47,6 +47,32 @@ def _calculate_keras_lstm_output_shapes(operator):
     else:
         operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None for i in op.output_shape)
 
+def extract_activations(op):
+    """Returns a dictionary of activation attributes for this LSTM layer.
+    """
+    activation_types = []
+    alphas = []
+    betas = []
+    extracted_activations = [
+        extract_recurrent_activation(op.recurrent_activation),
+        extract_recurrent_activation(op.activation),
+        extract_recurrent_activation(op.activation)]
+
+    for (activation_type, alpha, beta) in extracted_activations:
+        activation_types.append(activation_type.encode('utf-8'))
+        if alpha is not None:
+            alphas.append(alpha)
+        if beta is not None:
+            betas.append(beta)
+
+    attrs = {}
+    attrs['activations'] = activation_types
+    if alphas:
+        attrs['activation_alpha'] = alphas
+    if betas:
+        attrs['activation_beta'] = betas
+    return attrs
+
 
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
 def convert_keras_lstm(scope, operator, container):
@@ -64,96 +90,78 @@ def convert_keras_lstm(scope, operator, container):
     reverse_input = op.go_backwards
 
     # Declare essential attributes of ONNX LSTM
-    lstm_input_names = []
-    lstm_output_names = []
-    lstm_attrs = {}
+    input_names = []
+    output_names = []
+    attrs = {}
 
     # Because of the format difference between Keras and ONNX LSTM's, we set up a preprocessing node to match them.
     lstm_x_name = scope.get_unique_variable_name('lstm_x')
-    lstm_input_names.append(lstm_x_name)
+    input_names.append(lstm_x_name)
     apply_transpose(scope, operator.inputs[0].full_name, lstm_x_name, container, perm=[1, 0, 2])
 
     # Add the weights to the final model's initializer list so that our LSTM operator can use it
     tensor_w_name = scope.get_unique_variable_name('W')
     container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
                               [1, 4 * hidden_size, input_size], W_x.flatten())
-    lstm_input_names.append(tensor_w_name)
+    input_names.append(tensor_w_name)
 
     # Add the recursion weights to the final model's initializer list so that our LSTM operator can use it
     tensor_r_name = scope.get_unique_variable_name('R')
     container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
                               [1, 4 * hidden_size, hidden_size], W_h.flatten())
-    lstm_input_names.append(tensor_r_name)
+    input_names.append(tensor_r_name)
 
     if b is not None and len(b) > 0:
         tensor_b_name = scope.get_unique_variable_name('B')
         container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 8 * hidden_size], b.flatten())
-        lstm_input_names.append(tensor_b_name)
+        input_names.append(tensor_b_name)
     else:
-        lstm_input_names.append('')
+        input_names.append('')
 
     # sequence_lens
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
         sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
-        lstm_input_names.append(sequence_lengths)
+        input_names.append(sequence_lengths)
     else:
-        lstm_input_names.append('')
+        input_names.append('')
     # inital_h
     if len(operator.inputs) <= 1:
-        lstm_input_names.append('')
+        input_names.append('')
     else:
         # Add a reshape after initial_h, 2d -> 3d
         inital_h_reshape = scope.get_unique_variable_name('inital_h_reshape')
         apply_reshape(scope, operator.inputs[1].full_name, inital_h_reshape, container,
                       desired_shape=[1, -1, hidden_size])
-        lstm_input_names.append(inital_h_reshape)
+        input_names.append(inital_h_reshape)
     # initial_c
     if len(operator.inputs) <= 2:
-        lstm_input_names.append('')
+        input_names.append('')
     else:
         # Add a reshape after initial_h, 2d -> 3d
         inital_c_reshape = scope.get_unique_variable_name('inital_c_reshape')
         apply_reshape(scope, operator.inputs[2].full_name, inital_c_reshape, container,
                       desired_shape=[1, -1, hidden_size])
-        lstm_input_names.append(inital_c_reshape)
+        input_names.append(inital_c_reshape)
     # P (optional) : No peep hole in keras.
-    lstm_input_names.append('')
+    input_names.append('')
 
-    activation_types = []
-    alphas = []
-    betas = []
-    extracted_activations = [
-        extract_recurrent_activation(op.recurrent_activation),
-        extract_recurrent_activation(op.activation),
-        extract_recurrent_activation(op.activation)]
-
-    for (activation_type, alpha, beta) in extracted_activations:
-        activation_types.append(activation_type.encode('utf-8'))
-        if alpha is not None:
-            alphas.append(alpha)
-        if beta is not None:
-            betas.append(beta)
-
-    lstm_attrs['activations'] = activation_types
-    if alphas:
-        lstm_attrs['activation_alpha'] = alphas
-    if betas:
-        lstm_attrs['activation_beta'] = betas
+    # Extract the relevant activation information
+    attrs.update(extract_activations(op))
 
     # Set up other attributes
-    lstm_attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    lstm_attrs['hidden_size'] = hidden_size
+    attrs['direction'] = 'reverse' if reverse_input else 'forward'
+    attrs['hidden_size'] = hidden_size
 
     # We declare some names to store the outputs produced by ONNX LSTM. Then, create ONNX LSTM. Subsequently, its
     # outputs may be adjusted to match Keras format.
     lstm_y_name = scope.get_unique_variable_name('lstm_y')
-    lstm_output_names.append(lstm_y_name)
+    output_names.append(lstm_y_name)
     lstm_h_name = scope.get_unique_variable_name('lstm_h')
-    lstm_output_names.append(lstm_h_name)
+    output_names.append(lstm_h_name)
     lstm_c_name = scope.get_unique_variable_name('lstm_c')
-    lstm_output_names.append(lstm_c_name)
+    output_names.append(lstm_c_name)
 
     oopb = OnnxOperatorBuilder(container, scope)
 
@@ -162,11 +170,11 @@ def convert_keras_lstm(scope, operator, container):
         oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
 
     oopb.apply_op_with_output('apply_lstm',
-                              lstm_input_names,
-                              lstm_output_names,
+                              input_names,
+                              output_names,
                               name=operator.raw_operator.name,
                               output_seq=output_seq,
-                              **lstm_attrs)
+                              **attrs)
 
     # Create output-adjusting operators
     if output_seq:
