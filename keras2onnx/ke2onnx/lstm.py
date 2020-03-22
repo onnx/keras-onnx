@@ -126,8 +126,25 @@ def build_initial_states(scope, operator, container, bidirectional=False):
     initial_c = ''
 
     if bidirectional:
+        input_name = operator.inputs[0].full_name
 
-        pass
+        _, seq_length, input_size = simplernn.extract_input_shape(operator.raw_operator)
+        is_static_shape = seq_length is not None
+        hidden_size = operator.raw_operator.forward_layer.units
+
+        oopb = OnnxOperatorBuilder(container, scope)
+
+        if container.target_opset < 9:
+            # need the zero initializer to correct some engine shape inference bug.
+            # TODO: Fix the fixed batch size for this case
+            state_shape = (2, 1, hidden_size)
+            h_0 = np.zeros(shape=state_shape).flatten()
+            c_0 = np.zeros(shape=state_shape).flatten()
+
+            initial_h = _name('initial_h')
+            initial_c = _name('initial_c')
+            container.add_initializer(initial_h, TensorProto.FLOAT, state_shape, h_0)
+            container.add_initializer(initial_c, TensorProto.FLOAT, state_shape, c_0)
 
     else:
 
