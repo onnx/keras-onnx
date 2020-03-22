@@ -9,6 +9,8 @@ from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilde
 from .common import extract_recurrent_activation
 from . import simplernn
 
+TensorProto = onnx_proto.TensorProto
+
 
 def extract_params(op):
     """Returns a tuple of the GRU paramters, and converts them into the format for ONNX.
@@ -33,50 +35,45 @@ def convert_keras_gru(scope, operator, container):
     reverse_input = op.go_backwards
 
     attrs = {}
-    gru_input_names = []
 
-    gru_x_name = scope.get_unique_variable_name('gru_x')
-    apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
-    gru_input_names.append(gru_x_name)
+    input_name = operator.inputs[0].full_name
+    get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    gru_x_name = get_name('_X')
+    tensor_w_name = get_name('_W')
+    tensor_r_name = get_name('_R')
+    tensor_b_name = get_name('_B')
+    initial_h_name = get_name('_initial_h')
+
+    apply_transpose(scope, input_name, gru_x_name, container, perm=[1, 0, 2])
 
     W, R, B = extract_params(op)
+    W_shape = [1, 3 * hidden_size, input_size]
+    R_shape = [1, 3 * hidden_size, hidden_size]
 
-    tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 3 * hidden_size, input_size], W.flatten())
-    gru_input_names.append(tensor_w_name)
-
-    tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 3 * hidden_size, hidden_size], R.flatten())
-    gru_input_names.append(tensor_r_name)
+    container.add_initializer(tensor_w_name, TensorProto.FLOAT, W_shape, W.flatten())
+    container.add_initializer(tensor_r_name, TensorProto.FLOAT, R_shape, R.flatten())
 
     if B is not None and len(B) > 0:
-        tensor_b_name = scope.get_unique_variable_name('tensor_b')
         if B.size == 3 * hidden_size:
             B = np.concatenate([B, np.zeros(3 * hidden_size)])
-        container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 6 * hidden_size], B.flatten())
-        gru_input_names.append(tensor_b_name)
+        B_shape = [1, 6 * hidden_size]
+        container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B.flatten())
     else:
-        gru_input_names.append('')
+        tensor_b_name = ''
 
-    # sequence lens
+    sequence_lengths = ''
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
         sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-        gru_input_names.append(sequence_lengths)
-    else:
-        gru_input_names.append('')
+
     # inital_h
     if len(operator.inputs) == 1:
-        gru_input_names.append('')
+        initial_h_name = ''
     else:
         # Add a reshape after initial_h, 2d -> 3d
-        input_reshape_name = scope.get_unique_variable_name('input_reshape')
-        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
-                      desired_shape=[1, -1, hidden_size])
-        gru_input_names.append(input_reshape_name)
+        input_h_name = operator.inputs[1].full_name
+        apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
 
     activation_types = []
     alphas = []
@@ -99,6 +96,15 @@ def convert_keras_gru(scope, operator, container):
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
     attrs['hidden_size'] = hidden_size
 
+    input_names = [
+        gru_x_name,
+        tensor_w_name,
+        tensor_r_name,
+        tensor_b_name,
+        sequence_lengths,
+        initial_h_name,
+    ]
+
     # We use the collected information to build ONNX's GRU. ONNX GRU's outputs will be saved onto two intermediate
     # tensors and we will adjust them subsequently to mimic Keras output format.
     gru_y_name = scope.get_unique_variable_name('gru_y')
@@ -107,7 +113,7 @@ def convert_keras_gru(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
 
     oopb.apply_op_with_output('apply_gru',
-                              gru_input_names,
+                              input_names,
                               gru_output_names,
                               name=operator.raw_operator.name,
                               output_seq=output_seq,
