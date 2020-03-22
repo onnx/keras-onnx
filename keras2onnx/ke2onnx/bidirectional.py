@@ -27,12 +27,10 @@ TensorProto = onnx_proto.TensorProto
 def build_initial_states(scope, operator, container):
     """
     """
-
     _name = name_func(scope, operator)
 
-    initial_h = _name('initial_h')
-    initial_c = _name('initial_c')
-    seq_len_tensor = ''
+    initial_h = ''
+    initial_c = ''
 
     input_name = operator.inputs[0].full_name
 
@@ -49,37 +47,15 @@ def build_initial_states(scope, operator, container):
         h_0 = np.zeros(shape=state_shape).flatten()
         c_0 = np.zeros(shape=state_shape).flatten()
 
+        initial_h = _name('initial_h')
+        initial_c = _name('initial_c')
         container.add_initializer(initial_h, TensorProto.FLOAT, state_shape, h_0)
         container.add_initializer(initial_c, TensorProto.FLOAT, state_shape, c_0)
-    else:
-        input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
 
-        batch_indices_tensor = input_name + '_batch_indices_tensor'
-        apply_slice(scope, input_shape_tensor, batch_indices_tensor, container, [0], [1], axes=[0])
-
-        if not is_static_shape:
-            # TODO: Generate this outside of initial states definition
-            seq_len_tensor = input_name + '_seq_len_tensor'
-            apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
-
-        batch_size_tensor = oopb.add_node('Concat',
-                                          [('_a', oopb.int64, np.array([2], dtype='int64')),
-                                           batch_indices_tensor,
-                                           ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
-                                           ],
-                                          input_name + '_state_shape_tensor', axis=0)
-
-        initial_h = oopb.add_node('ConstantOfShape',
-                                       [batch_size_tensor],
-                                       input_name + '_state_shape_constant_h')
-        initial_c = oopb.add_node('ConstantOfShape',
-                                       [batch_size_tensor],
-                                       input_name + '_state_shape_constant_c')
-
-    return initial_h, initial_c, seq_len_tensor
+    return initial_h, initial_c
 
 
-def build_output(scope, operator, container, output_names, seq_len_tensor):
+def build_output(scope, operator, container, output_names):
     """
     """
     op = operator.raw_operator
@@ -103,6 +79,17 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
     input_name = operator.inputs[0].full_name
 
     oopb = OnnxOperatorBuilder(container, scope)
+
+    # Define seq_len_tensor
+    input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
+
+    batch_indices_tensor = input_name + '_batch_indices_tensor'
+    apply_slice(scope, input_shape_tensor, batch_indices_tensor, container, [0], [1], axes=[0])
+
+    if not is_static_shape:
+        seq_len_tensor = input_name + '_seq_len_tensor'
+        apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
+
 
     if hasattr(op, 'merge_mode'):
         if op.merge_mode not in ['concat', None]:
@@ -260,7 +247,7 @@ def convert_bidirectional(scope, operator, container):
     lstm_x = _name('X')
     tensor_w, tensor_r, tensor_b = lstm.build_parameters(scope, operator, container, bidirectional=True)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-    initial_h, initial_c, seq_len_tensor = build_initial_states(scope, operator, container)
+    initial_h, initial_c = build_initial_states(scope, operator, container)
 
     input_names = [
         lstm_x,
@@ -302,4 +289,4 @@ def convert_bidirectional(scope, operator, container):
                               output_seq=forward_layer.return_sequences,
                               **attrs)
 
-    build_output(scope, operator, container, output_names, seq_len_tensor)
+    build_output(scope, operator, container, output_names)

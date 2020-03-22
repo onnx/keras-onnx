@@ -117,19 +117,29 @@ def build_parameters(scope, operator, container, bidirectional=False):
 
     return tensor_w, tensor_r, tensor_b
 
-def build_initial_states(scope, operator, container):
+def build_initial_states(scope, operator, container, bidirectional=False):
     """
     """
-    initial_h = simplernn.build_initial_states(scope, operator, container)
+    _name = name_func(scope, operator)
+
+    initial_h = ''
     initial_c = ''
 
-    if len(operator.inputs) > 1:
-        # Add a reshape after initial_h, 2d -> 3d
-        hidden_size = operator.raw_operator.units
-        input_c = operator.inputs[2].full_name
-        initial_c = scope.get_unique_variable_name(operator.full_name + '_initial_c')
-        apply_reshape(scope, operator.inputs[2].full_name, initial_c, container,
-                      desired_shape=[1, -1, hidden_size])
+    if bidirectional:
+
+        pass
+
+    else:
+
+        initial_h = simplernn.build_initial_states(scope, operator, container)
+
+        if len(operator.inputs) > 1:
+            # Add a reshape after initial_h, 2d -> 3d
+            hidden_size = operator.raw_operator.units
+            input_c = operator.inputs[2].full_name
+            initial_c = _name('initial_c')
+            apply_reshape(scope, operator.inputs[2].full_name, initial_c, container,
+                          desired_shape=[1, -1, hidden_size])
 
     return initial_h, initial_c
 
