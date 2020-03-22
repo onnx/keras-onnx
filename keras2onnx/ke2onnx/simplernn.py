@@ -18,6 +18,7 @@ def extract_input_shape(op):
         input_shape = input_shape[0]
     return input_shape
 
+
 def extract_params(op, hidden_size):
     """Returns a tuple of the SimpleRNN parameters, and converts them into the format for ONNX.
     """
@@ -32,6 +33,7 @@ def extract_params(op, hidden_size):
         B[0] = params[2]
 
     return W, R, B
+
 
 def extract_recurrent_activation(activation):
     activations = keras.activations
@@ -55,6 +57,7 @@ def extract_recurrent_activation(activation):
 
     return onnx_op_type, alpha, beta
 
+
 def extract_activations(fields):
     """Returns a dictionary with the appropriate activations set
     """
@@ -77,6 +80,7 @@ def extract_activations(fields):
         attrs['activation_beta'] = betas
     return attrs
 
+
 def build_sequence_lengths(scope, operator, container):
     """Uses the masking layer to calculate the sequence lengths.
     """
@@ -88,6 +92,7 @@ def build_sequence_lengths(scope, operator, container):
     container.add_node('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1])
     return sequence_lengths
 
+
 def convert_keras_simple_rnn(scope, operator, container):
     op = operator.raw_operator
     hidden_size = op.units
@@ -96,49 +101,52 @@ def convert_keras_simple_rnn(scope, operator, container):
     output_state = op.return_state
     reverse_input = op.go_backwards
 
+    input_name = operator.inputs[0].full_name
+    get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    # Inputs
+    rnn_x_name = get_name('_X')
+    tensor_w_name = get_name('_W')
+    tensor_r_name = get_name('_R')
+    tensor_b_name = ''
+    sequence_lengths = ''
+    initial_h_name = ''
+
     W, R, B = extract_params(op, hidden_size)
+    W_shape = [1, hidden_size, input_size]
+    R_shape = [1, hidden_size, hidden_size]
 
-    attrs = {}
-    rnn_input_names = []
-    rnn_output_names = []
-
-    rnn_x_name = scope.get_unique_variable_name('rnn_x')
-    apply_transpose(scope, operator.inputs[0].full_name, rnn_x_name, container, perm=[1, 0, 2])
-    rnn_input_names.append(rnn_x_name)
-
-    tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, input_size], W.flatten())
-    rnn_input_names.append(tensor_w_name)
-
-    tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, hidden_size], R.flatten())
-    rnn_input_names.append(tensor_r_name)
+    container.add_initializer(tensor_w_name, TensorProto.FLOAT, W_shape, W.flatten())
+    container.add_initializer(tensor_r_name, TensorProto.FLOAT, R_shape, R.flatten())
 
     if op.use_bias:
-        tensor_b_name = scope.get_unique_variable_name('tensor_b')
-        container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 2 * hidden_size], B.flatten())
-        rnn_input_names.append(tensor_b_name)
-    else:
-        rnn_input_names.append('')
+        tensor_b_name = get_name('_B')
+        B_shape = [1, 2 * hidden_size]
+        container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B.flatten())
 
-    # sequence_lens is not able to be converted from input_length
+    apply_transpose(scope, input_name, rnn_x_name, container, perm=[1, 0, 2])
+
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
         sequence_lengths = build_sequence_lengths(scope, operator, container)
-        rnn_input_names.append(sequence_lengths)
-    else:
-        rnn_input_names.append('')
-    # inital_h: none
-    if len(operator.inputs) == 1:
-        rnn_input_names.append('')
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        input_reshape_name = scope.get_unique_variable_name('input_reshape')
-        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
-                      desired_shape=[1, -1, hidden_size])
-        rnn_input_names.append(input_reshape_name)
 
+    # Initial hidden states
+    if len(operator.inputs) != 1:
+        # Add a reshape after initial_h, 2d -> 3d
+        input_h_name = operator.inputs[1].full_name
+        apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
+
+    input_names = [
+        rnn_x_name,
+        tensor_w_name,
+        tensor_r_name,
+        tensor_b_name,
+        sequence_lengths,
+        initial_h_name,
+    ]
+
+    attrs = {}
     if hasattr(op, 'activation'):
         attrs.update(extract_activations([op.activation]))
 
@@ -149,13 +157,17 @@ def convert_keras_simple_rnn(scope, operator, container):
     # tensors and we will adjust them subsequently to mimic Keras output format.
     rnn_y_name = scope.get_unique_variable_name('rnn_y')
     rnn_h_name = scope.get_unique_variable_name('rnn_h')
-    rnn_output_names.append(rnn_y_name)
-    rnn_output_names.append(rnn_h_name)
-    oopb = OnnxOperatorBuilder(container, scope)
 
+    output_names = [
+        rnn_y_name,
+        rnn_h_name,
+    ]
+
+
+    oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_rnn',
-                              rnn_input_names,
-                              rnn_output_names,
+                              input_names,
+                              output_names,
                               name=operator.raw_operator.name,
                               output_seq=output_seq,
                               **attrs)
