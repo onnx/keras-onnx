@@ -18,7 +18,6 @@ from ..common.onnx_ops import (
     OnnxOperatorBuilder
 )
 from ..proto import onnx_proto, keras
-from .common import extract_recurrent_activation
 from . import simplernn, lstm
 
 LSTM = keras.layers.LSTM
@@ -104,10 +103,14 @@ def convert_bidirectional(scope, operator, container):
     attrs = {}
 
     # Extract the relevant activation information
-    forward_attrs = lstm.extract_activations(forward_layer)
-    backward_attrs = lstm.extract_activations(backward_layer)
-    for k in forward_attrs.keys() | backward_attrs.keys():
-        attrs[k] = forward_attrs.get(k, []) + backward_attrs.get(k, [])
+    attrs.update(simplernn.extract_activations([
+        forward_layer.recurrent_activation,
+        forward_layer.activation,
+        forward_layer.activation,
+        backward_layer.recurrent_activation,
+        backward_layer.activation,
+        backward_layer.activation,
+    ]))
 
     attrs['direction'] = 'bidirectional'
     attrs['hidden_size'] = hidden_size

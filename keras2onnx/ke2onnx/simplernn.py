@@ -4,9 +4,8 @@
 # license information.
 ###############################################################################
 import numpy as np
-from ..proto import onnx_proto
+from ..proto import onnx_proto, keras
 from ..common.onnx_ops import apply_reshape, apply_transpose, apply_cast, OnnxOperatorBuilder
-from .common import extract_recurrent_activation
 
 TensorProto = onnx_proto.TensorProto
 
@@ -33,6 +32,50 @@ def extract_params(op, hidden_size):
         B[0] = params[2]
 
     return W, R, B
+
+def extract_recurrent_activation(activation):
+    activations = keras.activations
+    alpha = None
+    beta = None
+    if activation == activations.sigmoid:
+        onnx_op_type = 'Sigmoid'
+    elif activation == activations.hard_sigmoid:
+        onnx_op_type = 'HardSigmoid'
+        alpha = 0.2
+        beta = 0.5
+    elif activation == activations.tanh:
+        onnx_op_type = 'Tanh'
+    elif activation == activations.relu:
+        onnx_op_type = 'Relu'
+    elif activation == activations.linear:
+        onnx_op_type = 'Affine'
+        alpha = 1.0
+    else:
+        raise NotImplementedError('The activation %s not supported' % activation)
+
+    return onnx_op_type, alpha, beta
+
+def extract_activations(fields):
+    """Returns a dictionary with the appropriate activations set
+    """
+    activation_types = []
+    alphas = []
+    betas = []
+    activations = [extract_recurrent_activation(f) for f in fields]
+    for (activation_type, alpha, beta) in activations:
+        activation_types.append(activation_type.encode('utf-8'))
+        if alpha is not None:
+            alphas.append(alpha)
+        if beta is not None:
+            betas.append(beta)
+
+    attrs = {}
+    attrs['activations'] = activation_types
+    if alphas:
+        attrs['activation_alpha'] = alphas
+    if betas:
+        attrs['activation_beta'] = betas
+    return attrs
 
 def build_sequence_lengths(scope, operator, container):
     """Uses the masking layer to calculate the sequence lengths.
@@ -97,12 +140,7 @@ def convert_keras_simple_rnn(scope, operator, container):
         rnn_input_names.append(input_reshape_name)
 
     if hasattr(op, 'activation'):
-        activation_type, alpha, beta = extract_recurrent_activation(op.activation)
-        attrs['activations'] = [activation_type.encode('utf-8')]
-        if alpha is not None:
-            attrs['activation_alpha'] = [alpha]
-        if beta is not None:
-            attrs['activation_beta'] = [beta]
+        attrs.update(extract_activations([op.activation]))
 
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
     attrs['hidden_size'] = hidden_size

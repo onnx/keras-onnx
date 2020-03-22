@@ -9,7 +9,6 @@ from collections.abc import Iterable
 from ..common import cvtfunc
 from ..common.onnx_ops import apply_transpose, apply_reshape, apply_identity, OnnxOperatorBuilder
 from ..proto import onnx_proto
-from .common import extract_recurrent_activation
 from . import simplernn
 
 TensorProto = onnx_proto.TensorProto
@@ -48,32 +47,6 @@ def _calculate_keras_lstm_output_shapes(operator):
                                               for i in op.output_shape[0])
     else:
         operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None for i in op.output_shape)
-
-def extract_activations(op):
-    """Returns a dictionary of activation attributes for this LSTM layer.
-    """
-    activation_types = []
-    alphas = []
-    betas = []
-    extracted_activations = [
-        extract_recurrent_activation(op.recurrent_activation),
-        extract_recurrent_activation(op.activation),
-        extract_recurrent_activation(op.activation)]
-
-    for (activation_type, alpha, beta) in extracted_activations:
-        activation_types.append(activation_type.encode('utf-8'))
-        if alpha is not None:
-            alphas.append(alpha)
-        if beta is not None:
-            betas.append(beta)
-
-    attrs = {}
-    attrs['activations'] = activation_types
-    if alphas:
-        attrs['activation_alpha'] = alphas
-    if betas:
-        attrs['activation_beta'] = betas
-    return attrs
 
 
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
@@ -131,7 +104,11 @@ def convert_keras_lstm(scope, operator, container):
 
     attrs = {}
     # Extract the relevant activation information
-    attrs.update(extract_activations(op))
+    attrs.update(simplernn.extract_activations([
+        op.recurrent_activation,
+        op.activation,
+        op.activation,
+    ]))
 
     # Set up other attributes
     attrs['direction'] = 'reverse' if reverse_input else 'forward'

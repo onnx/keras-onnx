@@ -6,7 +6,6 @@
 import numpy as np
 from ..proto import onnx_proto
 from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
-from .common import extract_recurrent_activation
 from . import simplernn
 
 TensorProto = onnx_proto.TensorProto
@@ -75,22 +74,7 @@ def convert_keras_gru(scope, operator, container):
         input_h_name = operator.inputs[1].full_name
         apply_reshape(scope, input_h_name, initial_h_name, container, desired_shape=[1, -1, hidden_size])
 
-    activation_types = []
-    alphas = []
-    betas = []
-    for (activation_type, alpha, beta) in \
-            [extract_recurrent_activation(op.recurrent_activation), extract_recurrent_activation(op.activation)]:
-        activation_types.append(activation_type.encode('utf-8'))
-        if alpha is not None:
-            alphas.append(alpha)
-        if beta is not None:
-            betas.append(beta)
-
-    attrs['activations'] = activation_types
-    if alphas:
-        attrs['activation_alpha'] = alphas
-    if betas:
-        attrs['activation_beta'] = betas
+    attrs.update(simplernn.extract_activations([op.recurrent_activation, op.activation]))
 
     # Set up other attributes
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
