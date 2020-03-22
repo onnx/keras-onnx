@@ -64,11 +64,10 @@ def convert_bidirectional(scope, operator, container):
     tensor_b_name = get_name('_B')
 
     # Use sequence lengths to provide support for masking
+    sequence_lengths = ''
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
-    else:
-        sequence_lengths = ''
 
     initial_h_name = get_name('_initial_h')
     initial_c_name = get_name('_initial_c')
