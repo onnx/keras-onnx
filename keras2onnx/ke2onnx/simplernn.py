@@ -5,8 +5,11 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_reshape, apply_transpose, apply_cast, OnnxOperatorBuilder
 from .common import extract_recurrent_activation
+
+TensorProto = onnx_proto.TensorProto
+
 
 def extract_input_shape(op):
     """Returns the input shape for a RNN class.
@@ -31,6 +34,16 @@ def extract_params(op, hidden_size):
 
     return W, R, B
 
+def build_sequence_lengths(scope, operator, container):
+    """Uses the masking layer to calculate the sequence lengths.
+    """
+    input_mask_name = operator.input_masks[0].full_name
+    mask_cast = scope.get_unique_operator_name(operator.full_name + '_mask_cast')
+    sequence_lengths = scope.get_unique_operator_name(operator.full_name + '_seq_lens')
+
+    apply_cast(scope, input_mask_name, mask_cast, container, to=TensorProto.INT32)
+    container.add_node('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1])
+    return sequence_lengths
 
 def convert_keras_simple_rnn(scope, operator, container):
     op = operator.raw_operator
@@ -69,7 +82,7 @@ def convert_keras_simple_rnn(scope, operator, container):
     uses_masking_layer = len(operator.input_masks) == 1
     if uses_masking_layer:
         # Mask using sequence_lens input
-        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
+        sequence_lengths = build_sequence_lengths(scope, operator, container)
         rnn_input_names.append(sequence_lengths)
     else:
         rnn_input_names.append('')
@@ -101,10 +114,6 @@ def convert_keras_simple_rnn(scope, operator, container):
     rnn_output_names.append(rnn_y_name)
     rnn_output_names.append(rnn_h_name)
     oopb = OnnxOperatorBuilder(container, scope)
-
-    if uses_masking_layer:
-        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
-        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
 
     oopb.apply_op_with_output('apply_rnn',
                               rnn_input_names,
