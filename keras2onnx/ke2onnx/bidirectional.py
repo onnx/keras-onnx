@@ -26,4 +26,14 @@ def _calculate_keras_bidirectional_output_shapes(operator):
 
 @cvtfunc(shape_infer=_calculate_keras_bidirectional_output_shapes)
 def convert_bidirectional(scope, operator, container):
-    lstm.convert_keras_lstm(scope, operator, container, bidirectional=True)
+    op_type = operator.raw_operator.forward_layer.__class__
+    bidirectional = True
+
+    if op_type == keras.layers.LSTM:
+        lstm.convert_keras_lstm(scope, operator, container, bidirectional)
+    elif op_type == keras.layers.GRU:
+        gru.convert_keras_gru(scope, operator, container, bidirectional)
+    elif op_type == keras.layers.SimpleRNN:
+        simplernn.convert_keras_simple_rnn(scope, operator, container, bidirectional)
+    else:
+        raise ValueError('Unsupported class for Bidirectional layer: {}'.format(op_type))
