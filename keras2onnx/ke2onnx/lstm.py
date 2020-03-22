@@ -12,6 +12,8 @@ from ..proto import onnx_proto
 from .common import extract_recurrent_activation
 from . import simplernn
 
+TensorProto = onnx_proto.TensorProto
+
 
 def convert_ifco_to_iofc(tensor_ifco):
     """Returns a tensor in input (i), output (o), forget (f), cell (c) ordering. The
@@ -80,7 +82,6 @@ def convert_keras_lstm(scope, operator, container):
     hidden_size = op.units
     _, seq_length, input_size = simplernn.extract_input_shape(op)
 
-    W_x, W_h, b = extract_params(op, hidden_size, input_size)
 
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:
@@ -89,64 +90,44 @@ def convert_keras_lstm(scope, operator, container):
     output_state = op.return_state
     reverse_input = op.go_backwards
 
-    # Declare essential attributes of ONNX LSTM
-    input_names = []
-    output_names = []
-    attrs = {}
+    input_name = operator.inputs[0].full_name
+    get_name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    lstm_x_name = get_name('_X')
+    tensor_w_name = get_name('_W')
+    tensor_r_name = get_name('_R')
+    tensor_b_name = get_name('_B')
 
-    # Because of the format difference between Keras and ONNX LSTM's, we set up a preprocessing node to match them.
-    lstm_x_name = scope.get_unique_variable_name('lstm_x')
-    input_names.append(lstm_x_name)
-    apply_transpose(scope, operator.inputs[0].full_name, lstm_x_name, container, perm=[1, 0, 2])
-
-    # Add the weights to the final model's initializer list so that our LSTM operator can use it
-    tensor_w_name = scope.get_unique_variable_name('W')
-    container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 4 * hidden_size, input_size], W_x.flatten())
-    input_names.append(tensor_w_name)
-
-    # Add the recursion weights to the final model's initializer list so that our LSTM operator can use it
-    tensor_r_name = scope.get_unique_variable_name('R')
-    container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 4 * hidden_size, hidden_size], W_h.flatten())
-    input_names.append(tensor_r_name)
-
-    if b is not None and len(b) > 0:
-        tensor_b_name = scope.get_unique_variable_name('B')
-        container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 8 * hidden_size], b.flatten())
-        input_names.append(tensor_b_name)
-    else:
-        input_names.append('')
-
-    # sequence_lens
+    # Use sequence lengths to provide support for masking
     uses_masking_layer = len(operator.input_masks) == 1
-    if uses_masking_layer:
-        # Mask using sequence_lens input
-        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
-        input_names.append(sequence_lengths)
-    else:
-        input_names.append('')
-    # inital_h
-    if len(operator.inputs) <= 1:
-        input_names.append('')
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        inital_h_reshape = scope.get_unique_variable_name('inital_h_reshape')
-        apply_reshape(scope, operator.inputs[1].full_name, inital_h_reshape, container,
-                      desired_shape=[1, -1, hidden_size])
-        input_names.append(inital_h_reshape)
-    # initial_c
-    if len(operator.inputs) <= 2:
-        input_names.append('')
-    else:
-        # Add a reshape after initial_h, 2d -> 3d
-        inital_c_reshape = scope.get_unique_variable_name('inital_c_reshape')
-        apply_reshape(scope, operator.inputs[2].full_name, inital_c_reshape, container,
-                      desired_shape=[1, -1, hidden_size])
-        input_names.append(inital_c_reshape)
-    # P (optional) : No peep hole in keras.
-    input_names.append('')
+    sequence_lengths = get_name('_seq_lens') if uses_masking_layer else ''
 
+    initial_h_name = get_name('_initial_h')
+    initial_c_name = get_name('_initial_c')
+
+    # Extract the parameters for the LSTM
+    W_x, W_h, b = extract_params(op, hidden_size, input_size)
+
+    W = W_x.flatten()
+    W_shape = [1, 4 * hidden_size, input_size]
+    container.add_initializer(tensor_w_name, TensorProto.FLOAT, W_shape, W)
+
+    R = W_h.flatten()
+    R_shape = [1, 4 * hidden_size, hidden_size]
+    container.add_initializer(tensor_r_name, TensorProto.FLOAT, R_shape, R)
+
+    if b is not None:
+        B = b.flatten()
+        B_shape = [1, 8 * hidden_size]
+        container.add_initializer(tensor_b_name, TensorProto.FLOAT, B_shape, B)
+    else:
+        tensor_b_name = ''
+
+    # Output variable names
+    lstm_y_name = get_name('_Y')
+    lstm_h_name = get_name('_Y_h')
+    lstm_c_name = get_name('_Y_c')
+
+    attrs = {}
     # Extract the relevant activation information
     attrs.update(extract_activations(op))
 
@@ -154,20 +135,47 @@ def convert_keras_lstm(scope, operator, container):
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
     attrs['hidden_size'] = hidden_size
 
-    # We declare some names to store the outputs produced by ONNX LSTM. Then, create ONNX LSTM. Subsequently, its
-    # outputs may be adjusted to match Keras format.
-    lstm_y_name = scope.get_unique_variable_name('lstm_y')
-    output_names.append(lstm_y_name)
-    lstm_h_name = scope.get_unique_variable_name('lstm_h')
-    output_names.append(lstm_h_name)
-    lstm_c_name = scope.get_unique_variable_name('lstm_c')
-    output_names.append(lstm_c_name)
+    # Reshape Keras input format into ONNX input format
+    apply_transpose(scope, input_name, lstm_x_name, container, perm=[1, 0, 2])
+
+    # inital_h
+    if len(operator.inputs) <= 1:
+        initial_h_name = ''
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        apply_reshape(scope, operator.inputs[1].full_name, initial_h_name, container,
+                      desired_shape=[1, -1, hidden_size])
+    # initial_c
+    if len(operator.inputs) <= 2:
+        initial_c_name = ''
+    else:
+        # Add a reshape after initial_h, 2d -> 3d
+        apply_reshape(scope, operator.inputs[2].full_name, initial_c_name, container,
+                      desired_shape=[1, -1, hidden_size])
 
     oopb = OnnxOperatorBuilder(container, scope)
 
     if uses_masking_layer:
         mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
         oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
+
+
+    input_names = [
+        lstm_x_name,
+        tensor_w_name,
+        tensor_r_name,
+        tensor_b_name,
+        sequence_lengths,
+        initial_h_name,
+        initial_c_name,
+        '',  # P (optional) : No peep hole in Keras.
+    ]
+
+    output_names = [
+        lstm_y_name,
+        lstm_h_name,
+        lstm_c_name,
+    ]
 
     oopb.apply_op_with_output('apply_lstm',
                               input_names,
