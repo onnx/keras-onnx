@@ -6,7 +6,7 @@
 import collections
 import numbers
 import numpy as np
-from ..common import cvtfunc
+from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_transpose,
     apply_split,
@@ -33,7 +33,7 @@ def build_parameters(scope, operator, container):
     _, seq_length, input_size = simplernn.extract_input_shape(op)
     hidden_size = forward_layer.units
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     tensor_w = _name('_W')
     tensor_r = _name('_R')
@@ -67,7 +67,7 @@ def build_initial_states(scope, operator, container):
     """
     """
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     initial_h = _name('_initial_h')
     initial_c = _name('_initial_c')
@@ -149,7 +149,7 @@ def convert_bidirectional(scope, operator, container):
     if not isinstance(forward_layer, LSTM):
         raise TypeError('The bidirectional module only works with LSTM in Keras but we got %s' % type(forward_layer))
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     # Inputs
     lstm_x_name = _name('_X')

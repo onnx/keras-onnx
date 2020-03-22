@@ -5,6 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto, keras
+from ..common import name_func
 from ..common.onnx_ops import apply_reshape, apply_transpose, apply_cast, OnnxOperatorBuilder
 
 TensorProto = onnx_proto.TensorProto
@@ -88,7 +89,7 @@ def build_parameters(scope, operator, container):
     _, seq_length, input_size = extract_input_shape(op)
 
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     tensor_w = _name('_W')
     tensor_r = _name('_R')
@@ -173,7 +174,7 @@ def build_output(scope, operator, container, output_names):
 def convert_keras_simple_rnn(scope, operator, container):
     op = operator.raw_operator
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     # Inputs
     rnn_x = _name('_X')
@@ -192,17 +193,14 @@ def convert_keras_simple_rnn(scope, operator, container):
 
     # Attributes
     attrs = {}
-    reverse_input = op.go_backwards
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
+    attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
     attrs['hidden_size'] = op.units
 
     if hasattr(op, 'activation'):
         attrs.update(extract_activations([op.activation]))
 
     # Outputs
-    rnn_y = _name('_y')
-    rnn_h = _name('_h')
-    output_names = [rnn_y, rnn_h]
+    output_names = [_name('_y'), _name('_h')]
 
     # Transpose input values
     input_name = operator.inputs[0].full_name

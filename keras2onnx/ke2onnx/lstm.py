@@ -6,7 +6,7 @@
 import numbers
 import numpy as np
 from collections.abc import Iterable
-from ..common import cvtfunc
+from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_transpose,
     apply_reshape,
@@ -52,7 +52,7 @@ def build_parameters(scope, operator, container):
     hidden_size = op.units
     _, seq_length, input_size = simplernn.extract_input_shape(op)
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     tensor_w = _name('_W')
     tensor_r = _name('_R')
@@ -107,7 +107,7 @@ def build_output(scope, operator, container, output_names):
     _, seq_length, input_size = simplernn.extract_input_shape(op)
     is_static_shape = seq_length is not None
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     output_name = operator.outputs[0].full_name
 
@@ -167,7 +167,7 @@ def convert_keras_lstm(scope, operator, container):
     if not is_static_shape and container.target_opset < 9:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     # Inputs
     lstm_x = _name('_X')

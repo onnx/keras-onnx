@@ -5,6 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
+from ..common import name_func
 from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
 from . import simplernn
 
@@ -31,7 +32,7 @@ def build_parameters(scope, operator, container):
     hidden_size = op.units
     _, seq_length, input_size = simplernn.extract_input_shape(op)
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
     tensor_w = _name('_W')
     tensor_r = _name('_R')
     tensor_b = ''
@@ -55,13 +56,8 @@ def build_parameters(scope, operator, container):
 
 def convert_keras_gru(scope, operator, container):
     op = operator.raw_operator
-    hidden_size = op.units
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
-    output_seq = op.return_sequences
-    output_state = op.return_state
-    reverse_input = op.go_backwards
 
-    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+    _name = name_func(scope, operator)
 
     # Inputs
     gru_x = _name('_X')
@@ -80,17 +76,15 @@ def convert_keras_gru(scope, operator, container):
 
     # Attributes
     attrs = {}
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+    attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
+    attrs['hidden_size'] = op.units
     attrs.update(simplernn.extract_activations([
         op.recurrent_activation,
         op.activation
     ]))
 
     # Outputs
-    gru_y = _name('_y')
-    gru_h = _name('_h')
-    output_names = [gru_y, gru_h]
+    output_names = [_name('_y'), _name('_h')]
 
     # Transpose input values
     input_name = operator.inputs[0].full_name
@@ -100,8 +94,8 @@ def convert_keras_gru(scope, operator, container):
     oopb.apply_op_with_output('apply_gru',
                               input_names,
                               output_names,
-                              name=operator.raw_operator.name,
-                              output_seq=output_seq,
+                              name=op.name,
+                              output_seq=op.return_sequences,
                               reset_after=op.reset_after,
                               **attrs)
 
