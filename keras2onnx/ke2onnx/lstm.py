@@ -66,9 +66,9 @@ def build_parameters(scope, operator, container):
 
     _name = name_func(scope, operator)
 
-    tensor_w = _name('_W')
-    tensor_r = _name('_R')
-    tensor_b = _name('_B')
+    tensor_w = _name('W')
+    tensor_r = _name('R')
+    tensor_b = _name('B')
 
     # Extract the parameters for the LSTM
     W_x, W_h, b = extract_params(op, hidden_size, input_size)
@@ -127,7 +127,7 @@ def build_output(scope, operator, container, output_names):
 
     # Create output-adjusting operators
     if output_seq:
-        transposed_y = _name('_y_transposed')
+        transposed_y = _name('y_transposed')
         perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
         apply_transpose(scope, lstm_y, transposed_y, container, perm=perm)
 
@@ -139,7 +139,7 @@ def build_output(scope, operator, container, output_names):
             input_shape_tensor = oopb.add_node('Shape', [input_name],
                                                input_name + '_shape_tensor')
 
-            seq_len_tensor = _name('_seq_len_tensor')
+            seq_len_tensor = _name('seq_len_tensor')
             apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
 
             shape_tensor = oopb.add_node('Concat',
@@ -178,7 +178,7 @@ def convert_keras_lstm(scope, operator, container):
     check_sequence_lengths(operator, container)
 
     # Inputs
-    lstm_x = _name('_X')
+    lstm_x = _name('X')
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h, initial_c = build_initial_states(scope, operator, container)
@@ -205,10 +205,7 @@ def convert_keras_lstm(scope, operator, container):
     ]))
 
     # Outputs
-    lstm_y = _name('_Y')
-    lstm_h = _name('_Y_h')
-    lstm_c = _name('_Y_c')
-    output_names = [lstm_y, lstm_h, lstm_c]
+    output_names = [_name('Y'), _name('Y_h'), _name('Y_c')]
 
     # Reshape Keras input format into ONNX input format
     input_name = operator.inputs[0].full_name

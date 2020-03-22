@@ -33,8 +33,8 @@ def build_parameters(scope, operator, container):
     _, seq_length, input_size = simplernn.extract_input_shape(op)
 
     _name = name_func(scope, operator)
-    tensor_w = _name('_W')
-    tensor_r = _name('_R')
+    tensor_w = _name('W')
+    tensor_r = _name('R')
     tensor_b = ''
 
     W, R, B = extract_params(operator.raw_operator)
@@ -47,7 +47,7 @@ def build_parameters(scope, operator, container):
     if B is not None and len(B) > 0:
         if B.size == 3 * hidden_size:
             B = np.concatenate([B, np.zeros(3 * hidden_size)])
-        tensor_b = _name('_B')
+        tensor_b = _name('B')
         B_shape = [1, 6 * hidden_size]
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
 
@@ -60,7 +60,7 @@ def convert_keras_gru(scope, operator, container):
     _name = name_func(scope, operator)
 
     # Inputs
-    gru_x = _name('_X')
+    gru_x = _name('X')
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h = simplernn.build_initial_states(scope, operator, container)
@@ -84,7 +84,7 @@ def convert_keras_gru(scope, operator, container):
     ]))
 
     # Outputs
-    output_names = [_name('_y'), _name('_h')]
+    output_names = [_name('Y'), _name('Y_h')]
 
     # Transpose input values
     input_name = operator.inputs[0].full_name

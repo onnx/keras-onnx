@@ -35,8 +35,8 @@ def build_parameters(scope, operator, container):
 
     _name = name_func(scope, operator)
 
-    tensor_w = _name('_W')
-    tensor_r = _name('_R')
+    tensor_w = _name('W')
+    tensor_r = _name('R')
     tensor_b = ''
 
     # Extract the parameters for the forward and backward layers
@@ -57,7 +57,7 @@ def build_parameters(scope, operator, container):
     if b is not None:
         B = np.concatenate([b, b_back]).flatten()
         B_shape = [2, 8 * hidden_size]
-        tensor_b = _name('_B')
+        tensor_b = _name('B')
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B)
 
     return tensor_w, tensor_r, tensor_b
@@ -69,8 +69,8 @@ def build_initial_states(scope, operator, container):
 
     _name = name_func(scope, operator)
 
-    initial_h = _name('_initial_h')
-    initial_c = _name('_initial_c')
+    initial_h = _name('initial_h')
+    initial_c = _name('initial_c')
     seq_len_tensor = ''
 
     input_name = operator.inputs[0].full_name
@@ -153,7 +153,7 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
     if output_seq:
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
         if is_static_shape:
-            lstm_y_fixed = _name('_Y_fixed')
+            lstm_y_fixed = _name('Y_fixed')
             apply_reshape(scope, lstm_y, lstm_y_fixed, container,
                           desired_shape=[seq_length, 2, -1, hidden_size])
         else:
@@ -174,7 +174,7 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
             # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
-            transposed_y = _name('_Y_transposed')
+            transposed_y = _name('Y_transposed')
             apply_transpose(scope, lstm_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
 
             # Change shape (T, N, D, C') to (N, T, D * C') to meet Keras spec
@@ -200,18 +200,18 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
             # forward/backward pass.
 
             # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
-            transposed_y = _name('_Y_transposed')
+            transposed_y = _name('Y_transposed')
             apply_transpose(scope, lstm_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
 
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
-            forward_y = _name('_Y_forward')
-            backward_y = _name('_Y_backward')
+            forward_y = _name('Y_forward')
+            backward_y = _name('Y_backward')
             axis_direction = 2
             apply_split(scope, transposed_y, [forward_y, backward_y], container, axis=axis_direction)
 
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
-            forward_y_1 = _name('_Y_forward_1')
-            backward_y_1 = _name('_Y_backward_1')
+            forward_y_1 = _name('Y_forward_1')
+            backward_y_1 = _name('Y_backward_1')
             apply_squeeze(scope, forward_y, forward_y_1, container, axes=[axis_direction])
             apply_squeeze(scope, backward_y, backward_y_1, container, axes=[axis_direction])
 
@@ -245,7 +245,7 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
             # In this case, only one Keras output with shape (N, 2 * C') should be produced
 
             # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
-            transposed_h = _name('_Y_h_transposed')
+            transposed_h = _name('Y_h_transposed')
             apply_transpose(scope, lstm_h, transposed_h, container, perm=perm)
 
             # Flatten ONNX (N, D, C') into (N, D * C')
@@ -259,12 +259,12 @@ def build_output(scope, operator, container, output_names, seq_len_tensor):
             # forward/backward pass.
 
             # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
-            transposed_h = _name('_Y_h_transposed')
+            transposed_h = _name('Y_h_transposed')
             apply_transpose(scope, lstm_h, transposed_h, container, perm=perm)
 
             # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
-            forward_y = _name('_Y_forward')
-            backward_y = _name('_Y_backward')
+            forward_y = _name('Y_forward')
+            backward_y = _name('Y_backward')
             axis_direction = 1
             apply_split(scope, transposed_h, [forward_y, backward_y], container, axis=axis_direction)
 
@@ -296,7 +296,7 @@ def convert_bidirectional(scope, operator, container):
     _name = name_func(scope, operator)
 
     # Inputs
-    lstm_x = _name('_X')
+    lstm_x = _name('X')
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h, initial_c, seq_len_tensor = build_initial_states(scope, operator, container)

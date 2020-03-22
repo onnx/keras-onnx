@@ -91,8 +91,8 @@ def build_parameters(scope, operator, container):
 
     _name = name_func(scope, operator)
 
-    tensor_w = _name('_W')
-    tensor_r = _name('_R')
+    tensor_w = _name('W')
+    tensor_r = _name('R')
     tensor_b = ''
 
     W, R, B = extract_params(op, hidden_size)
@@ -103,7 +103,7 @@ def build_parameters(scope, operator, container):
     container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R.flatten())
 
     if op.use_bias:
-        tensor_b = _name('_B')
+        tensor_b = _name('B')
         B_shape = [1, 2 * hidden_size]
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
 
@@ -177,7 +177,7 @@ def convert_keras_simple_rnn(scope, operator, container):
     _name = name_func(scope, operator)
 
     # Inputs
-    rnn_x = _name('_X')
+    rnn_x = _name('X')
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container)
     sequence_lengths = build_sequence_lengths(scope, operator, container)
     initial_h = build_initial_states(scope, operator, container)
@@ -200,7 +200,7 @@ def convert_keras_simple_rnn(scope, operator, container):
         attrs.update(extract_activations([op.activation]))
 
     # Outputs
-    output_names = [_name('_y'), _name('_h')]
+    output_names = [_name('Y'), _name('Y_h')]
 
     # Transpose input values
     input_name = operator.inputs[0].full_name
