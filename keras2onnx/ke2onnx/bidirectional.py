@@ -251,10 +251,8 @@ def convert_bidirectional(scope, operator, container):
             # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
             forward_y_name_1 = get_name('_Y_forward_1')
             backward_y_name_1 = get_name('_Y_backward_1')
-            container.add_node('Squeeze', forward_y_name, forward_y_name_1,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
-            container.add_node('Squeeze', backward_y_name, backward_y_name_1,
-                               name=scope.get_unique_variable_name('Squeeze'), axes=[axis_direction])
+            apply_squeeze(scope, forward_y_name, forward_y_name_1, container, axes=[axis_direction])
+            apply_squeeze(scope, backward_y_name, backward_y_name_1, container, axes=[axis_direction])
 
             if is_static_shape:
                 apply_reshape(scope, forward_y_name_1, operator.outputs[0].full_name, container,

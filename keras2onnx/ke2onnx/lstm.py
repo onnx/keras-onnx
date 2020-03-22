@@ -156,7 +156,8 @@ def convert_keras_lstm(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
 
     if uses_masking_layer:
-        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
+        input_mask_name = operator.input_masks[0].full_name
+        mask_cast = oopb.apply_cast(input_mask_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
         oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
 
 
