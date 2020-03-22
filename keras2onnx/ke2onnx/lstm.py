@@ -7,7 +7,13 @@ import numbers
 import numpy as np
 from collections.abc import Iterable
 from ..common import cvtfunc
-from ..common.onnx_ops import apply_transpose, apply_reshape, apply_identity, OnnxOperatorBuilder
+from ..common.onnx_ops import (
+    apply_transpose,
+    apply_reshape,
+    apply_identity,
+    apply_slice,
+    OnnxOperatorBuilder
+)
 from ..proto import onnx_proto
 from . import simplernn
 
@@ -89,6 +95,60 @@ def build_initial_states(scope, operator, container):
     return initial_h, initial_c
 
 
+def build_output(scope, operator, container, output_names):
+    """
+    """
+    lstm_y, lstm_h, lstm_c = output_names
+
+    op = operator.raw_operator
+    hidden_size = op.units
+    output_seq = op.return_sequences
+    output_state = op.return_state
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
+    is_static_shape = seq_length is not None
+
+    _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
+
+    output_name = operator.outputs[0].full_name
+
+    oopb = OnnxOperatorBuilder(container, scope)
+
+    # Create output-adjusting operators
+    if output_seq:
+        transposed_y = _name('_y_transposed')
+        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
+        apply_transpose(scope, lstm_y, transposed_y, container, perm=perm)
+
+        if is_static_shape:
+            apply_reshape(scope, transposed_y, output_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
+        else:
+            input_name = operator.inputs[0].full_name
+            input_shape_tensor = oopb.add_node('Shape', [input_name],
+                                               input_name + '_shape_tensor')
+
+            seq_len_tensor = _name('_seq_len_tensor')
+            apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
+
+            shape_tensor = oopb.add_node('Concat',
+                                         [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                          seq_len_tensor,
+                                          ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                          ],
+                                         input_name + '_output_seq_shape', axis=0)
+            shape_tensor_output = oopb.add_node('Reshape',
+                                                [transposed_y, shape_tensor],
+                                                input_name + '_output_seq_shape_1')
+            apply_identity(scope, shape_tensor_output, output_name, container)
+    else:
+        apply_reshape(scope, lstm_h, output_name, container, desired_shape=[-1, hidden_size])
+
+    if output_state:
+        # Output hidden and cell states
+        apply_reshape(scope, lstm_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+        apply_reshape(scope, lstm_c, operator.outputs[2].full_name, container, desired_shape=[-1, hidden_size])
+
+
 def _calculate_keras_lstm_output_shapes(operator):
     op = operator.raw_operator
     if isinstance(op.output_shape[0], Iterable):
@@ -101,16 +161,11 @@ def _calculate_keras_lstm_output_shapes(operator):
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
 def convert_keras_lstm(scope, operator, container):
     op = operator.raw_operator
-    hidden_size = op.units
+
     _, seq_length, input_size = simplernn.extract_input_shape(op)
-
-
     is_static_shape = seq_length is not None
     if not is_static_shape and container.target_opset < 9:
         raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
-    output_seq = op.return_sequences
-    output_state = op.return_state
-    reverse_input = op.go_backwards
 
     _name = lambda x: scope.get_unique_variable_name(operator.full_name + x)
 
@@ -133,8 +188,9 @@ def convert_keras_lstm(scope, operator, container):
 
     # Attributes
     attrs = {}
+    reverse_input = op.go_backwards
     attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+    attrs['hidden_size'] = op.units
     attrs.update(simplernn.extract_activations([
         op.recurrent_activation,
         op.activation,
@@ -155,54 +211,8 @@ def convert_keras_lstm(scope, operator, container):
     oopb.apply_op_with_output('apply_lstm',
                               input_names,
                               output_names,
-                              name=operator.raw_operator.name,
-                              output_seq=output_seq,
+                              name=op.name,
+                              output_seq=op.return_sequences,
                               **attrs)
 
-    # Create output-adjusting operators
-    if output_seq:
-        lstm_y_name_transposed = scope.get_unique_variable_name('lstm_y_transposed')
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, lstm_y, lstm_y_name_transposed, container, perm=perm)
-        if is_static_shape:
-            apply_reshape(scope, lstm_y_name_transposed, operator.outputs[0].full_name, container,
-                          desired_shape=[-1, seq_length, hidden_size])
-        else:
-            input_shape_tensor = oopb.add_node('Shape',
-                                               [operator.input_full_names[0]],
-                                               operator.inputs[0].full_name + '_input_shape_tensor')
-
-            if container.target_opset >= 10:
-                seq_len_tensor = oopb.add_node('Slice',
-                                               [input_shape_tensor,
-                                                ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                                ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                                ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                                ],
-                                               operator.inputs[0].full_name + '_seq_len_tensor')
-            else:
-                seq_len_tensor = oopb.add_node('Slice',
-                                               [input_shape_tensor],
-                                               operator.inputs[0].full_name + '_seq_len_tensor', starts=[1], ends=[2],
-                                               axes=[0])
-
-            shape_tensor = oopb.add_node('Concat',
-                                         [('_a', oopb.int64, np.array([-1], dtype='int64')),
-                                          seq_len_tensor,
-                                          ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
-                                          ],
-                                         operator.inputs[0].full_name + '_output_seq_shape', axis=0)
-            shape_tensor_output = oopb.add_node('Reshape',
-                                                [lstm_y_name_transposed,
-                                                 shape_tensor
-                                                ],
-                                                operator.inputs[0].full_name + '_output_seq_shape_1')
-            apply_identity(scope, shape_tensor_output, operator.outputs[0].full_name, container)
-    else:
-        apply_reshape(scope, lstm_h, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
-
-    if output_state:
-        # state_h
-        apply_reshape(scope, lstm_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
-        # state_c
-        apply_reshape(scope, lstm_c, operator.outputs[2].full_name, container, desired_shape=[-1, hidden_size])
+    build_output(scope, operator, container, output_names)
