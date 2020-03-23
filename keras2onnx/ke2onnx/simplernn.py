@@ -6,7 +6,16 @@
 import numpy as np
 from ..proto import onnx_proto, keras
 from ..common import name_func
-from ..common.onnx_ops import apply_reshape, apply_transpose, apply_cast, OnnxOperatorBuilder
+from ..common.onnx_ops import (
+    apply_cast,
+    apply_identity,
+    apply_reshape,
+    apply_slice,
+    apply_split,
+    apply_squeeze,
+    apply_transpose,
+    OnnxOperatorBuilder,
+)
 
 TensorProto = onnx_proto.TensorProto
 
@@ -171,7 +180,7 @@ def build_initial_states(scope, operator, container, bidirectional=False):
 
 
 def build_attributes(scope, operator, container, bidirectional=False):
-    """Returns a dictionary of attributes for the LSTM layer.
+    """Returns a dictionary of attributes for the RNN layer.
     """
     op = operator.raw_operator
 
@@ -218,10 +227,24 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
         forward_layer = op.forward_layer
 
         hidden_size = forward_layer.units
+        is_static_shape = seq_length is not None
         output_seq = forward_layer.return_sequences
         output_state = forward_layer.return_state
         if output_state:
             raise ValueError('Keras Bidirectional cannot return hidden and cell states')
+
+        oopb = OnnxOperatorBuilder(container, scope)
+
+        # Define seq_len_tensor
+        input_name = operator.inputs[0].full_name
+        input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
+
+        batch_indices_tensor = input_name + '_batch_indices_tensor'
+        apply_slice(scope, input_shape_tensor, batch_indices_tensor, container, [0], [1], axes=[0])
+
+        if not is_static_shape:
+            seq_len_tensor = input_name + '_seq_len_tensor'
+            apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
 
         merge_concat = False
         if hasattr(op, 'merge_mode'):
@@ -230,8 +253,6 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                                  'but got %s' % op.merge_mode)
             if op.merge_mode is not None:
                 merge_concat = True
-
-        oopb = OnnxOperatorBuilder(container, scope)
 
         if output_seq:
             # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
@@ -256,7 +277,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
             if merge_concat:
                 # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
 
-                # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
+                # Transpose ONNX RNN Y with shape (T, D, N, C') into (T, N, D, C')
                 transposed_y = _name('Y_transposed')
                 apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
 
@@ -282,7 +303,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
                 # forward/backward pass.
 
-                # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
+                # Transpose ONNX RNN Y with shape (T, D, N, C') into (T, N, D, C')
                 transposed_y = _name('Y_transposed')
                 apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
 
@@ -327,7 +348,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
             if merge_concat:
                 # In this case, only one Keras output with shape (N, 2 * C') should be produced
 
-                # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
+                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
                 transposed_h = _name('Y_h_transposed')
                 apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
 
@@ -341,7 +362,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
                 # forward/backward pass.
 
-                # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
+                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
                 transposed_h = _name('Y_h_transposed')
                 apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
 
