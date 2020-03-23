@@ -5,11 +5,9 @@
 ###############################################################################
 import collections
 import numbers
-import numpy as np
-from ..common import cvtfunc, name_func
-from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
-from ..proto import onnx_proto, keras
-from . import simplernn, lstm
+from ..common import cvtfunc
+from ..proto import keras
+from . import simplernn, gru, lstm
 
 
 def _calculate_keras_bidirectional_output_shapes(operator):

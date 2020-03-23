@@ -6,7 +6,7 @@
 import numpy as np
 from ..proto import onnx_proto
 from ..common import name_func
-from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
 from . import simplernn
 
 TensorProto = onnx_proto.TensorProto

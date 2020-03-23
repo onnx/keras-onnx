@@ -8,7 +8,6 @@ import numpy as np
 from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
-    apply_constant,
     apply_identity,
     apply_reshape,
     apply_slice,
@@ -130,13 +129,8 @@ def build_initial_states(scope, operator, container, bidirectional=False):
     initial_c = ''
 
     if bidirectional:
-        input_name = operator.inputs[0].full_name
-
         _, seq_length, input_size = simplernn.extract_input_shape(operator.raw_operator)
-        is_static_shape = seq_length is not None
         hidden_size = operator.raw_operator.forward_layer.units
-
-        oopb = OnnxOperatorBuilder(container, scope)
 
         if container.target_opset < 9:
             # need the zero initializer to correct some engine shape inference bug.
@@ -159,7 +153,7 @@ def build_initial_states(scope, operator, container, bidirectional=False):
             hidden_size = operator.raw_operator.units
             input_c = operator.inputs[2].full_name
             initial_c = _name('initial_c')
-            apply_reshape(scope, operator.inputs[2].full_name, initial_c, container,
+            apply_reshape(scope, input_c, initial_c, container,
                           desired_shape=[1, -1, hidden_size])
 
     return initial_h, initial_c
@@ -259,7 +253,6 @@ def build_output_bidirectional(scope, operator, container, output_names):
     """
     op = operator.raw_operator
     forward_layer = op.forward_layer
-    backward_layer = op.backward_layer
 
     _, seq_length, input_size = simplernn.extract_input_shape(op)
     is_static_shape = seq_length is not None
