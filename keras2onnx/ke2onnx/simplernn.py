@@ -235,16 +235,13 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
 
         oopb = OnnxOperatorBuilder(container, scope)
 
-        # Define seq_len_tensor
-        input_name = operator.inputs[0].full_name
-        input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
-
-        batch_indices_tensor = input_name + '_batch_indices_tensor'
-        apply_slice(scope, input_shape_tensor, batch_indices_tensor, container, [0], [1], axes=[0])
-
+        # Define seq_dim
         if not is_static_shape:
-            seq_len_tensor = input_name + '_seq_len_tensor'
-            apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
+            input_name = operator.inputs[0].full_name
+            input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
+
+            seq_dim = input_name + '_seq_dim'
+            apply_slice(scope, input_shape_tensor, seq_dim, container, [1], [2], axes=[0])
 
         merge_concat = False
         if hasattr(op, 'merge_mode'):
@@ -262,7 +259,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                               desired_shape=[seq_length, 2, -1, hidden_size])
             else:
                 shape_tensor = oopb.add_node('Concat',
-                                             [seq_len_tensor,
+                                             [seq_dim,
                                               ('_a', oopb.int64, np.array([2], dtype='int64')),
                                               ('_b', oopb.int64, np.array([-1], dtype='int64')),
                                               ('_c', oopb.int64, np.array([hidden_size], dtype='int64'))
@@ -289,7 +286,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                     attrs = {'axis': 0}
                     shape_tensor_2 = oopb.add_node('Concat',
                                                    [('_a', oopb.int64, np.array([-1], dtype='int64')),
-                                                    seq_len_tensor,
+                                                    seq_dim,
                                                     ('_b', oopb.int64, np.array([2 * hidden_size], dtype='int64'))
                                                     ],
                                                    input_name + '_output_seq_shape_2', **attrs)
@@ -327,7 +324,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 else:
                     shape_tensor_3 = oopb.add_node('Concat',
                                                    [('_a', oopb.int64, np.array([-1], dtype='int64')),
-                                                    seq_len_tensor,
+                                                    seq_dim,
                                                     ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
                                                     ],
                                                    input_name + '_output_seq_shape_3', **attrs)
@@ -375,7 +372,6 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
                 apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
                 apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
-
 
 
     else:
