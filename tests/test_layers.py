@@ -1847,8 +1847,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     @unittest.skipIf((is_tf2 and is_tf_keras) or get_opset_number_from_onnx() < 9, 'TODO')
     def test_masking_bias_bidirectional(self):
-        # TODO: Support GRU and SimpleRNN
-        for rnn_class in [LSTM]:
+        for rnn_class in [SimpleRNN, GRU, LSTM]:
 
             timesteps, features = (3, 5)
             model = Sequential([

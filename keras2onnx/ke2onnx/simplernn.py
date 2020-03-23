@@ -207,30 +207,176 @@ def build_attributes(scope, operator, container, bidirectional=False):
 def build_output(scope, operator, container, output_names, bidirectional=False):
     """Builds the output stages for the RNN.
     """
-    # TODO: Add bidirectional support
     rnn_y, rnn_h = output_names
 
     op = operator.raw_operator
     _, seq_length, input_size = extract_input_shape(op)
-    hidden_size = op.units
-    output_seq = op.return_sequences
-    output_state = op.return_state
 
-    output_name = operator.outputs[0].full_name
-    tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
+    _name = name_func(scope, operator)
 
-    if output_seq:
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, rnn_y, tranposed_y, container, perm=perm)
-        apply_reshape(scope, tranposed_y, output_name, container,
-                      desired_shape=[-1, seq_length, hidden_size])
+    if bidirectional:
+        forward_layer = op.forward_layer
+
+        hidden_size = forward_layer.units
+        output_seq = forward_layer.return_sequences
+        output_state = forward_layer.return_state
+        if output_state:
+            raise ValueError('Keras Bidirectional cannot return hidden and cell states')
+
+        merge_concat = False
+        if hasattr(op, 'merge_mode'):
+            if op.merge_mode not in ['concat', None]:
+                raise ValueError('Bidirectional only supports merge_mode=\'concat\' '
+                                 'but got %s' % op.merge_mode)
+            if op.merge_mode is not None:
+                merge_concat = True
+
+        oopb = OnnxOperatorBuilder(container, scope)
+
+        if output_seq:
+            # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
+            if is_static_shape:
+                rnn_y_fixed = _name('Y_fixed')
+                apply_reshape(scope, rnn_y, rnn_y_fixed, container,
+                              desired_shape=[seq_length, 2, -1, hidden_size])
+            else:
+                shape_tensor = oopb.add_node('Concat',
+                                             [seq_len_tensor,
+                                              ('_a', oopb.int64, np.array([2], dtype='int64')),
+                                              ('_b', oopb.int64, np.array([-1], dtype='int64')),
+                                              ('_c', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                              ],
+                                             input_name + '_output_seq_shape', axis=0)
+                rnn_y_fixed = oopb.add_node('Reshape',
+                                                  [rnn_y,
+                                                   shape_tensor
+                                                   ],
+                                                  input_name + '_output_seq_shape_1')
+
+            if merge_concat:
+                # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
+
+                # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
+                transposed_y = _name('Y_transposed')
+                apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
+
+                # Change shape (T, N, D, C') to (N, T, D * C') to meet Keras spec
+                if is_static_shape:
+                    apply_reshape(scope, transposed_y, operator.outputs[0].full_name, container,
+                                  desired_shape=[-1, seq_length, 2 * hidden_size])
+                else:
+                    attrs = {'axis': 0}
+                    shape_tensor_2 = oopb.add_node('Concat',
+                                                   [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                                    seq_len_tensor,
+                                                    ('_b', oopb.int64, np.array([2 * hidden_size], dtype='int64'))
+                                                    ],
+                                                   input_name + '_output_seq_shape_2', **attrs)
+                    shape_tensor_output = oopb.add_node('Reshape',
+                                                        [transposed_y,
+                                                         shape_tensor_2
+                                                         ],
+                                                        input_name + '_output_merge_concat')
+                    apply_identity(scope, shape_tensor_output, operator.outputs[0].full_name, container)
+            else:
+                # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
+                # forward/backward pass.
+
+                # Transpose ONNX LSTM Y with shape (T, D, N, C') into (T, N, D, C')
+                transposed_y = _name('Y_transposed')
+                apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
+
+                # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
+                forward_y = _name('Y_forward')
+                backward_y = _name('Y_backward')
+                axis_direction = 2
+                apply_split(scope, transposed_y, [forward_y, backward_y], container, axis=axis_direction)
+
+                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                forward_y_1 = _name('Y_forward_1')
+                backward_y_1 = _name('Y_backward_1')
+                apply_squeeze(scope, forward_y, forward_y_1, container, axes=[axis_direction])
+                apply_squeeze(scope, backward_y, backward_y_1, container, axes=[axis_direction])
+
+                if is_static_shape:
+                    apply_reshape(scope, forward_y_1, operator.outputs[0].full_name, container,
+                                  desired_shape=[-1, seq_length, hidden_size])
+                    apply_reshape(scope, backward_y_1, operator.outputs[1].full_name, container,
+                                  desired_shape=[-1, seq_length, hidden_size])
+                else:
+                    shape_tensor_3 = oopb.add_node('Concat',
+                                                   [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                                    seq_len_tensor,
+                                                    ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                                    ],
+                                                   input_name + '_output_seq_shape_3', **attrs)
+                    shape_tensor_output_0 = oopb.add_node('Reshape',
+                                                          [forward_y_1,
+                                                           shape_tensor_3
+                                                           ],
+                                                          input_name + '_shape_tensor_output_0')
+                    shape_tensor_output_1 = oopb.add_node('Reshape',
+                                                          [backward_y_1,
+                                                           shape_tensor_3
+                                                           ],
+                                                          input_name + '_shape_tensor_output_1')
+                    apply_identity(scope, shape_tensor_output_0, operator.outputs[0].full_name, container)
+                    apply_identity(scope, shape_tensor_output_1, operator.outputs[1].full_name, container)
+        else:
+            perm = [1, 0, 2]
+            if merge_concat:
+                # In this case, only one Keras output with shape (N, 2 * C') should be produced
+
+                # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
+                transposed_h = _name('Y_h_transposed')
+                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
+
+                # Flatten ONNX (N, D, C') into (N, D * C')
+                oopb.apply_op_with_output("apply_flatten",
+                                          transposed_h,
+                                          operator.outputs[0].full_name,
+                                          name=operator.full_name + '_flatten',
+                                          axis=1)
+            else:
+                # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
+                # forward/backward pass.
+
+                # Transpose ONNX LSTM Y_h with shape (D, N, C') into (N, D, C')
+                transposed_h = _name('Y_h_transposed')
+                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
+
+                # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
+                forward_y = _name('Y_forward')
+                backward_y = _name('Y_backward')
+                axis_direction = 1
+                apply_split(scope, transposed_h, [forward_y, backward_y], container, axis=axis_direction)
+
+                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
+                apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
+
+
+
     else:
-        # Here we ingore ONNX RNN's first output because it's useless.
-        apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
-        apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
+        hidden_size = op.units
+        output_seq = op.return_sequences
+        output_state = op.return_state
 
-    if output_state:
-        apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+        output_name = operator.outputs[0].full_name
+        tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
+
+        if output_seq:
+            perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
+            apply_transpose(scope, rnn_y, tranposed_y, container, perm=perm)
+            apply_reshape(scope, tranposed_y, output_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
+        else:
+            # Here we ingore ONNX RNN's first output because it's useless.
+            apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
+            apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
+
+        if output_state:
+            apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
 
 
 def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):

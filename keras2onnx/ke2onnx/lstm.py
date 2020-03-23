@@ -261,9 +261,6 @@ def build_output_bidirectional(scope, operator, container, output_names):
     output_state = forward_layer.return_state
     if output_state:
         raise ValueError('Keras Bidirectional cannot return hidden and cell states')
-    if not isinstance(forward_layer, LSTM):
-        raise TypeError('The bidirectional module only works with LSTM in Keras but we got %s' % type(forward_layer))
-
 
     _name = name_func(scope, operator)
 
@@ -283,12 +280,13 @@ def build_output_bidirectional(scope, operator, container, output_names):
         apply_slice(scope, input_shape_tensor, seq_len_tensor, container, [1], [2], axes=[0])
 
 
+    merge_concat = False
     if hasattr(op, 'merge_mode'):
         if op.merge_mode not in ['concat', None]:
-            raise ValueError('Only support Bidirectional with merge_mode=\'concat\' but got %s' % op.merge_mode)
-        merge_concat = False if op.merge_mode is None else True
-    else:
-        merge_concat = False
+            raise ValueError('Bidirectional only supports merge_mode=\'concat\' '
+                             'but got %s' % op.merge_mode)
+        if op.merge_mode is not None:
+            merge_concat = True
 
     if output_seq:
         # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.

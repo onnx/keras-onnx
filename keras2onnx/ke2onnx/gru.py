@@ -121,8 +121,10 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
 
     if bidirectional:
         output_seq = op.forward_layer.return_sequences
+        reset_after = op.forward_layer.reset_after
     else:
         output_seq = op.return_sequences
+        reset_after = op.reset_after
 
     # Inputs
     gru_x = _name('X')
@@ -155,7 +157,7 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
                               output_names,
                               name=op.name,
                               output_seq=output_seq,
-                              reset_after=op.reset_after,
+                              reset_after=reset_after,
                               **attrs)
 
     simplernn.build_output(scope, operator, container, output_names, bidirectional)
