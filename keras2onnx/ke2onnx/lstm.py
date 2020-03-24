@@ -11,7 +11,6 @@ from ..common.onnx_ops import (
     apply_identity,
     apply_reshape,
     apply_slice,
-    apply_split,
     apply_squeeze,
     apply_transpose,
     OnnxOperatorBuilder
