@@ -24,7 +24,7 @@ def _calculate_keras_bidirectional_output_shapes(operator):
 
 @cvtfunc(shape_infer=_calculate_keras_bidirectional_output_shapes)
 def convert_bidirectional(scope, operator, container):
-    op_type = operator.raw_operator.forward_layer.__class__
+    op_type = type(operator.raw_operator.forward_layer)
     bidirectional = True
 
     if op_type == keras.layers.LSTM:
