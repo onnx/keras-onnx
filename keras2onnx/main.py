@@ -10,7 +10,7 @@ from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
 from .proto import onnx, get_opset_number_from_onnx
 from .topology import convert_topology
 from .ke2onnx import static_set_ke2onnx_converters
-from .parser import parse_graph
+from .parser import parse_graph, parse_graph_modeless
 from .topology import Topology
 from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
@@ -47,10 +47,11 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     name = name or model.name
     target_opset = target_opset or get_opset_number_from_onnx()
 
+    input_names = []
     output_names = []
     output_dict = {}
     if is_tf2 and is_tf_keras:
-        tf_graph = build_layer_output_from_model(model, output_dict, output_names)
+        tf_graph = build_layer_output_from_model(model, output_dict, input_names, output_names)
     else:
         tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
         output_dict = build_opdict_from_keras(model)
@@ -62,7 +63,12 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
                         target_opset=target_opset,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
-    parse_graph(topology, tf_graph, target_opset, output_names, output_dict)
+    if (not model.inputs) or (not model.outputs):
+        # Since Tensorflow 2.2, For the subclassed tf.keras model, there is no inputs/outputs info ...
+        # ... stored in model object any more.
+        parse_graph_modeless(topology, tf_graph, target_opset, input_names, output_names, output_dict)
+    else:
+        parse_graph(topology, tf_graph, target_opset, output_names, output_dict)
     topology.compile()
 
     return convert_topology(topology, name, doc_string, target_opset, channel_first_inputs)
