@@ -4,9 +4,21 @@
 # license information.
 ###############################################################################
 import numpy as np
-from ..proto import onnx_proto
-from ..common.onnx_ops import apply_reshape, apply_transpose, OnnxOperatorBuilder
-from .common import extract_recurrent_activation
+from ..proto import onnx_proto, keras
+from ..common import name_func
+from ..common.onnx_ops import (
+    apply_cast,
+    apply_identity,
+    apply_reshape,
+    apply_slice,
+    apply_split,
+    apply_squeeze,
+    apply_transpose,
+    OnnxOperatorBuilder,
+)
+
+TensorProto = onnx_proto.TensorProto
+
 
 def extract_input_shape(op):
     """Returns the input shape for a RNN class.
@@ -15,6 +27,7 @@ def extract_input_shape(op):
     if isinstance(input_shape, list):
         input_shape = input_shape[0]
     return input_shape
+
 
 def extract_params(op, hidden_size):
     """Returns a tuple of the SimpleRNN parameters, and converts them into the format for ONNX.
@@ -32,97 +45,398 @@ def extract_params(op, hidden_size):
     return W, R, B
 
 
-def convert_keras_simple_rnn(scope, operator, container):
-    op = operator.raw_operator
-    hidden_size = op.units
-    _, seq_length, input_size = extract_input_shape(op)
-    output_seq = op.return_sequences
-    output_state = op.return_state
-    reverse_input = op.go_backwards
+def extract_recurrent_activation(activation):
+    activations = keras.activations
+    alpha = None
+    beta = None
+    if activation == activations.sigmoid:
+        onnx_op_type = 'Sigmoid'
+    elif activation == activations.hard_sigmoid:
+        onnx_op_type = 'HardSigmoid'
+        alpha = 0.2
+        beta = 0.5
+    elif activation == activations.tanh:
+        onnx_op_type = 'Tanh'
+    elif activation == activations.relu:
+        onnx_op_type = 'Relu'
+    elif activation == activations.linear:
+        onnx_op_type = 'Affine'
+        alpha = 1.0
+    else:
+        raise NotImplementedError('The activation %s not supported' % activation)
 
-    W, R, B = extract_params(op, hidden_size)
+    return onnx_op_type, alpha, beta
+
+
+def extract_activations(fields):
+    """Returns a dictionary with the appropriate activations set
+    """
+    activation_types = []
+    alphas = []
+    betas = []
+    activations = [extract_recurrent_activation(f) for f in fields]
+    for (activation_type, alpha, beta) in activations:
+        activation_types.append(activation_type.encode('utf-8'))
+        if alpha is not None:
+            alphas.append(alpha)
+        if beta is not None:
+            betas.append(beta)
 
     attrs = {}
-    rnn_input_names = []
-    rnn_output_names = []
+    attrs['activations'] = activation_types
+    if alphas:
+        attrs['activation_alpha'] = alphas
+    if betas:
+        attrs['activation_beta'] = betas
+    return attrs
 
-    rnn_x_name = scope.get_unique_variable_name('rnn_x')
-    apply_transpose(scope, operator.inputs[0].full_name, rnn_x_name, container, perm=[1, 0, 2])
-    rnn_input_names.append(rnn_x_name)
+def build_parameters(scope, operator, container, bidirectional=False):
+    """Returns the parameter initialization values after extracting them from the RNN layer.
+    """
+    op = operator.raw_operator
+    _, seq_length, input_size = extract_input_shape(op)
 
-    tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, input_size], W.flatten())
-    rnn_input_names.append(tensor_w_name)
+    _name = name_func(scope, operator)
 
-    tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT, [1, hidden_size, hidden_size], R.flatten())
-    rnn_input_names.append(tensor_r_name)
+    tensor_w = _name('W')
+    tensor_r = _name('R')
+    tensor_b = ''
 
-    if op.use_bias:
-        tensor_b_name = scope.get_unique_variable_name('tensor_b')
-        container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 2 * hidden_size], B.flatten())
-        rnn_input_names.append(tensor_b_name)
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+        hidden_size = forward_layer.units
+
+        W, R, B = extract_params(forward_layer, hidden_size)
+        W_back, R_back, B_back = extract_params(backward_layer, hidden_size)
+
+        W = np.concatenate([W, W_back])
+        W_shape = [2, hidden_size, input_size]
+
+        R = np.concatenate([R, R_back])
+        R_shape = [2, hidden_size, hidden_size]
+
+        if (B is None and B_back is not None) or (B is not None and B_back is None):
+            raise ValueError('Bidirectional bias must be enabled (or disabled) for both forward '
+                             'and backward layers.')
+
+        if B is not None:
+            B = np.concatenate([B, B_back])
+            B_shape = [2, 2 * hidden_size]
+
     else:
-        rnn_input_names.append('')
+        hidden_size = op.units
 
-    # sequence_lens is not able to be converted from input_length
-    uses_masking_layer = len(operator.input_masks) == 1
-    if uses_masking_layer:
-        # Mask using sequence_lens input
-        sequence_lengths = scope.get_unique_variable_name(operator.full_name + '_seq_lens')
-        rnn_input_names.append(sequence_lengths)
-    else:
-        rnn_input_names.append('')
-    # inital_h: none
+        W, R, B = extract_params(op, hidden_size)
+        W_shape = [1, hidden_size, input_size]
+        R_shape = [1, hidden_size, hidden_size]
+
+        if B is not None:
+            B_shape = [1, 2 * hidden_size]
+
+    # Create initializers
+    container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W.flatten())
+    container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R.flatten())
+
+    if B is not None:
+        tensor_b = _name('B')
+        container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
+
+    return tensor_w, tensor_r, tensor_b
+
+
+def build_sequence_lengths(scope, operator, container):
+    """Uses the masking layer to calculate the sequence lengths. If there is no
+    masking layer, then it returns an empty input for the sequence lengths.
+    """
+    # Masking input must be present
+    if len(operator.input_masks) != 1:
+        return ''
+
+    input_mask_name = operator.input_masks[0].full_name
+    mask_cast = scope.get_unique_operator_name(operator.full_name + '_mask_cast')
+    sequence_lengths = scope.get_unique_operator_name(operator.full_name + '_seq_lens')
+
+    apply_cast(scope, input_mask_name, mask_cast, container, to=TensorProto.INT32)
+    container.add_node('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1])
+    return sequence_lengths
+
+
+def build_initial_states(scope, operator, container, bidirectional=False):
+    """Reshapes the initial input states. If there are no states present as inputs, then
+    it returns an empty input for the initial hidden states.
+    """
+    # Initial hidden states
     if len(operator.inputs) == 1:
-        rnn_input_names.append('')
+        return ''
+
+    # Add a reshape after initial_h, 2d -> 3d
+    hidden_size = operator.raw_operator.units
+    input_h = operator.inputs[1].full_name
+    initial_h = scope.get_unique_variable_name(operator.full_name + '_initial_h')
+    desired_shape = [2, -1, hidden_size] if bidirectional else [1, -1, hidden_size]
+    apply_reshape(scope, input_h, initial_h, container, desired_shape=desired_shape)
+    return initial_h
+
+
+def build_attributes(scope, operator, container, bidirectional=False):
+    """Returns a dictionary of attributes for the RNN layer.
+    """
+    op = operator.raw_operator
+
+    attrs = {}
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+
+        attrs['direction'] = 'bidirectional'
+        attrs['hidden_size'] = forward_layer.units
+
+        activations = []
+        if hasattr(forward_layer, 'activation'):
+            activations.append(forward_layer.activation)
+
+        if hasattr(backward_layer, 'activation'):
+            activations.append(backward_layer.activation)
+
+        if len(activations) > 0:
+            attrs.update(extract_activations(activations))
+
     else:
-        # Add a reshape after initial_h, 2d -> 3d
-        input_reshape_name = scope.get_unique_variable_name('input_reshape')
-        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
-                      desired_shape=[1, -1, hidden_size])
-        rnn_input_names.append(input_reshape_name)
+        attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
+        attrs['hidden_size'] = op.units
 
-    if hasattr(op, 'activation'):
-        activation_type, alpha, beta = extract_recurrent_activation(op.activation)
-        attrs['activations'] = [activation_type.encode('utf-8')]
-        if alpha is not None:
-            attrs['activation_alpha'] = [alpha]
-        if beta is not None:
-            attrs['activation_beta'] = [beta]
+        if hasattr(op, 'activation'):
+            attrs.update(extract_activations([op.activation]))
 
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+    return attrs
 
-    # We use the collected information to build ONNX's RNN. ONNX RNN's outputs will be saved onto two intermediate
-    # tensors and we will adjust them subsequently to mimic Keras output format.
-    rnn_y_name = scope.get_unique_variable_name('rnn_y')
-    rnn_h_name = scope.get_unique_variable_name('rnn_h')
-    rnn_output_names.append(rnn_y_name)
-    rnn_output_names.append(rnn_h_name)
+
+def build_output(scope, operator, container, output_names, bidirectional=False):
+    """Builds the output stages for the RNN.
+    """
+    rnn_y, rnn_h = output_names
+
+    op = operator.raw_operator
+    _, seq_length, input_size = extract_input_shape(op)
+
+    _name = name_func(scope, operator)
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+
+        hidden_size = forward_layer.units
+        is_static_shape = seq_length is not None
+        output_seq = forward_layer.return_sequences
+        output_state = forward_layer.return_state
+        if output_state:
+            raise ValueError('Keras Bidirectional cannot return hidden and cell states')
+
+        oopb = OnnxOperatorBuilder(container, scope)
+
+        # Define seq_dim
+        if not is_static_shape:
+            input_name = operator.inputs[0].full_name
+            input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
+
+            seq_dim = input_name + '_seq_dim'
+            apply_slice(scope, input_shape_tensor, seq_dim, container, [1], [2], axes=[0])
+
+        merge_concat = False
+        if hasattr(op, 'merge_mode'):
+            if op.merge_mode not in ['concat', None]:
+                raise ValueError('Bidirectional only supports merge_mode=\'concat\' '
+                                 'but got %s' % op.merge_mode)
+            if op.merge_mode is not None:
+                merge_concat = True
+
+        if output_seq:
+            # The output shape of runtime is 3-D while ONNX says 4-D, so we do a Reshape to fix it.
+            if is_static_shape:
+                rnn_y_fixed = _name('Y_fixed')
+                apply_reshape(scope, rnn_y, rnn_y_fixed, container,
+                              desired_shape=[seq_length, 2, -1, hidden_size])
+            else:
+                shape_tensor = oopb.add_node('Concat',
+                                             [seq_dim,
+                                              ('_a', oopb.int64, np.array([2], dtype='int64')),
+                                              ('_b', oopb.int64, np.array([-1], dtype='int64')),
+                                              ('_c', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                              ],
+                                             input_name + '_output_seq_shape', axis=0)
+                rnn_y_fixed = oopb.add_node('Reshape',
+                                                  [rnn_y,
+                                                   shape_tensor
+                                                   ],
+                                                  input_name + '_output_seq_shape_1')
+
+            if merge_concat:
+                # In this case, only one Keras output with shape (N, T, 2 * C') should be produced
+
+                # Transpose ONNX RNN Y with shape (T, D, N, C') into (T, N, D, C')
+                transposed_y = _name('Y_transposed')
+                apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
+
+                # Change shape (T, N, D, C') to (N, T, D * C') to meet Keras spec
+                if is_static_shape:
+                    apply_reshape(scope, transposed_y, operator.outputs[0].full_name, container,
+                                  desired_shape=[-1, seq_length, 2 * hidden_size])
+                else:
+                    attrs = {'axis': 0}
+                    shape_tensor_2 = oopb.add_node('Concat',
+                                                   [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                                    seq_dim,
+                                                    ('_b', oopb.int64, np.array([2 * hidden_size], dtype='int64'))
+                                                    ],
+                                                   input_name + '_output_seq_shape_2', **attrs)
+                    shape_tensor_output = oopb.add_node('Reshape',
+                                                        [transposed_y,
+                                                         shape_tensor_2
+                                                         ],
+                                                        input_name + '_output_merge_concat')
+                    apply_identity(scope, shape_tensor_output, operator.outputs[0].full_name, container)
+            else:
+                # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
+                # forward/backward pass.
+
+                # Transpose ONNX RNN Y with shape (T, D, N, C') into (T, N, D, C')
+                transposed_y = _name('Y_transposed')
+                apply_transpose(scope, rnn_y_fixed, transposed_y, container, perm=[2, 0, 1, 3])
+
+                # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
+                forward_y = _name('Y_forward')
+                backward_y = _name('Y_backward')
+                axis_direction = 2
+                apply_split(scope, transposed_y, [forward_y, backward_y], container, axis=axis_direction)
+
+                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                forward_y_1 = _name('Y_forward_1')
+                backward_y_1 = _name('Y_backward_1')
+                apply_squeeze(scope, forward_y, forward_y_1, container, axes=[axis_direction])
+                apply_squeeze(scope, backward_y, backward_y_1, container, axes=[axis_direction])
+
+                if is_static_shape:
+                    apply_reshape(scope, forward_y_1, operator.outputs[0].full_name, container,
+                                  desired_shape=[-1, seq_length, hidden_size])
+                    apply_reshape(scope, backward_y_1, operator.outputs[1].full_name, container,
+                                  desired_shape=[-1, seq_length, hidden_size])
+                else:
+                    shape_tensor_3 = oopb.add_node('Concat',
+                                                   [('_a', oopb.int64, np.array([-1], dtype='int64')),
+                                                    seq_dim,
+                                                    ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
+                                                    ],
+                                                   input_name + '_output_seq_shape_3', **attrs)
+                    shape_tensor_output_0 = oopb.add_node('Reshape',
+                                                          [forward_y_1,
+                                                           shape_tensor_3
+                                                           ],
+                                                          input_name + '_shape_tensor_output_0')
+                    shape_tensor_output_1 = oopb.add_node('Reshape',
+                                                          [backward_y_1,
+                                                           shape_tensor_3
+                                                           ],
+                                                          input_name + '_shape_tensor_output_1')
+                    apply_identity(scope, shape_tensor_output_0, operator.outputs[0].full_name, container)
+                    apply_identity(scope, shape_tensor_output_1, operator.outputs[1].full_name, container)
+        else:
+            perm = [1, 0, 2]
+            if merge_concat:
+                # In this case, only one Keras output with shape (N, 2 * C') should be produced
+
+                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
+                transposed_h = _name('Y_h_transposed')
+                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
+
+                # Flatten ONNX (N, D, C') into (N, D * C')
+                oopb.apply_op_with_output("apply_flatten",
+                                          transposed_h,
+                                          operator.outputs[0].full_name,
+                                          name=operator.full_name + '_flatten',
+                                          axis=1)
+            else:
+                # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
+                # forward/backward pass.
+
+                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
+                transposed_h = _name('Y_h_transposed')
+                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
+
+                # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
+                forward_y = _name('Y_forward')
+                backward_y = _name('Y_backward')
+                axis_direction = 1
+                apply_split(scope, transposed_h, [forward_y, backward_y], container, axis=axis_direction)
+
+                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
+                apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
+
+
+    else:
+        hidden_size = op.units
+        output_seq = op.return_sequences
+        output_state = op.return_state
+
+        output_name = operator.outputs[0].full_name
+        tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
+
+        if output_seq:
+            perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
+            apply_transpose(scope, rnn_y, tranposed_y, container, perm=perm)
+            apply_reshape(scope, tranposed_y, output_name, container,
+                          desired_shape=[-1, seq_length, hidden_size])
+        else:
+            # Here we ingore ONNX RNN's first output because it's useless.
+            apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
+            apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
+
+        if output_state:
+            apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+
+
+def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):
+    op = operator.raw_operator
+
+    _name = name_func(scope, operator)
+
+    if bidirectional:
+        output_seq = op.forward_layer.return_sequences
+    else:
+        output_seq = op.return_sequences
+
+    # Inputs
+    rnn_x = _name('X')
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
+    sequence_lengths = build_sequence_lengths(scope, operator, container)
+    initial_h = build_initial_states(scope, operator, container, bidirectional)
+
+    input_names = [
+        rnn_x,
+        tensor_w,
+        tensor_r,
+        tensor_b,
+        sequence_lengths,
+        initial_h,
+    ]
+
+    # Attributes
+    attrs = build_attributes(scope, operator, container, bidirectional)
+
+    # Outputs
+    output_names = [_name('Y'), _name('Y_h')]
+
+    # Transpose input values
+    input_name = operator.inputs[0].full_name
+    apply_transpose(scope, input_name, rnn_x, container, perm=[1, 0, 2])
+
     oopb = OnnxOperatorBuilder(container, scope)
-
-    if uses_masking_layer:
-        mask_cast = oopb.apply_cast(operator.input_masks[0].full_name, to=oopb.int32, name=operator.full_name + '_mask_cast')
-        oopb.add_node_with_output('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1], name=operator.full_name + '_mask_sum')
-
     oopb.apply_op_with_output('apply_rnn',
-                              rnn_input_names,
-                              rnn_output_names,
-                              name=operator.raw_operator.name,
+                              input_names,
+                              output_names,
+                              name=op.name,
                               output_seq=output_seq,
                               **attrs)
 
-    # Create operators to adjust ONNX output to meet Keras format
-    if output_seq:
-        permuted_rnn_y_name = scope.get_unique_variable_name('rnn_y_permuted')
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, rnn_y_name, permuted_rnn_y_name, container, perm=perm)
-        apply_reshape(scope, permuted_rnn_y_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, seq_length, hidden_size])
-    else:
-        # Here we ingore ONNX RNN's first output because it's useless.
-        apply_reshape(scope, rnn_h_name, operator.outputs[0].full_name, container, desired_shape=[-1, hidden_size])
-
-    if output_state:
-        apply_reshape(scope, rnn_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+    build_output(scope, operator, container, output_names, bidirectional)
