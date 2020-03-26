@@ -1574,6 +1574,30 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    def test_Bidirectional_with_initial_states(self):
+        for rnn_class in [SimpleRNN, GRU]:
+            input1 = Input(shape=(None, 5))
+            states = Bidirectional(rnn_class(2, return_state=True))(input1)
+            model = Model(input1, states)
+
+            x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
+            #inputs = [x, x]
+            inputs = [x]
+
+            expected = model.predict(inputs)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files))
+
+            #input2 = Input(shape=(None, 5))
+            #states = Bidirectional(rnn_class(2, return_state=True))(input1)[1:]
+            #out = Bidirectional(rnn_class(2, return_sequences=True))(input2, initial_state=states)
+            #model = Model([input1, input2], out)
+            #inputs = [x, x]
+
+            #expected = model.predict(inputs)
+            #onnx_model = keras2onnx.convert_keras(model, model.name)
+            #self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files))
+
     # Bidirectional LSTM with seq_length = None
     @unittest.skipIf(get_opset_number_from_onnx() < 9,
                      "None seq_length Bidirectional LSTM is not supported before opset 9.")

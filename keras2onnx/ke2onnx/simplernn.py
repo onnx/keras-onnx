@@ -230,10 +230,16 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
         is_static_shape = seq_length is not None
         output_seq = forward_layer.return_sequences
         output_state = forward_layer.return_state
-        if output_state:
-            raise ValueError('Keras Bidirectional cannot return hidden and cell states')
 
         oopb = OnnxOperatorBuilder(container, scope)
+
+        if output_state:
+            state_names = [o.full_name for o in operator.outputs[1:]]
+            intermediate_names = ['{}_{}'.format(rnn_h, i) for i, _ in enumerate(state_names)]
+
+            apply_split(scope, rnn_h, intermediate_names, container)
+            for intermediate_name, state_name in zip(intermediate_names, state_names):
+                apply_squeeze(scope, intermediate_name, state_name, container)
 
         # Define seq_dim
         if not is_static_shape:
