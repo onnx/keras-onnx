@@ -220,25 +220,25 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
 
     op = operator.raw_operator
     _, seq_length, input_size = extract_input_shape(op)
+    is_static_shape = seq_length is not None
 
     _name = name_func(scope, operator)
+
+    oopb = OnnxOperatorBuilder(container, scope)
+
+    # Define seq_dim
+    if not is_static_shape:
+        input_name = operator.inputs[0].full_name
+        input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
+
+        seq_dim = input_name + '_seq_dim'
+        apply_slice(scope, input_shape_tensor, seq_dim, container, [1], [2], axes=[0])
 
     if bidirectional:
         forward_layer = op.forward_layer
 
         hidden_size = forward_layer.units
-        is_static_shape = seq_length is not None
         output_seq = forward_layer.return_sequences
-
-        oopb = OnnxOperatorBuilder(container, scope)
-
-        # Define seq_dim
-        if not is_static_shape:
-            input_name = operator.inputs[0].full_name
-            input_shape_tensor = oopb.add_node('Shape', [input_name], input_name + '_input_shape_tensor')
-
-            seq_dim = input_name + '_seq_dim'
-            apply_slice(scope, input_shape_tensor, seq_dim, container, [1], [2], axes=[0])
 
         merge_concat = False
         if hasattr(op, 'merge_mode'):
@@ -376,17 +376,34 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
         output_seq = op.return_sequences
 
         output_name = operator.outputs[0].full_name
-        tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
+        transposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
 
+        # Determine the source, transpose permutation, and output shape
         if output_seq:
-            perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-            apply_transpose(scope, rnn_y, tranposed_y, container, perm=perm)
-            apply_reshape(scope, tranposed_y, output_name, container,
-                          desired_shape=[-1, seq_length, hidden_size])
+            source = rnn_y
+            perm = [2, 0, 1, 3]
+            if is_static_shape:
+                desired_shape = [-1, seq_length, hidden_size]
+            elif container.target_opset < 5:
+                # Before Reshape-5 you can not take the sequence dimension in as an input
+                raise ValueError('At least opset 5 is required for output sequences')
+            else:
+                # Dynamically determine the output shape based on the sequence dimension
+                shape_values = [
+                    ('_a', oopb.int64, np.array([-1], dtype='int64')),
+                    seq_dim,
+                    ('_b', oopb.int64, np.array([hidden_size], dtype='int64')),
+                ]
+                shape_name = _name('_output_seq_shape')
+                desired_shape = oopb.add_node('Concat', shape_values, shape_name, axis=0)
         else:
-            # Here we ingore ONNX RNN's first output because it's useless.
-            apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
-            apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
+            # Use the last hidden states directly
+            source = rnn_h
+            perm = [1, 0, 2]
+            desired_shape = [-1, hidden_size]
+
+        apply_transpose(scope, source, transposed_y, container, perm=perm)
+        apply_reshape(scope, transposed_y, output_name, container, desired_shape=desired_shape)
 
 
 def build_output_states(scope, operator, container, output_names, bidirectional=False):
