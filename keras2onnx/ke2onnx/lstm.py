@@ -23,18 +23,6 @@ LSTM = keras.layers.LSTM
 TensorProto = onnx_proto.TensorProto
 
 
-def check_sequence_lengths(operator, container):
-    """Raises an exception if the shape is expected to be static, but the sequence lenghts
-    are not provided. This only applies to opsets below 9.
-    """
-    op = operator.raw_operator
-
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
-    is_static_shape = seq_length is not None
-    if not is_static_shape and container.target_opset < 9:
-        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
-
-
 def convert_ifco_to_iofc(tensor_ifco):
     """Returns a tensor in input (i), output (o), forget (f), cell (c) ordering. The
     Keras ordering is ifco, while the ONNX ordering is iofc.
@@ -287,8 +275,6 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
         output_seq = op.forward_layer.return_sequences
     else:
         output_seq = op.return_sequences
-
-    #check_sequence_lengths(operator, container)
 
     # Inputs
     lstm_x = _name('X')
