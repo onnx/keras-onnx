@@ -1599,8 +1599,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             #self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files))
 
     # Bidirectional LSTM with seq_length = None
-    @unittest.skipIf(get_opset_number_from_onnx() < 9,
-                     "None seq_length Bidirectional LSTM is not supported before opset 9.")
+    @unittest.skipIf(get_opset_number_from_onnx() < 5,
+                     "None seq_length Bidirectional LSTM is not supported before opset 5.")
     def test_Bidirectional_seqlen_none(self):
         for rnn_class in [SimpleRNN, GRU, LSTM]:
             model = Sequential()
