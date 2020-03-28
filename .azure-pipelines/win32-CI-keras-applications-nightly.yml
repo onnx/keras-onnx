@@ -96,7 +96,7 @@ jobs:
       %INSTALL_ORT%
       pip install opencv-python
       pip install tqdm
-      pip install keras-segmentation
+      pip install keras-segmentation==0.2.0
       pip install matplotlib
       git clone https://github.com/qqwweee/keras-yolo3
       %INSTALL_KERAS_RESNET%
