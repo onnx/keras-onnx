@@ -1575,7 +1575,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def test_Bidirectional_with_initial_states(self):
-        for rnn_class in [SimpleRNN, GRU]:
+        for rnn_class in [SimpleRNN, GRU, LSTM]:
             input1 = Input(shape=(None, 5))
             states = Bidirectional(rnn_class(2, return_state=True))(input1)
             model = Model(input1, states)

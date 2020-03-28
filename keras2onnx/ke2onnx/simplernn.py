@@ -229,17 +229,8 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
         hidden_size = forward_layer.units
         is_static_shape = seq_length is not None
         output_seq = forward_layer.return_sequences
-        output_state = forward_layer.return_state
 
         oopb = OnnxOperatorBuilder(container, scope)
-
-        if output_state:
-            state_names = [o.full_name for o in operator.outputs[1:]]
-            intermediate_names = ['{}_{}'.format(rnn_h, i) for i, _ in enumerate(state_names)]
-
-            apply_split(scope, rnn_h, intermediate_names, container)
-            for intermediate_name, state_name in zip(intermediate_names, state_names):
-                apply_squeeze(scope, intermediate_name, state_name, container)
 
         # Define seq_dim
         if not is_static_shape:
@@ -383,7 +374,6 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     else:
         hidden_size = op.units
         output_seq = op.return_sequences
-        output_state = op.return_state
 
         output_name = operator.outputs[0].full_name
         tranposed_y = scope.get_unique_variable_name(operator.full_name + '_y_transposed')
@@ -398,8 +388,33 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
             apply_transpose(scope, rnn_h, tranposed_y, container, perm=[1, 0, 2])
             apply_reshape(scope, tranposed_y, output_name, container, desired_shape=[-1, hidden_size])
 
+
+def build_output_states(scope, operator, container, output_names, bidirectional=False):
+    """Builds the output hidden states for the RNN layer.
+    """
+    _, rnn_h = output_names
+    op = operator.raw_operator
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        output_state = forward_layer.return_state
+
         if output_state:
-            apply_reshape(scope, rnn_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+            # Split rnn_h into forward and backward directions
+            output_names = [o.full_name for o in operator.outputs[1:]]
+            split_names = ['{}_{}'.format(rnn_h, d) for d in ('forward', 'backward')]
+
+            apply_split(scope, rnn_h, split_names, container)
+
+            for split_name, output_name in zip(split_names, output_names):
+                apply_squeeze(scope, split_name, output_name, container)
+
+    else:
+        output_state = op.return_state
+
+        if output_state:
+            output_h = operator.outputs[1].full_name
+            apply_squeeze(scope, rnn_h, output_h, container)
 
 
 def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):
@@ -446,3 +461,4 @@ def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):
                               **attrs)
 
     build_output(scope, operator, container, output_names, bidirectional)
+    build_output_states(scope, operator, container, output_names, bidirectional)
