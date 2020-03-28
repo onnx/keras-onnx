@@ -10,3 +10,11 @@ from .intop import Operator
 from .interim import OnnxObjectContainer, InterimContext, Variable
 
 # keras2onnx common code has been refactored into onnxconverter-common.
+
+def name_func(scope, operator):
+    """Returns a function that can generate unique names for an operator based on the
+    scope.
+    """
+    def _name_func(name):
+        return scope.get_unique_operator_name(operator.full_name + '_' + name)
+    return _name_func

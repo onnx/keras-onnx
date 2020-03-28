@@ -17,7 +17,7 @@ Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microso
 keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x/2.0/2.1**  (CI build). It does not support **Python 2.x**.
 
 # Install
-You can install latest release of Keras2ONNX from PyPi:
+You can install latest release of Keras2ONNX from PyPi: **Due to some reason, the package release paused, please install it from the source, and the support of keras or tf.keras over tensorflow 2.x is only available in the source.**
 
 ```
 pip install keras2onnx
