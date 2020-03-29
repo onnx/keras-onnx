@@ -8,6 +8,7 @@ from ..proto import onnx_proto, keras
 from ..common import name_func
 from ..common.onnx_ops import (
     apply_cast,
+    apply_concat,
     apply_identity,
     apply_reshape,
     apply_slice,
@@ -170,12 +171,39 @@ def build_initial_states(scope, operator, container, bidirectional=False):
     if len(operator.inputs) == 1:
         return ''
 
-    # Add a reshape after initial_h, 2d -> 3d
-    hidden_size = operator.raw_operator.units
-    input_h = operator.inputs[1].full_name
-    initial_h = scope.get_unique_variable_name(operator.full_name + '_initial_h')
-    desired_shape = [2, -1, hidden_size] if bidirectional else [1, -1, hidden_size]
-    apply_reshape(scope, input_h, initial_h, container, desired_shape=desired_shape)
+    op = operator.raw_operator
+    _name = name_func(scope, operator)
+
+    initial_h = _name('initial_h')
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        hidden_size = forward_layer.units
+        desired_shape = [1, -1, hidden_size]
+
+        # Combine the forward and backward layers
+        forward_h = _name('initial_h_forward')
+        backward_h = _name('initial_h_backward')
+
+        # Handle LSTM initial hidden case to enable code reuse
+        if len(operator.inputs) > 4:
+            f, b = 1, 3
+        else:
+            f, b = 1, 2
+
+        apply_reshape(scope, operator.inputs[f].full_name, forward_h, container, desired_shape=desired_shape)
+        apply_reshape(scope, operator.inputs[b].full_name, backward_h, container, desired_shape=desired_shape)
+
+        apply_concat(scope, [forward_h, backward_h], initial_h, container)
+
+    else:
+        hidden_size = operator.raw_operator.units
+        desired_shape = [1, -1, hidden_size]
+
+        # Add a reshape after initial_h, 2d -> 3d
+        input_h = operator.inputs[1].full_name
+        apply_reshape(scope, input_h, initial_h, container, desired_shape=desired_shape)
+
     return initial_h
 
 

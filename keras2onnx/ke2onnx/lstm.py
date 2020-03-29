@@ -8,6 +8,7 @@ import numpy as np
 from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
+    apply_concat,
     apply_identity,
     apply_reshape,
     apply_slice,
@@ -109,28 +110,43 @@ def build_parameters(scope, operator, container, bidirectional=False):
     return tensor_w, tensor_r, tensor_b
 
 def build_initial_states(scope, operator, container, bidirectional=False):
-    """
+    """Builds the initial hidden and cell states for the LSTM layer.
     """
     _name = name_func(scope, operator)
 
-    initial_h = ''
-    initial_c = ''
+    initial_h = simplernn.build_initial_states(scope, operator, container, bidirectional)
+
+    # Determine if the cell states are set
+    has_c = (
+        (len(operator.inputs) > 1 and not bidirectional) or
+        (len(operator.inputs) > 3 and bidirectional)
+    )
+    if not has_c:
+        return initial_h, ''
+
+    op = operator.raw_operator
+    initial_c = _name('initial_c')
 
     if bidirectional:
-        if len(operator.inputs) > 1:
-            # TODO: Add support for inputing initial states for Bidirectional LSTM
-            raise NotImplemented("Initial states for Bidirectional LSTM is not yet supported")
+        forward_layer = op.forward_layer
+        hidden_size = forward_layer.units
+        desired_shape = [1, -1, hidden_size]
+
+        # Combine the forward and backward_layers
+        forward_h = _name('initial_c_forward')
+        backward_h = _name('initial_c_backward')
+        apply_reshape(scope, operator.inputs[2].full_name, forward_h, container, desired_shape=desired_shape)
+        apply_reshape(scope, operator.inputs[4].full_name, backward_h, container, desired_shape=desired_shape)
+
+        apply_concat(scope, [forward_h, backward_h], initial_c, container)
+
     else:
+        hidden_size = operator.raw_operator.units
+        desired_shape = [1, -1, hidden_size]
 
-        initial_h = simplernn.build_initial_states(scope, operator, container)
-
-        if len(operator.inputs) > 1:
-            # Add a reshape after initial_h, 2d -> 3d
-            hidden_size = operator.raw_operator.units
-            input_c = operator.inputs[2].full_name
-            initial_c = _name('initial_c')
-            apply_reshape(scope, input_c, initial_c, container,
-                          desired_shape=[1, -1, hidden_size])
+        # Add a reshape after initial_c, 2d -> 3d
+        input_c = operator.inputs[2].full_name
+        apply_reshape(scope, input_c, initial_c, container, desired_shape=desired_shape)
 
     return initial_h, initial_c
 
