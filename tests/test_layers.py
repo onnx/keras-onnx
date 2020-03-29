@@ -1501,8 +1501,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs": x, 'state_h': sh, 'state_c': sc}, expected,
                              self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 9,
-                     "None seq_length LSTM is not supported before opset 9.")
+    @unittest.skipIf(get_opset_number_from_onnx() < 5,
+                     "None seq_length LSTM is not supported before opset 5.")
     def test_LSTM_seqlen_none(self):
         lstm_dim = 2
         data = np.random.rand(1, 5, 1).astype(np.float32)
