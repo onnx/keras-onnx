@@ -1596,7 +1596,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             expected = model.predict(inputs)
             onnx_model = keras2onnx.convert_keras(model, model.name)
-            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files))
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files, atol=1e-5))
 
     # Bidirectional LSTM with seq_length = None
     @unittest.skipIf(get_opset_number_from_onnx() < 5,
