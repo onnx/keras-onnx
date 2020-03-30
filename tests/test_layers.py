@@ -1614,6 +1614,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(x)
                 self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
+    @unittest.skipIf(is_tf2, 'TODO')
     def test_rnn_state_passing(self):
         for rnn_class in [SimpleRNN, GRU, LSTM]:
             input1 = Input(shape=(None, 5))
