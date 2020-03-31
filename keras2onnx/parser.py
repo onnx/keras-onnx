@@ -626,10 +626,10 @@ def _sorted_inputs(nodelist, outputs, inputs_set):
 
 
 def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, node, varset, visited, q_overall):
-    layer_key = None
+    layer_key_, model_ = (None, None)
     current_layer_outputs = {}
     if node.name in keras_node_dict:
-        layer_key = keras_node_dict[node.name][0]
+        layer_key, model_ = keras_node_dict[node.name]
     else:
         ts_out = node.outputs[0]
         kh_ = getattr(ts_out, '_keras_history', None)
@@ -648,7 +648,7 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
                 _create_identity(ts_.op.inputs[0], ts_, varset)
                 visited.add(ts_.op)
                 _advance_by_input(ts_.op, [ts_.op], list(), set(), graph_inputs, q_overall)
-            return None
+            return None, model_
         else:
             layer_info = LayerInfo.create(node, layer_key,
                                           {**keras_node_dict, **current_layer_outputs}, inference_nodeset)
@@ -662,7 +662,7 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
         layer_info.inputs.extend(input_.outputs)
 
     layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
-    return layer_info
+    return layer_info, model_
 
 
 def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_names):
@@ -698,14 +698,16 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
         if node in input_nodes or node in visited:
             continue
 
-        layer_info = _parse_nodes_v2(graph, inference_nodeset, input_nodes, keras_node_dict, node,
+        layer_info, model_ = _parse_nodes_v2(graph, inference_nodeset, input_nodes, keras_node_dict, node,
                                      varset, visited, q_overall)
         if not layer_info:  # already processed by the parse_nodes_XX
             continue
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_info.layer.name, type(layer_info.layer)) if
                            layer_info.layer else (layer_info.nodelist[0].name, "Custom_Layer"))
-        if layer_info.layer and get_converter(type(layer_info.layer)):
+        if layer_info.layer and isinstance(layer_info.layer, keras.layers.TimeDistributed):
+            _on_parsing_time_distributed_layer(graph, layer_info.nodelist, layer_info.layer, model_, varset)
+        elif layer_info.layer and get_converter(type(layer_info.layer)):
             on_parsing_keras_layer_v2(graph, layer_info, varset)
         else:
             _on_parsing_tf_nodes(graph, layer_info.nodelist, varset, topology.debug_mode)
