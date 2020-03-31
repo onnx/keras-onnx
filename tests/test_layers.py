@@ -1942,7 +1942,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_timedistributed(self):
         keras_model = keras.Sequential()
         keras_model.add(TimeDistributed(Dense(8), input_shape=(10, 16)))
