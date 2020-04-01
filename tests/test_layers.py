@@ -1859,7 +1859,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(x)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking(self):
         timesteps, features = (3, 5)
         model = Sequential([
@@ -1872,7 +1871,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_bias(self):
         for rnn_class in [LSTM, GRU, SimpleRNN]:
 
@@ -1902,7 +1900,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf((is_tf2 and is_tf_keras) or get_opset_number_from_onnx() < 9, 'TODO')
+    @unittest.skipIf(get_opset_number_from_onnx() < 9, 'bidirectional is not supported for opset < 9')
     def test_masking_bias_bidirectional(self):
         for rnn_class in [SimpleRNN, GRU, LSTM]:
 
@@ -1933,7 +1931,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_value(self):
         timesteps, features = (3, 5)
         mask_value = 5.
@@ -1948,7 +1945,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 and is_tf_keras, 'TODO')
     def test_masking_custom(self):
         class MyPoolingMask(keras.layers.Layer):
             def __init__(self, **kwargs):
