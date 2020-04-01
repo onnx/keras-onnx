@@ -8,9 +8,11 @@ import numpy as np
 from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
+    apply_concat,
     apply_identity,
     apply_reshape,
     apply_slice,
+    apply_split,
     apply_squeeze,
     apply_transpose,
     OnnxOperatorBuilder
@@ -20,18 +22,6 @@ from . import simplernn
 
 LSTM = keras.layers.LSTM
 TensorProto = onnx_proto.TensorProto
-
-
-def check_sequence_lengths(operator, container):
-    """Raises an exception if the shape is expected to be static, but the sequence lenghts
-    are not provided. This only applies to opsets below 9.
-    """
-    op = operator.raw_operator
-
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
-    is_static_shape = seq_length is not None
-    if not is_static_shape and container.target_opset < 9:
-        raise ValueError('None seq_length is not supported in opset ' + str(container.target_opset))
 
 
 def convert_ifco_to_iofc(tensor_ifco):
@@ -120,28 +110,43 @@ def build_parameters(scope, operator, container, bidirectional=False):
     return tensor_w, tensor_r, tensor_b
 
 def build_initial_states(scope, operator, container, bidirectional=False):
-    """
+    """Builds the initial hidden and cell states for the LSTM layer.
     """
     _name = name_func(scope, operator)
 
-    initial_h = ''
-    initial_c = ''
+    initial_h = simplernn.build_initial_states(scope, operator, container, bidirectional)
+
+    # Determine if the cell states are set
+    has_c = (
+        (len(operator.inputs) > 1 and not bidirectional) or
+        (len(operator.inputs) > 3 and bidirectional)
+    )
+    if not has_c:
+        return initial_h, ''
+
+    op = operator.raw_operator
+    initial_c = _name('initial_c')
 
     if bidirectional:
-        if len(operator.inputs) > 1:
-            # TODO: Add support for inputing initial states for Bidirectional LSTM
-            raise NotImplemented("Initial states for Bidirectional LSTM is not yet supported")
+        forward_layer = op.forward_layer
+        hidden_size = forward_layer.units
+        desired_shape = [1, -1, hidden_size]
+
+        # Combine the forward and backward_layers
+        forward_h = _name('initial_c_forward')
+        backward_h = _name('initial_c_backward')
+        apply_reshape(scope, operator.inputs[2].full_name, forward_h, container, desired_shape=desired_shape)
+        apply_reshape(scope, operator.inputs[4].full_name, backward_h, container, desired_shape=desired_shape)
+
+        apply_concat(scope, [forward_h, backward_h], initial_c, container)
+
     else:
+        hidden_size = operator.raw_operator.units
+        desired_shape = [1, -1, hidden_size]
 
-        initial_h = simplernn.build_initial_states(scope, operator, container)
-
-        if len(operator.inputs) > 1:
-            # Add a reshape after initial_h, 2d -> 3d
-            hidden_size = operator.raw_operator.units
-            input_c = operator.inputs[2].full_name
-            initial_c = _name('initial_c')
-            apply_reshape(scope, input_c, initial_c, container,
-                          desired_shape=[1, -1, hidden_size])
+        # Add a reshape after initial_c, 2d -> 3d
+        input_c = operator.inputs[2].full_name
+        apply_reshape(scope, input_c, initial_c, container, desired_shape=desired_shape)
 
     return initial_h, initial_c
 
@@ -179,7 +184,7 @@ def build_attributes(scope, operator, container, bidirectional=False):
     return attrs
 
 def build_output(scope, operator, container, output_names, bidirectional=False):
-    """
+    """Builds the output operators for the LSTM layer.
     """
     if bidirectional:
         return simplernn.build_output(scope, operator, container, output_names[:-1], bidirectional)
@@ -189,7 +194,6 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     op = operator.raw_operator
     hidden_size = op.units
     output_seq = op.return_sequences
-    output_state = op.return_state
     _, seq_length, input_size = simplernn.extract_input_shape(op)
     is_static_shape = seq_length is not None
 
@@ -229,10 +233,44 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     else:
         apply_reshape(scope, lstm_h, output_name, container, desired_shape=[-1, hidden_size])
 
-    if output_state:
-        # Output hidden and cell states
-        apply_reshape(scope, lstm_h, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
-        apply_reshape(scope, lstm_c, operator.outputs[2].full_name, container, desired_shape=[-1, hidden_size])
+
+def build_output_states(scope, operator, container, output_names, bidirectional=False):
+    """Builds the output hidden states for the LSTM layer.
+    """
+    _, lstm_h, lstm_c = output_names
+    op = operator.raw_operator
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        output_state = forward_layer.return_state
+
+        if not output_state:
+            return
+
+        # Split lstm_h and lstm_c into forward and backward components
+        squeeze_names = []
+        output_names = [o.full_name for o in operator.outputs[1:]]
+        name_map = {lstm_h: output_names[::2], lstm_c: output_names[1::2]}
+
+        for state_name, outputs in name_map.items():
+            split_names = ['{}_{}'.format(state_name, d) for d in ('forward', 'backward')]
+
+            apply_split(scope, state_name, split_names, container)
+            squeeze_names.extend(list(zip(split_names, outputs)))
+
+        for split_name, output_name in squeeze_names:
+            apply_squeeze(scope, split_name, output_name, container)
+
+    else:
+        output_state = op.return_state
+
+        if not output_state:
+            return
+
+        output_h = operator.outputs[1].full_name
+        output_c = operator.outputs[2].full_name
+        apply_squeeze(scope, lstm_h, output_h, container)
+        apply_squeeze(scope, lstm_c, output_c, container)
 
 
 def _calculate_keras_lstm_output_shapes(operator):
@@ -253,8 +291,6 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
         output_seq = op.forward_layer.return_sequences
     else:
         output_seq = op.return_sequences
-
-    check_sequence_lengths(operator, container)
 
     # Inputs
     lstm_x = _name('X')
@@ -292,3 +328,4 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
                               **attrs)
 
     build_output(scope, operator, container, output_names, bidirectional)
+    build_output_states(scope, operator, container, output_names, bidirectional)

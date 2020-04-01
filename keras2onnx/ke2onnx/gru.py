@@ -161,3 +161,4 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
                               **attrs)
 
     simplernn.build_output(scope, operator, container, output_names, bidirectional)
+    simplernn.build_output_states(scope, operator, container, output_names, bidirectional)
