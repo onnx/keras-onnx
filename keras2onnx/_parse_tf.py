@@ -269,6 +269,8 @@ def build_layer_output_from_model(model, output_dict, input_names, output_names)
         return graph
 
 
+# layer.input and layer_info.inputs are different for masking layer,
+# we rely on layer.inputs for this case.
 def _get_layer_endpoints(layer_endpoints, layer_info_end_points):
     end_points = []
     end_point_candidates = layer_endpoints if isinstance(layer_endpoints, list) else [layer_endpoints]

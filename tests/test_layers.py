@@ -1871,7 +1871,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-
     def test_masking_bias(self):
         for rnn_class in [LSTM, GRU, SimpleRNN]:
 
