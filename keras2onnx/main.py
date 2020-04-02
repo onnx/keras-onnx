@@ -47,6 +47,16 @@ class KerasTfModelContainer(object):
         return [name for name in self._output_raw_names]
 
 
+def _get_maximum_opset_supported():
+    default_max_opset = 11
+    try:
+        from onnxconverter_common.topology import DEFAULT_OPSET_NUMBER
+        default_max_opset = DEFAULT_OPSET_NUMBER
+    except:  # noqa
+        pass
+    return min(default_max_opset, onnx.defs.onnx_opset_version())
+
+
 def convert_keras(model, name=None, doc_string='', target_opset=None, channel_first_inputs=None, debug_mode=False,
                   custom_op_conversions=None):
     # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
@@ -67,7 +77,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, channel_fi
                         " Please set environment variable TF_KERAS = 1.")
 
     name = name or model.name
-    target_opset = target_opset or get_opset_number_from_onnx()
+    target_opset = target_opset or _get_maximum_opset_supported()
     output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)

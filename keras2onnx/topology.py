@@ -10,6 +10,15 @@ from .funcbook import get_converter
 from .proto import helper, onnx_proto
 
 
+try:
+    from onnxconverter_common.topology import OPSET_TO_IR_VERSION
+except ImportError:
+    OPSET_TO_IR_VERSION = {
+        1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3,
+        7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7
+    }
+
+
 class Topology:
 
     def __init__(self, model, target_opset=None, custom_op_dict=None,
@@ -158,6 +167,16 @@ class Topology:
         self._check_structure()
 
 
+def _get_main_opset_version(model):
+    """
+    Returns the main opset version.
+    """
+    for op in model.opset_import:
+        if op.domain == '' or op.domain == 'ai.onnx':
+            return op.version
+    return None
+
+
 def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
     This function is used to convert our Topology object defined in _parser.py into a ONNX model (type: ModelProto).
@@ -298,7 +317,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
 
     # Add extra information
-    onnx_model.ir_version = onnx_proto.IR_VERSION
+    opv = _get_main_opset_version(onnx_model) or target_opset
+    irv = OPSET_TO_IR_VERSION.get(opv, onnx_proto.IR_VERSION)
+    onnx_model.ir_version = irv
     onnx_model.producer_name = utils.get_producer()
     onnx_model.producer_version = utils.get_producer_version()
     onnx_model.domain = utils.get_domain()
