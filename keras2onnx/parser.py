@@ -579,7 +579,7 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
     keras_nodeset = _build_keras_nodeset(inference_nodeset, keras_node_dict)
     while not q_overall.empty():
         node = q_overall.get_nowait()
-        if node in input_nodes or node in visited:
+        if node in input_nodes or node in visited or node not in inference_nodeset:
             continue
 
         nodes = []
@@ -707,7 +707,7 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
     inference_nodeset = _build_inference_nodeset(graph, model_outputs)
     while not q_overall.empty():
         node = q_overall.get_nowait()
-        if node in input_nodes or node in visited:
+        if node in input_nodes or node in visited or node not in inference_nodeset:
             continue
 
         layer_info, model_ = _parse_nodes_v2(graph, inference_nodeset, input_nodes, keras_node_dict, node,
