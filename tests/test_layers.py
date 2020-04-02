@@ -1586,6 +1586,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
             x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
             inputs = [x]
+
             expected = model.predict(inputs)
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files))
