@@ -13,11 +13,7 @@ from keras2onnx.proto import (keras, is_tf_keras,
                               is_keras_older_than, is_keras_later_than)
 from test_utils import run_onnx_runtime
 
-if is_tf2 and is_tf_keras:
-    import tf.python.keras as K
-else:
-    K = keras.backend
-
+K = keras.backend
 Activation = keras.layers.Activation
 Add = keras.layers.Add
 advanced_activations = keras.layers.advanced_activations
@@ -1618,6 +1614,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
     def test_rnn_state_passing(self):
+        if is_tf2 and is_tf_keras:
+            import keras2onnx.proto.tfcompat.tensorflow.python.keras as K
         for rnn_class in [SimpleRNN, GRU, LSTM]:
             input1 = Input(shape=(None, 5))
             input2 = Input(shape=(None, 5))
