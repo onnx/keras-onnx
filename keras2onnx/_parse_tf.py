@@ -295,7 +295,6 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
             inputs = _get_layer_endpoints(layer.input, layer_info.inputs)
             outputs = _get_layer_endpoints(layer.output, layer_info.outputs)
 
-
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
         prefix = ''
 
