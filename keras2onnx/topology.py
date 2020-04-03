@@ -384,7 +384,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             # Just create one ONNX element in opset_import
             op_set = onnx_model.opset_import.add()
         op_set.domain = op_domain
-        op_set.version = op_version
+        op_set.version = container.target_opset
         i += 1
         if container.target_opset < op_version:
             raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
