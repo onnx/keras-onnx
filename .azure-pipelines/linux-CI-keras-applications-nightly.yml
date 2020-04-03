@@ -53,7 +53,7 @@ jobs:
       pip install tensorflow==1.14.0
       pip install $(KERAS)
       pip install -r requirements.txt
-      git clone https://github.com/microsoft/onnxconverter-common
+      git clone https://github.com/microsoft/onnxconverter-common@r1.6
       cd onnxconverter-common
       pip install -e .
       cd ..
