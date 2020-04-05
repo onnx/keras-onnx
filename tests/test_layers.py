@@ -4,6 +4,7 @@
 # license information.
 ###############################################################################
 import os
+import pytest
 import unittest
 import keras2onnx
 import numpy as np
@@ -71,6 +72,10 @@ if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
 
+def asarray(*a):
+    return np.array([a], dtype='f')
+
+
 class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
@@ -79,10 +84,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def tearDown(self):
         for fl in self.model_files:
             os.remove(fl)
-
-    @staticmethod
-    def asarray(*a):
-        return np.array([a], dtype='f')
 
     def test_keras_lambda(self):
         model = Sequential()
@@ -740,7 +741,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             model.compile('sgd', 'mse')
             onnx_model = keras2onnx.convert_keras(model, model.name)
 
-            data = self.asarray(1, 0, 0, 1)
+            data = asarray(1, 0, 0, 1)
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('dense', onnx_model, data, expected, self.model_files))
 
@@ -756,7 +757,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.compile('sgd', 'mse')
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = [self.asarray(1.2, 2.4, -2, 1), self.asarray(-1, -2, 0, 1, 2), self.asarray(0.5, 1.5, -3.14159)]
+        data = [asarray(1.2, 2.4, -2, 1), asarray(-1, -2, 0, 1, 2), asarray(0.5, 1.5, -3.14159)]
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_dense_add', onnx_model, data, expected, self.model_files))
 
@@ -775,7 +776,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime('onnx_conv_add', onnx_model, data, expected, self.model_files))
 
     def test_dense_softmax(self):
-        data = self.asarray(1, 2, 3, 4)
+        data = asarray(1, 2, 3, 4)
         model = Sequential()
         model.add(Dense(5, input_shape=(4,), activation='softmax'))
         model.add(Dense(3, input_shape=(5,), use_bias=True))
@@ -796,7 +797,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime('dense_softmax_2', onnx_model, data, expected, self.model_files))
 
     def mergelayer_helper(self, keras_layer_type, *data):
-        data2 = [self.asarray(*d) for d in data]
+        data2 = [asarray(*d) for d in data]
         inputs = [Input(shape=d.shape[1:]) for d in data2]
         layer = keras_layer_type()(inputs)
         model = keras.models.Model(inputs=inputs, outputs=layer)
@@ -991,7 +992,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         model.add(keras.layers.core.RepeatVector(3, input_shape=(4,)))
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = self.asarray(1, 2, 3, 4)
+        data = asarray(1, 2, 3, 4)
 
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('repeat_vector', onnx_model, data, expected, self.model_files))
@@ -1053,7 +1054,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         if op_version is None:
             op_version = get_opset_number_from_onnx()
         if data_for_advanced_layer is None:
-            data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+            data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
             layer = Activation(layer, input_shape=(data.size,))
         else:
             data = data_for_advanced_layer
@@ -1118,24 +1119,24 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.activationlayer_helper(keras.activations.linear)
 
     def test_LeakyRelu(self):
-        data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = advanced_activations.LeakyReLU(alpha=0.1, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
     def test_ThresholdedRelu(self):
-        data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data, op_version=8)
         layer = advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
     def test_ELU(self):
-        data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = advanced_activations.ELU(alpha=1.0, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
     def test_PReLU(self):
-        data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = advanced_activations.PReLU(alpha_initializer='zeros', input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
         layer = advanced_activations.PReLU(alpha_initializer='ones', input_shape=(data.size,))
@@ -1144,7 +1145,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.activationlayer_helper(layer, data)
 
     def test_Softmax(self):
-        data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+        data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
         layer = advanced_activations.Softmax(axis=-1, input_shape=(data.size,))
         self.activationlayer_helper(layer, data)
 
@@ -1247,8 +1248,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def test_dot(self):
-        self._dot_helper(False, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
-        self._dot_helper(True, self.asarray(1, 2, 3), self.asarray(4, 5, 6))
+        self._dot_helper(False, asarray(1, 2, 3), asarray(4, 5, 6))
+        self._dot_helper(True, asarray(1, 2, 3), asarray(4, 5, 6))
 
     def test_dot2(self):
         input_1_shapes = [[32, 20, 1], [2, 3, 5], [2, 3, 5], [4, 3, 5], [2, 7], [2, 3, 4, 12, 3], [1, 3]]
@@ -1310,7 +1311,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def test_batch_normalization(self):
-        data = self.asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+        data = asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
         self._batch_norm_helper(data, 'ones', 'zeros', True, True, 3)
         self._batch_norm_helper(data, 'ones', 'ones', True, True, 3)
         # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
