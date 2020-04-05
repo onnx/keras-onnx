@@ -76,6 +76,48 @@ def asarray(*a):
     return np.array([a], dtype='f')
 
 
+@pytest.fixture(scope='function')
+def runner():
+    model_files = []
+
+    def runner_func(name, onnx_model, data, expected):
+        return run_onnx_runtime(name, onnx_model, data, expected, model_files)
+
+    # Provide wrapped run_onnx_runtime function
+    yield runner_func
+
+    # Remove model files
+    for fl in model_files:
+        os.remove(fl)
+
+
+def test_keras_lambda(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
+    if get_opset_number_from_onnx() >= 11:
+        model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
+    model.add(Flatten(data_format='channels_last'))
+    model.compile(optimizer='sgd', loss='mse')
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda')
+    data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
+    expected = model.predict(data)
+    assert runner('onnx_lambda', onnx_model, data, expected)
+
+def test_tf_addn(runner):
+    input1 = Input(shape=(5, 3, 4), dtype=tf.float32)
+    input2 = Input(shape=(5, 3, 4), dtype=tf.float32)
+    sum = Lambda(tf.add_n)([input1, input2])
+    model = keras.models.Model(inputs=[input1, input2], outputs=sum)
+
+    onnx_model = keras2onnx.convert_keras(model, 'tf_add_n')
+    batch_data1_shape = (2, 5, 3, 4)
+    batch_data2_shape = (2, 5, 3, 4)
+    data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+    data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+    expected = model.predict([data1, data2])
+    assert runner('tf_add_n', onnx_model, [data1, data2], expected)
+
 class TestKerasTF2ONNX(unittest.TestCase):
 
     def setUp(self):
@@ -85,33 +127,6 @@ class TestKerasTF2ONNX(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    def test_keras_lambda(self):
-        model = Sequential()
-        model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
-        if get_opset_number_from_onnx() >= 11:
-            model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
-        model.add(Flatten(data_format='channels_last'))
-        model.compile(optimizer='sgd', loss='mse')
-
-        onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda')
-        data = np.random.rand(3 * 5).astype(np.float32).reshape(1, 3, 5)
-        expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime('onnx_lambda', onnx_model, data, expected, self.model_files))
-
-    def test_tf_addn(self):
-        input1 = Input(shape=(5, 3, 4), dtype=tf.float32)
-        input2 = Input(shape=(5, 3, 4), dtype=tf.float32)
-        sum = Lambda(tf.add_n)([input1, input2])
-        model = keras.models.Model(inputs=[input1, input2], outputs=sum)
-
-        onnx_model = keras2onnx.convert_keras(model, 'tf_add_n')
-        batch_data1_shape = (2, 5, 3, 4)
-        batch_data2_shape = (2, 5, 3, 4)
-        data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
-        data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
-        expected = model.predict([data1, data2])
-        self.assertTrue(
-            run_onnx_runtime('tf_add_n', onnx_model, [data1, data2], expected, self.model_files))
 
     def test_tf_conv(self):
         model = Sequential()
