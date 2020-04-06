@@ -287,12 +287,13 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
     operator.nodelist = node_list
 
-    if hasattr(layer, 'input_mask') and layer.input_mask is not None:
-        inputs = _get_layer_endpoints(layer.input, layer_info.inputs)
-        outputs = _get_layer_endpoints(layer.output, layer_info.outputs)
-    else:
-        inputs = layer_info.inputs
-        outputs = layer_info.outputs
+    inputs = layer_info.inputs
+    outputs = layer_info.outputs
+    if hasattr(layer, 'input'):
+        input_candidates = layer.input if isinstance(layer.input, list) else [layer.input]
+        if len(input_candidates) != len(layer_info.inputs):
+            inputs = _get_layer_endpoints(layer.input, layer_info.inputs)
+            outputs = _get_layer_endpoints(layer.output, layer_info.outputs)
 
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
         prefix = ''
