@@ -20,17 +20,12 @@ from ._parser_1x import (extract_inbound_nodes,
                          list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
 
-ALLOWED_SHARED_KERAS_TYPES = {
-    keras.layers.embeddings.Embedding,
-}
-
 def _find_node(nodes, name):
     try:
         opname = tsname_to_node(name)
         return next(n_ for n_ in nodes if n_.name == opname)
     except StopIteration:
         return None
-
 
 def _locate_inputs_by_node(node_list, varset):
     inputs = {}
@@ -402,9 +397,9 @@ def _create_keras_nodelist(layer, inference_nodeset, out_node=None):
         if out_node is not None and out_node.name not in \
                 [tsname_to_node(ts_.name) for ts_ in list_output_tensors(node_)]:
             continue  # this layer could be reused several times in the whole graph.
-        if any(ts_.op not in inference_nodeset for ts_ in list_output_tensors(node_)):
-            continue
-        newly.extend([ts_.op for ts_ in list_output_tensors(node_)])
+        for ts_ in list_output_tensors(node_):
+            if ts_.op in inference_nodeset:
+                newly.extend([ts_.op for ts_ in list_output_tensors(node_)])
         ts_end |= set(list_input_tensors(node_))
 
     for ts_ in list_input_mask(layer):
@@ -573,7 +568,6 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
     for n_ in model_outputs:
         q_overall.put_nowait(n_)
 
-    visited_layers = set()
     visited = set()  # since the output could be shared among the successor nodes.
     inference_nodeset = _build_inference_nodeset(graph, model_outputs)
     keras_nodeset = _build_keras_nodeset(inference_nodeset, keras_node_dict)
@@ -585,13 +579,6 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         nodes = []
         layer_key_, model_ = _parse_nodes(graph, inference_nodeset, input_nodes, keras_node_dict, keras_nodeset,
                                           node, nodes, varset, visited, q_overall)
-
-        # Only parse Keras layers once (allow certain shared classes)
-        if layer_key_ in visited_layers:
-            if not type(layer_key_) in ALLOWED_SHARED_KERAS_TYPES:
-                continue
-        else:
-            visited_layers.add(layer_key_)
 
         if not nodes:  # already processed by the _parse_nodes
             continue
