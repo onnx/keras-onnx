@@ -1613,8 +1613,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
                 expected = model.predict(x)
                 self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2, 'TODO')
     def test_rnn_state_passing(self):
+        K.clear_session()
         for rnn_class in [SimpleRNN, GRU, LSTM]:
             input1 = Input(shape=(None, 5))
             input2 = Input(shape=(None, 5))
@@ -1771,12 +1771,12 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = keras_model.predict(x)
         self.assertTrue(run_onnx_runtime('recursive_and_shared', onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras or is_tf2,
+    @unittest.skipIf(is_keras_older_than("2.2.4"),
                      "Low keras version is not supported.")
     def test_shared_model_2(self):
         K.set_learning_phase(0)
 
-        def _conv_layer(input, filters, kernel_size, strides=1, dilation_rate=1):
+        def _conv_layer(input, filters, kernel_size, relu_flag=False, strides=1, dilation_rate=1):
             padding = 'same' if strides == 1 else 'valid'
             if strides > 1:
                 input = ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(input)
@@ -1784,25 +1784,30 @@ class TestKerasTF2ONNX(unittest.TestCase):
                        padding=padding, use_bias=False, dilation_rate=dilation_rate)(input)
             ch_axis = 1 if K.image_data_format() == 'channels_first' else -1
             x = BatchNormalization(axis=ch_axis)(x)
-            return ReLU()(x)
+            if relu_flag:
+                return ReLU()(x)
+            else:
+                return x
 
-        def _model():
+        def _model(relu_flag=False):
             input = Input(shape=(3, 320, 320), name='input_1')
-            x = _conv_layer(input, 16, 3)
+            x = _conv_layer(input, 16, 3, relu_flag)
             return Model(inputs=input, outputs=x, name='backbone')
 
-        input = Input(shape=(3, 320, 320), name='input')
-        backbone = _model()
-        x = backbone(input)
-        x = _conv_layer(x, 16, 3)
-        model = Model(inputs=[input], outputs=[x])
+        relu_flags = [False] if is_tf2 or is_tf_keras else [True, False]
+        for relu_flag_ in relu_flags:
+            input = Input(shape=(3, 320, 320), name='input')
+            backbone = _model(relu_flag_)
+            x = backbone(input)
+            x = _conv_layer(x, 16, 3)
+            model = Model(inputs=[input], outputs=[x])
 
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        x = np.random.rand(2, 3, 320, 320).astype(np.float32)
-        expected = model.predict(x)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            x = np.random.rand(2, 3, 320, 320).astype(np.float32)
+            expected = model.predict(x)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(is_keras_older_than("2.2.4") or is_tf_keras,
+    @unittest.skipIf(is_keras_older_than("2.2.4"),
                      "ReLU support requires keras 2.2.4 or later.")
     def test_shared_model_3(self):
         def _bottleneck(x, filters, activation, strides, block_id):
@@ -1851,7 +1856,8 @@ class TestKerasTF2ONNX(unittest.TestCase):
             x = _bottleneck(x, filters=32, strides=2, activation=activation, block_id=2)
             return Model(inputs=input, outputs=x, name='convnet_7')
 
-        for activation in ['relu', 'leaky']:
+        activation_list = ['leaky'] if is_tf2 or is_tf_keras else ['relu', 'leaky']
+        for activation in activation_list:
             model = convnet_7(input_shape=(3, 96, 128), activation=activation)
             onnx_model = keras2onnx.convert_keras(model, model.name)
             x = np.random.rand(1, 3, 96, 128).astype(np.float32)
