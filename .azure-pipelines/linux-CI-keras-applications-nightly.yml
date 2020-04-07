@@ -119,7 +119,7 @@ jobs:
   - script: |
       pip install -e .
       python -c "import onnxruntime"
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage run --include=keras2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
     displayName: 'coverage'
