@@ -4,28 +4,19 @@
 # license information.
 ###############################################################################
 import logging
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from .proto import keras, is_tf_keras
 from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2, dump_graph_into_tensorboard
-from .proto import onnx, get_opset_number_from_onnx
+from .proto import onnx
 from .topology import convert_topology
 from .ke2onnx import static_set_ke2onnx_converters
 from .parser import parse_graph, parse_graph_modeless
 from .topology import Topology
 from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
-from ._parse_tf import tsname_to_node, build_layer_output_from_model
 from ._parser_1x import build_opdict_from_keras
-
-
-def _get_maximum_opset_supported():
-    default_max_opset = 11
-    try:
-        from onnxconverter_common.topology import DEFAULT_OPSET_NUMBER
-        default_max_opset = DEFAULT_OPSET_NUMBER
-    except:  # noqa
-        pass
-    return min(default_max_opset, onnx.defs.onnx_opset_version())
+from ._parse_tf import tsname_to_node, build_layer_output_from_model
 
 
 def convert_keras(model, name=None, doc_string='', target_opset=None,
@@ -55,8 +46,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
         print(model.summary())
 
     name = name or model.name
-    target_opset = target_opset or _get_maximum_opset_supported()
-    output_names = [n.name for n in model.outputs]
+    target_opset = target_opset or get_maximum_opset_supported()
 
     input_names = []
     output_names = []

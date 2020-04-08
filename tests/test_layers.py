@@ -7,9 +7,10 @@ import os
 import unittest
 import keras2onnx
 import numpy as np
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
-                              get_opset_number_from_onnx, is_tensorflow_older_than, is_tensorflow_later_than,
+                              is_tensorflow_older_than, is_tensorflow_later_than,
                               is_keras_older_than, is_keras_later_than)
 from test_utils import run_onnx_runtime
 
@@ -87,7 +88,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_keras_lambda(self):
         model = Sequential()
         model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
-        if get_opset_number_from_onnx() >= 11:
+        if get_maximum_opset_supported() >= 11:
             model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
         model.add(Flatten(data_format='channels_last'))
         model.compile(optimizer='sgd', loss='mse')
@@ -440,7 +441,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             run_onnx_runtime('onnx_reshape_dynamic', onnx_model, [data_1, data_2], expected, self.model_files))
 
     def test_tf_resize(self):
-        target_opset = get_opset_number_from_onnx()
+        target_opset = get_maximum_opset_supported()
         shape_list = [10, None] if target_opset >= 10 else [10]
         size_list = [[5, 10], [20, 30]] if target_opset >= 10 else [[20, 30]]
         for g in [tf.image.resize_bilinear, tf.image.resize_nearest_neighbor]:
@@ -471,7 +472,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime('onnx_tf_slice', onnx_model, data, expected, self.model_files))
 
-        if get_opset_number_from_onnx() < 10:
+        if get_maximum_opset_supported() < 10:
             return
 
         def my_func_1(x):
@@ -625,7 +626,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     def test_stridedslice(self):
-        opset_ = get_opset_number_from_onnx()
+        opset_ = get_maximum_opset_supported()
         self._test_stridedslice_with_version(opset_)
         self._test_stridedslice_ellipse_newaxis(opset_)
         self._test_stridedslice_ellipsis_mask_with_version(opset_)
@@ -687,7 +688,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime('onnx_variable', onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(is_tf2 or get_opset_number_from_onnx() < 9,
+    @unittest.skipIf(is_tf2 or get_maximum_opset_supported() < 9,
                      "tf 2.0 or opset < 9 is not supported.")
     def test_tf_where(self):
         model = Sequential()
@@ -708,7 +709,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
         self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
 
-        target_opset = get_opset_number_from_onnx()
+        target_opset = get_maximum_opset_supported()
         if target_opset >= 9:
             model = Sequential()
             x = tf.constant([[1, 2, 3], [4, 5, 6]])
@@ -721,7 +722,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
             self.assertTrue(run_onnx_runtime('onnx_where', onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 9, "conversion needs opset 9.")
+    @unittest.skipIf(get_maximum_opset_supported() < 9, "conversion needs opset 9.")
     def test_any_all(self):
         for l_ in [keras.backend.any, keras.backend.all]:
             for axis in [1, -1]:
@@ -1051,7 +1052,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def activationlayer_helper(self, layer, data_for_advanced_layer=None, op_version=None):
         if op_version is None:
-            op_version = get_opset_number_from_onnx()
+            op_version = get_maximum_opset_supported()
         if data_for_advanced_layer is None:
             data = self.asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
             layer = Activation(layer, input_shape=(data.size,))
@@ -1162,7 +1163,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def _misc_conv_helper(self, layer, ishape, target_opset=None):
         if target_opset is None:
-            target_opset = get_opset_number_from_onnx()
+            target_opset = get_maximum_opset_supported()
         input = keras.Input(ishape)
         out = layer(input)
         model = keras.models.Model(input, out)
@@ -1175,7 +1176,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
 
     def test_crop(self):
         # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
-        opset_ = get_opset_number_from_onnx()
+        opset_ = get_maximum_opset_supported()
         if opset_ >= 10:
             ishape = (10, 20)
             for crop_v in [2, (1, 2)]:
@@ -1211,7 +1212,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             layer = UpSampling2D(size=size, data_format='channels_last')
             self._misc_conv_helper(layer, ishape)
             if not is_keras_older_than("2.2.3"):
-                opset_ = get_opset_number_from_onnx()
+                opset_ = get_maximum_opset_supported()
                 if opset_ >= 11 or not is_tf_keras:
                     layer = UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                     self._misc_conv_helper(layer, ishape)
@@ -1501,7 +1502,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, {"inputs": x, 'state_h': sh, 'state_c': sc}, expected,
                              self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 5,
+    @unittest.skipIf(get_maximum_opset_supported() < 5,
                      "None seq_length LSTM is not supported before opset 5.")
     def test_LSTM_seqlen_none(self):
         lstm_dim = 2
@@ -1518,7 +1519,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
     def test_Bidirectional(self):
         input_dim = 10
         sequence_len = 5
-        op_version = get_opset_number_from_onnx()
+        op_version = get_maximum_opset_supported()
         batch_list = [1, 4] if op_version >= 9 else [1]
 
         rnn_classes = [SimpleRNN, GRU, LSTM]
@@ -1598,7 +1599,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs, expected, self.model_files, atol=1e-5))
 
     # Bidirectional LSTM with seq_length = None
-    @unittest.skipIf(get_opset_number_from_onnx() < 5,
+    @unittest.skipIf(get_maximum_opset_supported() < 5,
                      "None seq_length Bidirectional LSTM is not supported before opset 5.")
     def test_Bidirectional_seqlen_none(self):
         for rnn_class in [SimpleRNN, GRU, LSTM]:
@@ -1905,7 +1906,7 @@ class TestKerasTF2ONNX(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 9, 'bidirectional is not supported for opset < 9')
+    @unittest.skipIf(get_maximum_opset_supported() < 9, 'bidirectional is not supported for opset < 9')
     def test_masking_bias_bidirectional(self):
         for rnn_class in [SimpleRNN, GRU, LSTM]:
 

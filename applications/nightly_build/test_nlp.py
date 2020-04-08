@@ -12,7 +12,7 @@ from keras2onnx.proto import keras, is_tf_keras
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
-from keras2onnx.proto import get_opset_number_from_onnx
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 Activation = keras.layers.Activation
 BatchNormalization = keras.layers.BatchNormalization
@@ -94,7 +94,7 @@ class TestNLP(unittest.TestCase):
         expected = model.predict([x, y])
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, {model.input_names[0]: x, model.input_names[1]: y}, expected, self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 9,
+    @unittest.skipIf(get_maximum_opset_supported() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
     def test_imdb_bidirectional_lstm(self):
         # A Bidirectional LSTM on the IMDB sentiment classification task.
@@ -141,7 +141,7 @@ class TestNLP(unittest.TestCase):
         expected = model.predict(x)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, x, expected, self.model_files))
 
-    @unittest.skipIf(get_opset_number_from_onnx() < 9,
+    @unittest.skipIf(get_maximum_opset_supported() < 9,
                      "None seq_length LSTM is not supported before opset 9.")
     def test_imdb_lstm(self):
         # An LSTM model on the IMDB sentiment classification task.
