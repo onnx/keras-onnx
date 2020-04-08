@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 from keras2onnx.proto import is_tensorflow_older_than
 
-enable_transformer_test = False
+enable_transformer_test = True
 if os.environ.get('ENABLE_TRANSFORMER_TEST', '0') != '0':
     enable_transformer_test = True
 
