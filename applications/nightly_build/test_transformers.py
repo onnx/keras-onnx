@@ -39,6 +39,7 @@ class TestTransformers(unittest.TestCase):
         inputs_onnx = {k_: v_.numpy() for k_, v_ in inputs.items()}
         return text, inputs, inputs_onnx
 
+    '''
     def test_3layer_gpt2(self):
         from transformers import GPT2Config, TFGPT2Model, BertTokenizer
         keras2onnx.proto.keras.backend.set_learning_phase(0)
@@ -50,6 +51,7 @@ class TestTransformers(unittest.TestCase):
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+    '''
 
     def test_TFBertModel(self):
         from transformers import BertTokenizer, TFBertModel
@@ -61,6 +63,7 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    '''
     def test_TFBertForPreTraining(self):
         from transformers import BertTokenizer, TFBertForPreTraining
         pretrained_weights = 'bert-base-uncased'
@@ -292,7 +295,7 @@ class TestTransformers(unittest.TestCase):
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
-
+    '''
 
 if __name__ == "__main__":
     unittest.main()
