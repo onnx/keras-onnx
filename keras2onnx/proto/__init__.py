@@ -15,10 +15,6 @@ from onnx import helper
 from onnx import save_model as save_model
 
 
-def get_opset_number_from_onnx():
-    return onnx.defs.onnx_opset_version()
-
-
 def _check_onnx_version():
     import pkg_resources
     min_required_version = pkg_resources.parse_version('1.0.1')
