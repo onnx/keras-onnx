@@ -14,47 +14,6 @@ jobs:
     vmImage: 'vs2017-win2016'
   strategy:
     matrix:
-      # No python 2.x since no available ONNX package for Windows
-      Python35:
-        python.version: '3.5'
-        ONNX_PATH: onnx==1.2.3
-        INSTALL_KERAS: pip install keras==2.1.6
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET:
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
-      Python36:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
-        INSTALL_KERAS: pip install keras==2.2.4
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
-      Python37:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
-      Python37-official-ort:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
       Python37-tf2:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
@@ -63,7 +22,8 @@ jobs:
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py --doctest-modules --junitxml=junit/test-results-keras_applications_v2.xml
+        INSTALL_TRANSFORMERS: pip install transformers
+        NIGHTLY_BUILD_TEST: pytest test_transformers.py --doctest-modules --junitxml=junit/test-results-keras_applications_v2.xml
 
     maxParallel: 3
 
@@ -104,6 +64,7 @@ jobs:
       pip install keras-tcn==2.8.3
       %UNINSTALL_KERAS%
       pip install git+https://github.com/qubvel/efficientnet
+      %INSTALL_TRANSFORMERS%
     displayName: 'Install dependencies'
 
   - script: |
