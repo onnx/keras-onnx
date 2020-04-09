@@ -4,8 +4,8 @@ import numpy as np
 
 import keras2onnx
 from keras2onnx import common as _cmn
-from keras2onnx import proto as _proto
 from keras2onnx.proto import keras
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 from distutils.version import StrictVersion
 
@@ -16,7 +16,7 @@ class KerasConverterMiscTestCase(unittest.TestCase):
     """
 
     def test_apply(self):
-        oopb = _cmn.onnx_ops.OnnxOperatorBuilder(_cmn.OnnxObjectContainer(_proto.get_opset_number_from_onnx()),
+        oopb = _cmn.onnx_ops.OnnxOperatorBuilder(_cmn.OnnxObjectContainer(get_maximum_opset_supported()),
                                                  _cmn.InterimContext('_curr'))
         value = oopb.apply_add((np.array([[1.0], [0.5]], dtype='float32'),
                                 ('_i1', oopb.float, np.array([2.0], dtype='float32'))), 'add')
