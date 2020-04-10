@@ -28,8 +28,11 @@ def _simple_layer_name_extractor(fstr_list, node_name):
 
 def _conv_layer_spec_outputs(layer, node):
     if type(layer) == _layer.DepthwiseConv2D:
-        ri = node.name.rindex('/')
-        return node.name[:ri + 1] + 'depthwise'
+        if node.name.endswith('depthwise'):
+            return node.name
+        else:
+            ri = node.name.rindex('/')
+            return node.name[:ri + 1] + 'BiasAdd'
     elif type(layer) == _layer.Conv1D:
         return node.name + '/Squeeze'
 
