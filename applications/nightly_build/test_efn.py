@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 from os.path import dirname, abspath
 from keras2onnx.proto import keras, is_keras_older_than
+from keras2onnx.proto.tfcompat import is_tf2
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image, run_onnx_runtime
@@ -42,11 +43,12 @@ class TestEfn(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, target_size=(600, 600), rtol=1e-1)
         self.assertTrue(*res)
 
+    @unittest.skipIf(not is_tf2, "Tensorflow 2.x only tests")
     def test_efn_2(self):
         import efficientnet.tfkeras as efn
         import numpy as np
         data = np.random.rand(1, 224, 224, 3).astype(np.float32)
-        model = efn.EfficientNetB0(weights='imagenet')
+        model = efn.EfficientNetB0(weights=None)
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime('onnx_efn_2', onnx_model, data, expected, self.model_files))

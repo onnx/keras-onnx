@@ -210,6 +210,8 @@ def build_layer_outputs(model, graph, outputs):
                     # fx_[1] is output node redirect function.
                     output_node = fx_list[1](lobj, op_)
                     output_node = _advance_output_node_if_successor(graph, ln_, output_node)
+                    assert graph.get_operation_by_name(output_node) is not None, "Parsing layer({}) failed.".format(
+                        lobj)
                     output_dict[output_node] = layer_dict[ln_]
 
     return output_dict
