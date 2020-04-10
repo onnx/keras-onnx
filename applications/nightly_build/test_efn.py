@@ -51,6 +51,5 @@ class TestEfn(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime('onnx_efn_2', onnx_model, data, expected, self.model_files))
 
-
 if __name__ == "__main__":
     unittest.main()
