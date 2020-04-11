@@ -18,7 +18,7 @@ import sphinx_modern_theme_modified
 # -- Project information -----------------------------------------------------
 
 project = 'keras-onnx'
-copyright = '2018-2019, Microsoft'
+copyright = '2018-2020, Microsoft'
 author = 'Microsoft'
 version = keras2onnx.__version__
 release = version
@@ -34,7 +34,6 @@ extensions = [
     'sphinx.ext.githubpages',
     "sphinx_gallery.gen_gallery",
     'sphinx.ext.autodoc',
-    'sphinx_keras2onnx_extension',
     "sphinxcontrib.blockdiag",
 ]
 
@@ -48,10 +47,9 @@ pygments_style = 'default'
 
 # -- Options for HTML output -------------------------------------------------
 
-html_theme = "sphinx_mo"
 html_static_path = ['_static']
-html_theme = "sphinx_modern_theme_modified"
-html_theme_path = [sphinx_modern_theme_modified.get_html_theme_path()]
+html_theme = "readable"
+html_theme_path = [sphinx_readable_theme.get_html_theme_path()]
 html_logo = "logo_main.png"
 
 # -- Options for intersphinx extension ---------------------------------------
@@ -65,11 +63,3 @@ sphinx_gallery_conf = {
      'examples_dirs': 'examples',
      'gallery_dirs': 'auto_examples',
 }
-
-# -- Setup actions -----------------------------------------------------------
-
-def setup(app):
-    # Placeholder to initialize the folder before
-    # generating the documentation.
-    return app
-
