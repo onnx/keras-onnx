@@ -84,6 +84,7 @@ def runner():
 
     # Ensure Keras layer naming is reset for each function
     keras.backend.reset_uids()
+    keras.backend.clear_session()
 
     # Provide wrapped run_onnx_runtime function
     yield runner_func
