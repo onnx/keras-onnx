@@ -32,6 +32,7 @@ class TYPES:
     ConcatV2 = 'ConcatV2'
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
+    Cumsum = 'Cumsum'
     DepthwiseConv2dNative = 'DepthwiseConv2dNative'
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
@@ -441,6 +442,18 @@ def convert_tf_bias_add(scope, operator, container):
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name + '_add')
+
+
+@converter_func(TYPES.Cumsum)
+def convert_tf_cum_sum(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    attrs = {'exclusive': node.get_attr('exclusive'), 'reverse':  node.get_attr('reverse') }
+    oopb.add_node_with_output('CumSum',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              **attrs)
 
 
 def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation,
