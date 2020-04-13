@@ -3,7 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import os
 import pytest
 import keras2onnx
 import numpy as np
@@ -12,7 +11,6 @@ from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
                               is_tensorflow_older_than, is_tensorflow_later_than,
                               is_keras_older_than, is_keras_later_than)
-from test_utils import run_onnx_runtime
 
 K = keras.backend
 Activation = keras.layers.Activation
@@ -74,25 +72,6 @@ if not (is_keras_older_than("2.2.4") or is_tf_keras):
 
 def asarray(*a):
     return np.array([a], dtype='f')
-
-
-@pytest.fixture(scope='function')
-def runner():
-    model_files = []
-
-    def runner_func(*args, **kwargs):
-        return run_onnx_runtime(*args, model_files, **kwargs)
-
-    # Ensure Keras layer naming is reset for each function
-    keras.backend.reset_uids()
-    keras.backend.clear_session()
-
-    # Provide wrapped run_onnx_runtime function
-    yield runner_func
-
-    # Remove model files
-    for fl in model_files:
-        os.remove(fl)
 
 
 def test_keras_lambda(runner):
