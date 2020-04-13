@@ -1875,12 +1875,12 @@ def test_recursive_and_shared_model(runner):
     assert runner('recursive_and_shared', onnx_model, x, expected)
 
 
-@pytest.mark.skipif(is_keras_older_than("2.2.4") or is_tf_keras or is_tf2,
+@pytest.mark.skipif(is_keras_older_than("2.2.4"),
                  reason="Low keras version is not supported.")
 def test_shared_model_2(runner):
     K.set_learning_phase(0)
 
-    def _conv_layer(input, filters, kernel_size, strides=1, dilation_rate=1):
+    def _conv_layer(input, filters, kernel_size, relu_flag=False, strides=1, dilation_rate=1):
         padding = 'same' if strides == 1 else 'valid'
         if strides > 1:
             input = ZeroPadding2D(((0, 1), (0, 1)), data_format=K.image_data_format())(input)
@@ -1901,7 +1901,7 @@ def test_shared_model_2(runner):
     relu_flags = [False] if is_tf2 or is_tf_keras else [True, False]
     for relu_flag_ in relu_flags:
         input = Input(shape=(3, 320, 320), name='input')
-        backbone = _model()
+        backbone = _model(relu_flag_)
         x = backbone(input)
         x = _conv_layer(x, 16, 3)
         model = Model(inputs=[input], outputs=[x])
@@ -1909,10 +1909,10 @@ def test_shared_model_2(runner):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         x = np.random.rand(2, 3, 320, 320).astype(np.float32)
         expected = model.predict(x)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+        assert runner(onnx_model.graph.name, onnx_model, x, expected, atol=1e-5)
 
 
-@pytest.mark.skipif(is_keras_older_than("2.2.4") or is_tf_keras,
+@pytest.mark.skipif(is_keras_older_than("2.2.4"),
                  reason="ReLU support requires keras 2.2.4 or later.")
 def test_shared_model_3(runner):
     def _bottleneck(x, filters, activation, strides, block_id):
