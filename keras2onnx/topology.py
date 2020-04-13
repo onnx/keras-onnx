@@ -3,11 +3,12 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from .common import utils, k2o_logger
+from onnxconverter_common.onnx_ex import make_model_ex
+from .common import k2o_logger
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
-from .proto import helper, onnx_proto
+from .proto import helper
 
 
 class KerasTfModelContainer(object):
@@ -38,15 +39,6 @@ class KerasTfModelContainer(object):
     @property
     def output_names(self):
         return [name for name in self._output_raw_names]
-
-
-try:
-    from onnxconverter_common.topology import OPSET_TO_IR_VERSION
-except ImportError:
-    OPSET_TO_IR_VERSION = {
-        1: 3, 2: 3, 3: 3, 4: 3, 5: 3, 6: 3,
-        7: 3, 8: 4, 9: 4, 10: 5, 11: 6, 12: 7
-    }
 
 
 class Topology:
@@ -217,15 +209,6 @@ def _blindly_converter_for_debug(scope, operator, container):
                        operator.output_full_names,
                        name=operator.full_name)
 
-def _get_main_opset_version(model):
-    """
-    Returns the main opset version.
-    """
-    for op in model.opset_import:
-        if op.domain == '' or op.domain == 'ai.onnx':
-            return op.version
-    return None
-
 
 def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
@@ -315,16 +298,17 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
 
     # enable the ONNX optimizations
     graph = None
+    nodes = container.nodes
     try:
         import onnxconverter_common
         origin_node_number = len(container.nodes)
         if target_opset < 9:
-            nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+            nodes = onnxconverter_common.optimizer.optimize_onnx(nodes, nchw_inputs=nchw_inputs,
                                                                  inputs=container.inputs + extra_inputs,
                                                                  outputs=container.outputs)
             node_number = len(nodes)
         else:
-            graph = onnxconverter_common.optimizer.optimize_onnx_graph(container.nodes, nchw_inputs=nchw_inputs,
+            graph = onnxconverter_common.optimizer.optimize_onnx_graph(nodes, nchw_inputs=nchw_inputs,
                                                                        inputs=container.inputs,
                                                                        outputs=container.outputs,
                                                                        initializers=container.initializers,
@@ -339,7 +323,6 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             raise Exception(
                 '{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
         k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
-        nodes = container.nodes
     except Exception as e:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
         k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
@@ -347,7 +330,6 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         import traceback
         tb = traceback.format_exc()
         k2o_logger().warning(tb)
-        nodes = container.nodes
 
     if graph is None:
         # Create a graph from its main components
@@ -364,42 +346,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         graph.value_info.extend(container.value_info)
 
     # Create model
-    onnx_model = helper.make_model(graph)
-
-    # Merge operator sets for the same domain, the largest version number would be kept
-    purified_operator_set = dict()
-    for op_domain, op_version in container.node_domain_version_pair_sets:
-        if op_domain not in purified_operator_set:
-            purified_operator_set[op_domain] = op_version
-        else:
-            purified_operator_set[op_domain] = max(purified_operator_set[op_domain], op_version)
-
-    # Fill operator sets
-    i = 0
-    for op_domain, op_version in purified_operator_set.items():
-        if i == 0 and len(onnx_model.opset_import) == 1:
-            # Overwrite the default operator set created by helper.make_model(...)
-            op_set = onnx_model.opset_import[0]
-        else:
-            # Just create one ONNX element in opset_import
-            op_set = onnx_model.opset_import.add()
-        op_set.domain = op_domain
-        op_set.version = op_version
-        i += 1
-        if container.target_opset < op_version:
-            raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
-                                'which requires at least opset %d.') % (container.target_opset, op_version))
-        elif container.target_opset > op_version:
-            k2o_logger().warning('The maximum opset needed by this model is only %d.' % op_version)
-
-    # Add extra information
-    opv = _get_main_opset_version(onnx_model) or target_opset
-    irv = OPSET_TO_IR_VERSION.get(opv, onnx_proto.IR_VERSION)
-    onnx_model.ir_version = irv
-    onnx_model.producer_name = utils.get_producer()
-    onnx_model.producer_version = utils.get_producer_version()
-    onnx_model.domain = utils.get_domain()
-    onnx_model.model_version = utils.get_model_version()
-    onnx_model.doc_string = doc_string
-
+    onnx_model = make_model_ex(graph,
+                               container.node_domain_version_pair_sets,
+                               target_opset, doc_string=doc_string)
     return onnx_model

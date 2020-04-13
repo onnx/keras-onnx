@@ -7,9 +7,10 @@ import os
 import pytest
 import keras2onnx
 import numpy as np
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
-                              get_opset_number_from_onnx, is_tensorflow_older_than, is_tensorflow_later_than,
+                              is_tensorflow_older_than, is_tensorflow_later_than,
                               is_keras_older_than, is_keras_later_than)
 from test_utils import run_onnx_runtime
 
@@ -97,7 +98,7 @@ def runner():
 def test_keras_lambda(runner):
     model = Sequential()
     model.add(Lambda(lambda x: x ** 2, input_shape=[3, 5]))
-    if get_opset_number_from_onnx() >= 11:
+    if get_maximum_opset_supported() >= 11:
         model.add(Lambda(lambda x: tf.round(x), input_shape=[3, 5]))
     model.add(Flatten(data_format='channels_last'))
     model.compile(optimizer='sgd', loss='mse')
@@ -462,7 +463,7 @@ def test_tf_reshape(runner):
 
 
 def test_tf_resize(runner):
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     shape_list = [10, None] if target_opset >= 10 else [10]
     size_list = [[5, 10], [20, 30]] if target_opset >= 10 else [[20, 30]]
     for g in [tf.image.resize_bilinear, tf.image.resize_nearest_neighbor]:
@@ -495,7 +496,7 @@ def test_tf_slice(runner):
     expected = model.predict(data)
     assert runner('onnx_tf_slice', onnx_model, data, expected)
 
-    if get_opset_number_from_onnx() < 10:
+    if get_maximum_opset_supported() < 10:
         return
 
     def my_func_1(x):
@@ -606,7 +607,7 @@ def test_tf_stack(runner):
 
 
 def test_stridedslice_with_version(runner):
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     for v1 in [-1, 1]:
         for v2 in [-1, 2]:
             model = Sequential()
@@ -620,7 +621,7 @@ def test_stridedslice_with_version(runner):
 
 
 def test_stridedslice_ellipse_newaxis(runner):
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     model = Sequential()
     model.add(
         Lambda(lambda x: x[:, 1:, tf.newaxis, ..., :, 1:, tf.newaxis], input_shape=[2, 3, 4, 3, 2, 2]))
@@ -639,7 +640,7 @@ def test_stridedslice_ellipse_newaxis(runner):
 
 
 def test_stridedslice_ellipsis_mask_with_version(runner):
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     model = Sequential()
     model.add(Lambda(lambda x: x[:, :2, ..., 1:], input_shape=[3, 4, 5, 6, 3]))
     onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=target_opset)
@@ -650,7 +651,7 @@ def test_stridedslice_ellipsis_mask_with_version(runner):
 
 
 def test_stridedslice_shrink_mask_with_version(runner):
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     for shrink_value in [-1, 2]:
         model = Sequential()
         model.add(Lambda(lambda x: x[:, shrink_value, :], input_shape=[3, 4, 5]))
@@ -718,7 +719,7 @@ def test_tf_variable(runner):
         expected = model.predict(data)
         assert runner('onnx_variable', onnx_model, data, expected)
 
-@pytest.mark.skipif(is_tf2 or get_opset_number_from_onnx() < 9,
+@pytest.mark.skipif(is_tf2 or get_maximum_opset_supported() < 9,
                  reason="tf 2.0 or opset < 9 is not supported.")
 def test_tf_where(runner):
     model = Sequential()
@@ -739,7 +740,7 @@ def test_tf_where(runner):
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
     assert runner('onnx_where', onnx_model, data, expected)
 
-    target_opset = get_opset_number_from_onnx()
+    target_opset = get_maximum_opset_supported()
     if target_opset >= 9:
         model = Sequential()
         x = tf.constant([[1, 2, 3], [4, 5, 6]])
@@ -752,7 +753,7 @@ def test_tf_where(runner):
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
         assert runner('onnx_where', onnx_model, data, expected)
 
-@pytest.mark.skipif(get_opset_number_from_onnx() < 9, reason="conversion needs opset 9.")
+@pytest.mark.skipif(get_maximum_opset_supported() < 9, reason="conversion needs opset 9.")
 def test_any_all(runner):
     for l_ in [keras.backend.any, keras.backend.all]:
         for axis in [1, -1]:
@@ -1156,7 +1157,7 @@ def advanced_activation_runner(runner):
 
     def runner_func(layer, data, op_version=None):
         if op_version is None:
-            op_version = get_opset_number_from_onnx()
+            op_version = get_maximum_opset_supported()
 
         model = keras.Sequential()
         model.add(layer)
@@ -1237,7 +1238,7 @@ def test_tf_nn_activation(runner):
 def misc_conv_runner(runner):
     def func(layer, ishape, target_opset=None):
         if target_opset is None:
-            target_opset = get_opset_number_from_onnx()
+            target_opset = get_maximum_opset_supported()
         input = keras.Input(ishape)
         out = layer(input)
         model = keras.models.Model(input, out)
@@ -1252,7 +1253,7 @@ def misc_conv_runner(runner):
 
 def test_crop(misc_conv_runner):
     # It also passes the test for opset 9, we skip here because it uses a legacy experimental op DynamicSlice.
-    opset_ = get_opset_number_from_onnx()
+    opset_ = get_maximum_opset_supported()
     if opset_ >= 10:
         ishape = (10, 20)
         for crop_v in [2, (1, 2)]:
@@ -1289,7 +1290,7 @@ def test_upsample(misc_conv_runner):
         layer = UpSampling2D(size=size, data_format='channels_last')
         misc_conv_runner(layer, ishape)
         if not is_keras_older_than("2.2.3"):
-            opset_ = get_opset_number_from_onnx()
+            opset_ = get_maximum_opset_supported()
             if opset_ >= 11 or not is_tf_keras:
                 layer = UpSampling2D(size=size, data_format='channels_last', interpolation='bilinear')
                 misc_conv_runner(layer, ishape)
@@ -1594,7 +1595,7 @@ def test_LSTM_with_initializer(runner):
     assert runner(onnx_model.graph.name, onnx_model, {"inputs": x, 'state_h': sh, 'state_c': sc}, expected)
 
 
-@pytest.mark.skipif(get_opset_number_from_onnx() < 5,
+@pytest.mark.skipif(get_maximum_opset_supported() < 5,
                  reason="None seq_length LSTM is not supported before opset 5.")
 def test_LSTM_seqlen_none(runner):
     lstm_dim = 2
@@ -1612,7 +1613,7 @@ def test_LSTM_seqlen_none(runner):
 def test_Bidirectional(runner):
     input_dim = 10
     sequence_len = 5
-    op_version = get_opset_number_from_onnx()
+    op_version = get_maximum_opset_supported()
     batch_list = [1, 4] if op_version >= 9 else [1]
 
     rnn_classes = [SimpleRNN, GRU, LSTM]
@@ -1695,7 +1696,7 @@ def test_Bidirectional_with_initial_states(runner):
 
 
 # Bidirectional LSTM with seq_length = None
-@pytest.mark.skipif(get_opset_number_from_onnx() < 5,
+@pytest.mark.skipif(get_maximum_opset_supported() < 5,
                  reason="None seq_length Bidirectional LSTM is not supported before opset 5.")
 def test_Bidirectional_seqlen_none(runner):
     for rnn_class in [SimpleRNN, GRU, LSTM]:
@@ -1887,23 +1888,28 @@ def test_shared_model_2(runner):
                    padding=padding, use_bias=False, dilation_rate=dilation_rate)(input)
         ch_axis = 1 if K.image_data_format() == 'channels_first' else -1
         x = BatchNormalization(axis=ch_axis)(x)
-        return ReLU()(x)
+        if relu_flag:
+            return ReLU()(x)
+        else:
+            return x
 
-    def _model():
+    def _model(relu_flag=False):
         input = Input(shape=(3, 320, 320), name='input_1')
-        x = _conv_layer(input, 16, 3)
+        x = _conv_layer(input, 16, 3, relu_flag)
         return Model(inputs=input, outputs=x, name='backbone')
 
-    input = Input(shape=(3, 320, 320), name='input')
-    backbone = _model()
-    x = backbone(input)
-    x = _conv_layer(x, 16, 3)
-    model = Model(inputs=[input], outputs=[x])
+    relu_flags = [False] if is_tf2 or is_tf_keras else [True, False]
+    for relu_flag_ in relu_flags:
+        input = Input(shape=(3, 320, 320), name='input')
+        backbone = _model()
+        x = backbone(input)
+        x = _conv_layer(x, 16, 3)
+        model = Model(inputs=[input], outputs=[x])
 
-    onnx_model = keras2onnx.convert_keras(model, model.name)
-    x = np.random.rand(2, 3, 320, 320).astype(np.float32)
-    expected = model.predict(x)
-    assert runner(onnx_model.graph.name, onnx_model, x, expected)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        x = np.random.rand(2, 3, 320, 320).astype(np.float32)
+        expected = model.predict(x)
+        assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
 @pytest.mark.skipif(is_keras_older_than("2.2.4") or is_tf_keras,
@@ -1955,7 +1961,8 @@ def test_shared_model_3(runner):
         x = _bottleneck(x, filters=32, strides=2, activation=activation, block_id=2)
         return Model(inputs=input, outputs=x, name='convnet_7')
 
-    for activation in ['relu', 'leaky']:
+    activation_list = ['leaky'] if is_tf2 or is_tf_keras else ['relu', 'leaky']
+    for activation in activation_list:
         model = convnet_7(input_shape=(3, 96, 128), activation=activation)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         x = np.random.rand(1, 3, 96, 128).astype(np.float32)
@@ -2006,7 +2013,7 @@ def test_masking_bias(runner):
         assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-@pytest.mark.skipif(get_opset_number_from_onnx() < 9, reason='bidirectional is not supported for opset < 9')
+@pytest.mark.skipif(get_maximum_opset_supported() < 9, reason='bidirectional is not supported for opset < 9')
 def test_masking_bias_bidirectional(runner):
     for rnn_class in [SimpleRNN, GRU, LSTM]:
 
