@@ -1,9 +1,16 @@
-import os
-import unittest
+###############################################################################
+# Copyright (c) Microsoft Corporation. All rights reserved.
+# Licensed under the MIT License. See License.txt in the project root for
+# license information.
+###############################################################################
+import pytest
 import keras2onnx
 import numpy as np
 import tensorflow as tf
-from test_utils import run_onnx_runtime
+
+
+if ((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2)):
+    pytest.skip("Tensorflow 2.0 only tests.", allow_module_level=True)
 
 
 class LeNet(tf.keras.Model):
@@ -53,49 +60,35 @@ class DummyModel(tf.keras.Model):
         return self.func(inputs)
 
 
-@unittest.skipIf((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2),
-                 "Tensorflow 2.0 only tests.")
-class TestTF2Keras2ONNX(unittest.TestCase):
-    def setUp(self):
-        self.model_files = []
+def test_lenet(runner):
+    tf.keras.backend.clear_session()
+    lenet = LeNet()
+    data = np.random.rand(2 * 416 * 416 * 3).astype(np.float32).reshape(2, 416, 416, 3)
+    expected = lenet(data)
+    lenet._set_inputs(data)
+    oxml = keras2onnx.convert_keras(lenet)
+    assert runner('lenet', oxml, data, expected)
 
-    def tearDown(self):
-        for fl in self.model_files:
-            os.remove(fl)
+def test_mlf(runner):
+    tf.keras.backend.clear_session()
+    mlf = MLP()
+    np_input = tf.random.normal((2, 20))
+    expected = mlf.predict(np_input)
+    oxml = keras2onnx.convert_keras(mlf)
+    assert runner('lenet', oxml, np_input.numpy(), expected)
 
-    def test_lenet(self):
-        tf.keras.backend.clear_session()
-        lenet = LeNet()
-        data = np.random.rand(2 * 416 * 416 * 3).astype(np.float32).reshape(2, 416, 416, 3)
-        expected = lenet(data)
-        lenet._set_inputs(data)
-        oxml = keras2onnx.convert_keras(lenet)
-        self.assertTrue(run_onnx_runtime('lenet', oxml, data, expected, self.model_files))
+def test_tf_ops(runner):
+    tf.keras.backend.clear_session()
 
-    def test_mlf(self):
-        tf.keras.backend.clear_session()
-        mlf = MLP()
-        np_input = tf.random.normal((2, 20))
-        expected = mlf.predict(np_input)
-        oxml = keras2onnx.convert_keras(mlf)
-        self.assertTrue(run_onnx_runtime('lenet', oxml, np_input.numpy(), expected, self.model_files))
+    def op_func(arg_inputs):
+        x = tf.math.squared_difference(arg_inputs[0], arg_inputs[1])
+        x = tf.matmul(x, x, adjoint_b=True)
+        r = tf.rank(x)
+        x = x - tf.cast(tf.expand_dims(r, axis=0), tf.float32)
+        return x
 
-    def test_tf_ops(self):
-        tf.keras.backend.clear_session()
-
-        def op_func(arg_inputs):
-            x = tf.math.squared_difference(arg_inputs[0], arg_inputs[1])
-            x = tf.matmul(x, x, adjoint_b=True)
-            r = tf.rank(x)
-            x = x - tf.cast(tf.expand_dims(r, axis=0), tf.float32)
-            return x
-
-        dm = DummyModel(op_func)
-        inputs = [tf.random.normal((3, 2, 20)), tf.random.normal((3, 2, 20))]
-        expected = dm.predict(inputs)
-        oxml = keras2onnx.convert_keras(dm)
-        self.assertTrue(run_onnx_runtime('op_model', oxml, [i_.numpy() for i_ in inputs], expected, self.model_files))
-
-
-if __name__ == "__main__":
-    unittest.main()
+    dm = DummyModel(op_func)
+    inputs = [tf.random.normal((3, 2, 20)), tf.random.normal((3, 2, 20))]
+    expected = dm.predict(inputs)
+    oxml = keras2onnx.convert_keras(dm)
+    assert runner('op_model', oxml, [i_.numpy() for i_ in inputs], expected)

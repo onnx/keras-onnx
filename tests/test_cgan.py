@@ -3,8 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-import os
-import unittest
+import pytest
 import tensorflow as tf
 import keras2onnx
 import numpy as np
@@ -120,29 +119,15 @@ class CGAN():
         return Model([img, label], validity)
 
 
-@unittest.skipIf(keras2onnx.proto.tfcompat.is_tf2 and is_tf_keras, "Tensorflow 1.x only tests.")
-class TestCGAN(unittest.TestCase):
-
-    def setUp(self):
-        self.model_files = []
-
-    def tearDown(self):
-        for fl in self.model_files:
-            os.remove(fl)
-
-    @unittest.skipIf(is_tf_keras and StrictVersion(tf.__version__) < StrictVersion("1.14.0"),
-                     "Not supported before tensorflow 1.14.0 for tf_keras")
-    def test_CGAN(self):
-        keras_model = CGAN().combined
-        batch = 5
-        x = np.random.rand(batch, 100).astype(np.float32)
-        y = np.random.rand(batch, 1).astype(np.float32)
-        expected = keras_model.predict([x, y])
-        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model,
-                                         {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected,
-                                         self.model_files))
-
-
-if __name__ == "__main__":
-    unittest.main()
+@pytest.mark.skipif(keras2onnx.proto.tfcompat.is_tf2 and is_tf_keras, reason="Tensorflow 1.x only tests.")
+@pytest.mark.skipif(is_tf_keras and StrictVersion(tf.__version__.split('-')[0]) < StrictVersion("1.14.0"),
+                 reason="Not supported before tensorflow 1.14.0 for tf_keras")
+def test_CGAN(runner):
+    keras_model = CGAN().combined
+    batch = 5
+    x = np.random.rand(batch, 100).astype(np.float32)
+    y = np.random.rand(batch, 1).astype(np.float32)
+    expected = keras_model.predict([x, y])
+    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+    assert runner(onnx_model.graph.name, onnx_model,
+                  {keras_model.input_names[0]: x, keras_model.input_names[1]: y}, expected)
