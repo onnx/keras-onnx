@@ -291,7 +291,7 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
     outputs = layer_info.outputs
     if hasattr(layer, 'input'):
         end_point_flag = hasattr(layer, 'input_mask') and layer.input_mask is not None
-        end_point_flag = end_point_flag or isinstance(type(layer_info.layer), keras.layers.Bidirectional)
+        end_point_flag = end_point_flag or isinstance(layer_info.layer, keras.layers.Bidirectional)
         if end_point_flag:
             inputs = _get_layer_endpoints(layer.input, layer_info.inputs)
             outputs = _get_layer_endpoints(layer.output, layer_info.outputs)
