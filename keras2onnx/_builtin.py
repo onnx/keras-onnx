@@ -36,6 +36,7 @@ class TYPES:
     DepthwiseConv2dNative = 'DepthwiseConv2dNative'
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
+    FloorDiv = 'FloorDiv'
     FusedBatchNorm = 'FusedBatchNorm'
     FusedBatchNormV2 = 'FusedBatchNormV2'
     FusedBatchNormV3 = 'FusedBatchNormV3'
@@ -85,6 +86,7 @@ class TYPES:
     VarHandleOp = 'VarHandleOp'
     VariableV2 = 'VariableV2'
     Where = 'Where'
+    ZerosLike = 'ZerosLike'
 
     # converter internal types:
     TD_Reshape = '_reshape_timedistributed'
@@ -842,6 +844,21 @@ def convert_tf_fill(scope, operator, container):
                                   name=operator.full_name,
                                   **attrs)
 
+@converter_func(TYPES.FloorDiv)
+def convert_tf_floor_div(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    dtype = _to_onnx_type(node.outputs[0].dtype)
+    if dtype in [oopb.float16, oopb.float, oopb.double]:
+        div_node = oopb.apply_div(operator.input_full_names,
+                                  name=operator.full_name + '_div')[0]
+        oopb.apply_op_with_output('apply_floor', div_node,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name)
+    else:
+        oopb.apply_op_with_output('apply_div', operator.input_full_names,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name)
 
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
@@ -1719,7 +1736,7 @@ def convert_tf_slice(scope, operator, container):
         size_value = size.tolist()
         end_value = []
         for begin_, size_ in zip(begin_value, size_value):
-            if size_ == -1:
+            if size_ == -1 or (begin_ < 0 and (begin_ + size_) >= 0):
                 end_value.append(np.iinfo(np.int64).max)
             else:
                 end_value.append(begin_ + size_)
@@ -2050,6 +2067,16 @@ def convert_tf_where(scope, operator, container):
                                   name=operator.full_name + '_transpose',
                                   perm=list(reversed(range(len(node.outputs[0].shape)))))
 
+@converter_func(TYPES.ZerosLike)
+def convert_tf_zeros_like(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    dtype = _to_onnx_type(node.outputs[0].dtype)
+    oopb.apply_op_with_output('apply_mul',
+                              [ operator.inputs[0].full_name,
+                                ('_zero', dtype, np.zeros((), dtype=np.int64)) ],
+                              operator.outputs[0].full_name,
+                              name=operator.full_name)
 
 direct_ops = {"Abs": ("apply_abs",),
               "Acos": 7,
