@@ -120,7 +120,7 @@ class CGAN():
 
 
 @pytest.mark.skipif(keras2onnx.proto.tfcompat.is_tf2 and is_tf_keras, reason="Tensorflow 1.x only tests.")
-@pytest.mark.skipif(is_tf_keras and StrictVersion(tf.__version__) < StrictVersion("1.14.0"),
+@pytest.mark.skipif(is_tf_keras and StrictVersion(tf.__version__.split('-')[0]) < StrictVersion("1.14.0"),
                  reason="Not supported before tensorflow 1.14.0 for tf_keras")
 def test_CGAN(runner):
     keras_model = CGAN().combined
