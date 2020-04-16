@@ -20,12 +20,14 @@ from ._parser_1x import (extract_inbound_nodes,
                          list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
 
+
 def _find_node(nodes, name):
     try:
         opname = tsname_to_node(name)
         return next(n_ for n_ in nodes if n_.name == opname)
     except StopIteration:
         return None
+
 
 def _locate_inputs_by_node(node_list, varset):
     inputs = {}
@@ -480,7 +482,7 @@ def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_o
     for input_ in cur_node.inputs:
         predecessor = input_.op
         if is_placeholder_node(predecessor):
-            # mysteriously, some bn layer create a placeholder node 'scale' in tf2.x.
+            # tf.keras BN layer sometimes create a placeholder node 'scale' in tf2.x.
             # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
             if not re.match(r"batch_normalization_\d+\/scale$", predecessor.name):
                 inputs.add(predecessor)
@@ -655,7 +657,6 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
                                    q_overall, visited)
-
     sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
     for input_ in sorted_inputs:
         layer_info.inputs.extend(input_.outputs)
@@ -691,15 +692,18 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
         q_overall.put_nowait(n_)
 
     visited = set()  # since the output could be shared among the successor nodes.
-    inference_nodeset = _build_inference_nodeset(graph, model_outputs)
+    # Some complicated layer may have some nodes which cannot be visited from the graph output...
+    # ..., so the layer outputs are added into visit graph to avoid missing nodes.
+    layer_outputs = [graph.get_operation_by_name(nm_) for nm_ in keras_node_dict]
+    inference_nodeset = _build_inference_nodeset(graph, model_outputs + layer_outputs)
     while not q_overall.empty():
         node = q_overall.get_nowait()
         if node in input_nodes or node in visited or node not in inference_nodeset:
             continue
 
         layer_info, model_ = _parse_nodes_v2(graph, inference_nodeset, input_nodes, keras_node_dict, node,
-                                     varset, visited, q_overall)
-        if not layer_info:  # already processed by the parse_nodes_XX
+                                             varset, visited, q_overall)
+        if not layer_info:  # already processed by the _parse_nodes_v2
             continue
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_info.layer.name, type(layer_info.layer)) if
