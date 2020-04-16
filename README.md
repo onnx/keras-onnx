@@ -43,7 +43,8 @@ If you want to override this behaviour, please specify the environment variable 
 Keras2ONNX depends on [onnxconverter-common](https://github.com/microsoft/onnxconverter-common). In practice, the latest code of this converter requires the latest version of onnxconverter-common, so if you install this converter from its source code, please install the onnxconverter-common in source code mode before keras2onnx installation.
 
 # Validated pre-trained Keras models
-Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. However some models with a lot of custom operations need custom conversion, the following are some examples.
+Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. See the tutorial [here](https://github.com/onnx/keras-onnx/tree/master/tutorial). 
+However some models with a lot of custom operations need custom conversion, the following are some examples.
 
 |  Model Name        | Category | Instruction |
 |----------|-------|-------|
