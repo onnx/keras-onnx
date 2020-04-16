@@ -2034,7 +2034,7 @@ def test_masking_value(runner, rnn_class):
     ])
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
-    x = np.random.uniform(0, 1, size=(2, 3, 5)).astype(np.float32)
+    x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
     x[1, :, :] = mask_value
     expected = model.predict(x)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
