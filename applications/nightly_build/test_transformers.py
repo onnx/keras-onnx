@@ -8,18 +8,21 @@ import sys
 import unittest
 import keras2onnx
 import json
+import urllib.request
+import pickle
 from os.path import dirname, abspath
+from keras2onnx.proto.tfcompat import is_tf2
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 from keras2onnx.proto import is_tensorflow_older_than
 
-enable_transformer_test = False
+enable_transformer_test = True
 if os.environ.get('ENABLE_TRANSFORMER_TEST', '0') != '0':
     enable_transformer_test = True
 
 
-@unittest.skipIf(not enable_transformer_test,
+@unittest.skipIf(not enable_transformer_test or not is_tf2,
                  "Need enable transformer test before Transformers conversion.")
 class TestTransformers(unittest.TestCase):
 
@@ -52,15 +55,21 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFBertModel(self):
-        from transformers import BertTokenizer, TFBertModel
-        pretrained_weights = 'bert-base-uncased'
-        tokenizer = BertTokenizer.from_pretrained(pretrained_weights)
+        from transformers import BertConfig, TFBertModel
+        tokenizer_file = 'bertModel_bert-base-uncased.pickle'
+        token_path = r'https://lotus.blob.core.windows.net/converter-models/transformer_tokenizer/bertModel_bert-base-uncased.pickle'
+        if not os.path.exists(tokenizer_file):
+            urllib.request.urlretrieve(token_path, tokenizer_file)
+        with open(tokenizer_file, 'rb') as handle:
+            tokenizer = pickle.load(handle)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
-        model = TFBertModel.from_pretrained(pretrained_weights)
+        config = BertConfig()
+        model = TFBertModel(config)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    '''
     def test_TFBertForPreTraining(self):
         from transformers import BertTokenizer, TFBertForPreTraining
         pretrained_weights = 'bert-base-uncased'
@@ -292,7 +301,7 @@ class TestTransformers(unittest.TestCase):
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
-
+    '''
 
 if __name__ == "__main__":
     unittest.main()
