@@ -63,7 +63,7 @@ jobs:
         INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py test_transformers.py --doctest-modules --junitxml=junit/test-results-v2.xml
+        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py --doctest-modules --junitxml=junit/test-results-keras_applications_v2.xml
 
     maxParallel: 3
 
