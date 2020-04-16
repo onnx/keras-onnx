@@ -69,6 +69,8 @@ ZeroPadding2D = keras.layers.ZeroPadding2D
 if not (is_keras_older_than("2.2.4") or is_tf_keras):
     ReLU = keras.layers.ReLU
 
+RNN_CLASSES = [SimpleRNN, GRU, LSTM]
+
 
 def asarray(*a):
     return np.array([a], dtype='f')
@@ -1589,124 +1591,120 @@ def test_LSTM_seqlen_none(runner):
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
 
-def test_Bidirectional(runner):
+@pytest.mark.parametrize("return_sequences", [True, False])
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_Bidirectional(runner, rnn_class, return_sequences):
     input_dim = 10
     sequence_len = 5
     op_version = get_maximum_opset_supported()
     batch_list = [1, 4] if op_version >= 9 else [1]
 
-    rnn_classes = [SimpleRNN, GRU, LSTM]
+    model = keras.Sequential()
+    model.add(Bidirectional(rnn_class(7, return_sequences=return_sequences),
+                            input_shape=(5, 10)))
+    model.add(Dense(5))
+    model.add(Activation('softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
+    onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=op_version)
+    for batch in batch_list:
+        data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
+        expected = model.predict(data)
+        assert runner('bidirectional', onnx_model, data, expected)
 
-    for rnn_class in rnn_classes:
-        for return_sequences in [True, False]:
-            model = keras.Sequential()
-            model.add(Bidirectional(rnn_class(7, return_sequences=return_sequences),
-                                    input_shape=(5, 10)))
-            model.add(Dense(5))
-            model.add(Activation('softmax'))
-            model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
-            onnx_model = keras2onnx.convert_keras(model, 'test', target_opset=op_version)
-            for batch in batch_list:
-                data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
-                expected = model.predict(data)
-                assert runner('bidirectional', onnx_model, data, expected)
-
-        for merge_mode in ['concat', None]:
-            for return_sequences in [True, False]:
-                sub_input1 = Input(shape=(sequence_len, input_dim))
-                sub_mapped1 = Bidirectional(rnn_class(7, return_sequences=return_sequences),
-                                            input_shape=(5, 10), merge_mode=merge_mode)(sub_input1)
-                keras_model = keras.Model(inputs=sub_input1, outputs=sub_mapped1)
-                onnx_model = keras2onnx.convert_keras(keras_model, 'test_2', target_opset=op_version)
-                for batch in batch_list:
-                    data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
-                    expected = keras_model.predict(data)
-                    assert runner('bidirectional', onnx_model, data, expected)
+    for merge_mode in ['concat', None]:
+        sub_input1 = Input(shape=(sequence_len, input_dim))
+        sub_mapped1 = Bidirectional(rnn_class(7, return_sequences=return_sequences),
+                                    input_shape=(5, 10), merge_mode=merge_mode)(sub_input1)
+        keras_model = keras.Model(inputs=sub_input1, outputs=sub_mapped1)
+        onnx_model = keras2onnx.convert_keras(keras_model, 'test_2', target_opset=op_version)
+        for batch in batch_list:
+            data = np.random.rand(batch, sequence_len, input_dim).astype(np.float32)
+            expected = keras_model.predict(data)
+            assert runner('bidirectional', onnx_model, data, expected)
 
 
-def test_Bidirectional_with_bias(runner):
-    for rnn_class in [SimpleRNN, GRU, LSTM]:
-        model = keras.Sequential()
-        model.add(Bidirectional(rnn_class(4, return_sequences=False),
-                                input_shape=(3, 5), name='bi'))
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_Bidirectional_with_bias(runner, rnn_class):
+    model = keras.Sequential()
+    model.add(Bidirectional(rnn_class(4, return_sequences=False),
+                            input_shape=(3, 5), name='bi'))
 
-        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+    x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
 
-        # Test with the default bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    # Test with the default bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
-        # Set bias values to random floats
-        rnn_layer = model.get_layer('bi')
-        weights = rnn_layer.get_weights()
-        weights[2] = np.random.uniform(size=weights[2].shape)
-        weights[5] = weights[2]
-        rnn_layer.set_weights(weights)
+    # Set bias values to random floats
+    rnn_layer = model.get_layer('bi')
+    weights = rnn_layer.get_weights()
+    weights[2] = np.random.uniform(size=weights[2].shape)
+    weights[5] = weights[2]
+    rnn_layer.set_weights(weights)
 
-        # Test with random bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
-
-
-def test_Bidirectional_with_initial_states(runner):
-    for rnn_class in [SimpleRNN, GRU, LSTM]:
-        input1 = Input(shape=(None, 5))
-        states = Bidirectional(rnn_class(2, return_state=True))(input1)
-        model = Model(input1, states)
-
-        x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
-        inputs = [x]
-
-        expected = model.predict(inputs)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, inputs, expected)
-
-        input2 = Input(shape=(None, 5))
-        states = Bidirectional(rnn_class(2, return_state=True))(input1)[1:]
-        out = Bidirectional(rnn_class(2, return_sequences=True))(input2, initial_state=states)
-        model = Model([input1, input2], out)
-        inputs = [x, x]
-
-        expected = model.predict(inputs)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, inputs, expected, atol=1e-5)
+    # Test with random bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-# Bidirectional LSTM with seq_length = None
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_Bidirectional_with_initial_states(runner, rnn_class):
+    input1 = Input(shape=(None, 5))
+    states = Bidirectional(rnn_class(2, return_state=True))(input1)
+    model = Model(input1, states)
+
+    x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
+    inputs = [x]
+
+    expected = model.predict(inputs)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, inputs, expected)
+
+    input2 = Input(shape=(None, 5))
+    states = Bidirectional(rnn_class(2, return_state=True))(input1)[1:]
+    out = Bidirectional(rnn_class(2, return_sequences=True))(input2, initial_state=states)
+    model = Model([input1, input2], out)
+    inputs = [x, x]
+
+    expected = model.predict(inputs)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, inputs, expected, atol=1e-5)
+
+
 @pytest.mark.skipif(get_maximum_opset_supported() < 5,
                  reason="None seq_length Bidirectional LSTM is not supported before opset 5.")
-def test_Bidirectional_seqlen_none(runner):
-    for rnn_class in [SimpleRNN, GRU, LSTM]:
-        model = Sequential()
-        model.add(Embedding(39, 128))
-        model.add(Bidirectional(rnn_class(256, input_shape=(None, 32), return_sequences=True)))
-        model.add(Dense(44))
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_Bidirectional_seqlen_none(runner, rnn_class):
+    model = Sequential()
+    model.add(Embedding(39, 128))
+    model.add(Bidirectional(rnn_class(256, input_shape=(None, 32), return_sequences=True)))
+    model.add(Dense(44))
 
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        for batch in [1, 4]:
-            x = np.random.rand(batch, 50).astype(np.float32)
-            expected = model.predict(x)
-            assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    for batch in [1, 4]:
+        x = np.random.rand(batch, 50).astype(np.float32)
+        expected = model.predict(x)
+        assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
 @pytest.mark.skipif(is_tf2, reason='TODO')
-def test_rnn_state_passing(runner):
-    for rnn_class in [SimpleRNN, GRU, LSTM]:
-        input1 = Input(shape=(None, 5))
-        input2 = Input(shape=(None, 5))
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_rnn_state_passing(runner, rnn_class):
+    input1 = Input(shape=(None, 5))
+    input2 = Input(shape=(None, 5))
 
-        states = rnn_class(2, return_state=True)(input1)[1:]
-        out = rnn_class(2, return_sequences=True)(input2, initial_state=states)
-        model = Model([input1, input2], out)
+    states = rnn_class(2, return_state=True)(input1)[1:]
+    out = rnn_class(2, return_sequences=True)(input2, initial_state=states)
+    model = Model([input1, input2], out)
 
-        x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
-        inputs = [x, x]
+    x = np.random.uniform(0.1, 1.0, size=(4, 3, 5)).astype(np.float32)
+    inputs = [x, x]
 
-        expected = model.predict(inputs)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, inputs, expected, atol=1e-5)
+    expected = model.predict(inputs)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, inputs, expected, atol=1e-5)
 
 
 def test_seq_dynamic_batch_size(runner):
@@ -1949,11 +1947,12 @@ def test_shared_model_3(runner):
         assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-def test_masking(runner):
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_masking(runner, rnn_class):
     timesteps, features = (3, 5)
     model = Sequential([
         keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
-        LSTM(8, return_state=False, return_sequences=False)
+        rnn_class(8, return_state=False, return_sequences=False)
     ])
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -1962,78 +1961,80 @@ def test_masking(runner):
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-def test_masking_bias(runner):
-    for rnn_class in [LSTM, GRU, SimpleRNN]:
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_masking_bias(runner, rnn_class):
+    timesteps, features = (3, 5)
+    model = Sequential([
+        keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
+        rnn_class(8, return_state=False, return_sequences=False, use_bias=True, name='rnn')
+    ])
 
-        timesteps, features = (3, 5)
-        model = Sequential([
-            keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
-            rnn_class(8, return_state=False, return_sequences=False, use_bias=True, name='rnn')
-        ])
+    x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+    # Fill one of the entries with all zeros except the first timestep
+    x[1, 1:, :] = 0
 
-        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
-        # Fill one of the entries with all zeros except the first timestep
-        x[1, 1:, :] = 0
+    # Test with the default bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
-        # Test with the default bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    # Set bias values to random floats
+    rnn_layer = model.get_layer('rnn')
+    weights = rnn_layer.get_weights()
+    weights[2] = np.random.uniform(size=weights[2].shape)
+    rnn_layer.set_weights(weights)
 
-        # Set bias values to random floats
-        rnn_layer = model.get_layer('rnn')
-        weights = rnn_layer.get_weights()
-        weights[2] = np.random.uniform(size=weights[2].shape)
-        rnn_layer.set_weights(weights)
-
-        # Test with random bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    # Test with random bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 9, reason='bidirectional is not supported for opset < 9')
-def test_masking_bias_bidirectional(runner):
-    for rnn_class in [SimpleRNN, GRU, LSTM]:
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_masking_bias_bidirectional(runner, rnn_class):
+    timesteps, features = (3, 5)
+    model = Sequential([
+        keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
+        Bidirectional(rnn_class(8, return_state=False, return_sequences=False, use_bias=True), name='bi')
+    ])
 
-        timesteps, features = (3, 5)
-        model = Sequential([
-            keras.layers.Masking(mask_value=0., input_shape=(timesteps, features)),
-            Bidirectional(rnn_class(8, return_state=False, return_sequences=False, use_bias=True), name='bi')
-        ])
+    x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+    # Fill one of the entries with all zeros except the first timestep
+    x[1, 1:, :] = 0
 
-        x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
-        # Fill one of the entries with all zeros except the first timestep
-        x[1, 1:, :] = 0
+    # Test with the default bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
-        # Test with the default bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    # Set bias values to random floats
+    rnn_layer = model.get_layer('bi')
+    weights = rnn_layer.get_weights()
+    weights[2] = np.random.uniform(size=weights[2].shape)
+    weights[5] = weights[2]
+    rnn_layer.set_weights(weights)
 
-        # Set bias values to random floats
-        rnn_layer = model.get_layer('bi')
-        weights = rnn_layer.get_weights()
-        weights[2] = np.random.uniform(size=weights[2].shape)
-        weights[5] = weights[2]
-        rnn_layer.set_weights(weights)
-
-        # Test with random bias
-        expected = model.predict(x)
-        onnx_model = keras2onnx.convert_keras(model, model.name)
-        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    # Test with random bias
+    expected = model.predict(x)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-def test_masking_value(runner):
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_masking_value(runner, rnn_class):
+    if rnn_class is SimpleRNN:
+        pytest.skip('SimpleRNN intermittently fails this test')
+
     timesteps, features = (3, 5)
     mask_value = 5.
     model = Sequential([
         keras.layers.Masking(mask_value=mask_value, input_shape=(timesteps, features)),
-        LSTM(8, return_state=False, return_sequences=False)
+        rnn_class(8, return_state=False, return_sequences=False)
     ])
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
-    x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
+    x = np.random.uniform(0, 1, size=(2, 3, 5)).astype(np.float32)
     x[1, :, :] = mask_value
     expected = model.predict(x)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
