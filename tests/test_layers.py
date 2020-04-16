@@ -516,8 +516,9 @@ def test_tf_softmax(runner):
         expected = model.predict(data)
         assert runner('onnx_tf_softmax', onnx_model, data, expected)
 
+
 @pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
-                 reason="dilations in tf.nn.depthwise_conv2d not supported.")
+                    reason="dilations in tf.nn.depthwise_conv2d not supported.")
 def test_tf_space_to_batch_nd(runner):
     model = Sequential()
     filter_value = np.random.rand(3, 3, 2, 2).astype(np.float32)
@@ -688,8 +689,9 @@ def test_tf_unpack(runner):
         expected = model.predict(data)
         assert runner('onnx_unpack', onnx_model, data, expected)
 
+
 @pytest.mark.skipif(is_tf2,
-                 reason="tf 2.0 is not supported.")
+                    reason="tf 2.0 is not supported.")
 def test_tf_variable(runner):
     val = np.random.random((2, 3, 4))
     for var_ in [K.variable(value=val), K.zeros(shape=(2, 3, 4)), K.ones(shape=(2, 3, 4))]:
@@ -700,8 +702,9 @@ def test_tf_variable(runner):
         expected = model.predict(data)
         assert runner('onnx_variable', onnx_model, data, expected)
 
+
 @pytest.mark.skipif(is_tf2 or get_maximum_opset_supported() < 9,
-                 reason="tf 2.0 or opset < 9 is not supported.")
+                    reason="tf 2.0 or opset < 9 is not supported.")
 def test_tf_where(runner):
     model = Sequential()
     a = tf.constant([[[1, 1], [3, 6]], [[7, 8], [9, 9]]])
@@ -733,6 +736,7 @@ def test_tf_where(runner):
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_where')
         assert runner('onnx_where', onnx_model, data, expected)
+
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 9, reason="conversion needs opset 9.")
 def test_any_all(runner):
@@ -775,12 +779,13 @@ def test_dense_add(runner):
     expected = model.predict(data)
     assert runner('onnx_dense_add', onnx_model, data, expected)
 
+
 @pytest.mark.skipif(is_tf2, reason="const is not initialized this way for tf2")
 def test_conv_add(runner):
     input1 = Input(shape=(10, 10, 1))
     x1 = Conv2D(32, strides=(2, 2), kernel_size=3,
                 bias_initializer=keras.initializers.RandomNormal(mean=0.0, stddev=0.05, seed=None))(input1)
-    input2 = Input(tensor = tf.constant(np.random.rand(1, 32).astype(np.float32)))
+    input2 = Input(tensor=tf.constant(np.random.rand(1, 32).astype(np.float32)))
     added = Add()([x1, input2])
     model = keras.models.Model(inputs=[input1, input2], outputs=added)
     onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -839,7 +844,7 @@ def test_merge_layer(runner, layer_type, data):
 @pytest.fixture(scope='function')
 def conv_runner(runner):
     def func(layer_type, input_channels, output_channels, kernel_size, strides, input_size, activation,
-                     rtol, atol, bias, channels_first=False, padding='valid'):
+             rtol, atol, bias, channels_first=False, padding='valid'):
         model = keras.Sequential()
         input_size_seq = (input_size,) if isinstance(input_size, int) else input_size
         kwargs = {}
@@ -857,6 +862,7 @@ def conv_runner(runner):
 
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected, rtol=rtol, atol=atol)
+
     return func
 
 
@@ -864,6 +870,7 @@ def conv_runner(runner):
 def conv1_runner(conv_runner):
     def func(*args, activation=None, rtol=1e-4, atol=1e-6, bias=False, padding='valid'):
         return conv_runner(Conv1D, *args, activation, rtol, atol, bias, padding=padding)
+
     return func
 
 
@@ -902,6 +909,7 @@ def conv2_runner(conv_runner):
         input_dims = args[-1]
         assert len(input_dims) == 2
         conv_runner(Conv2D, *args, activation, rtol, atol, bias, channels_first, padding)
+
     return func
 
 
@@ -911,6 +919,7 @@ def conv2trans_runner(conv_runner):
         input_dims = args[-1]
         assert len(input_dims) == 2
         conv_runner(Conv2DTranspose, *args, activation, rtol, atol, bias, channels_first, padding)
+
     return func
 
 
@@ -958,6 +967,7 @@ def conv3_runner(conv_runner):
         input_dims = args[-1]
         assert len(input_dims) == 3
         conv_runner(Conv3D, *args, activation, rtol, atol, bias, channels_first, padding)
+
     return func
 
 
@@ -971,6 +981,7 @@ def conv3trans_runner(conv_runner):
         input_dims = args[-1]
         assert len(input_dims) == 3
         conv_runner(Conv3DTranspose, *args, activation, rtol, atol, bias, channels_first, padding)
+
     return func
 
 
@@ -1056,6 +1067,7 @@ def pooling_runner(runner):
 
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
     return func
 
 
@@ -1135,7 +1147,6 @@ def test_activation_layer(runner, layer):
 
 @pytest.fixture(scope='function')
 def advanced_activation_runner(runner):
-
     def runner_func(layer, data, op_version=None):
         if op_version is None:
             op_version = get_maximum_opset_supported()
@@ -1229,6 +1240,7 @@ def misc_conv_runner(runner):
 
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
     return func
 
 
@@ -1310,6 +1322,7 @@ def dot_runner(runner):
 
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
     return func
 
 
@@ -1379,6 +1392,7 @@ def batch_norm_runner(runner):
 
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
     return func
 
 
@@ -1577,7 +1591,7 @@ def test_LSTM_with_initializer(runner):
 
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 5,
-                 reason="None seq_length LSTM is not supported before opset 5.")
+                    reason="None seq_length LSTM is not supported before opset 5.")
 def test_LSTM_seqlen_none(runner):
     lstm_dim = 2
     data = np.random.rand(1, 5, 1).astype(np.float32)
@@ -1593,7 +1607,7 @@ def test_LSTM_seqlen_none(runner):
 
 @pytest.mark.parametrize("return_sequences", [True, False])
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
-def test_Bidirectional(runner, rnn_class, return_sequences):
+def test_bidirectional(runner, rnn_class, return_sequences):
     input_dim = 10
     sequence_len = 5
     op_version = get_maximum_opset_supported()
@@ -1624,7 +1638,8 @@ def test_Bidirectional(runner, rnn_class, return_sequences):
 
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
-def test_Bidirectional_with_bias(runner, rnn_class):
+def test_bidirectional_with_bias(runner, rnn_class):
+    K.clear_session()
     model = keras.Sequential()
     model.add(Bidirectional(rnn_class(4, return_sequences=False),
                             input_shape=(3, 5), name='bi'))
@@ -1650,7 +1665,7 @@ def test_Bidirectional_with_bias(runner, rnn_class):
 
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
-def test_Bidirectional_with_initial_states(runner, rnn_class):
+def test_bidirectional_with_initial_states(runner, rnn_class):
     input1 = Input(shape=(None, 5))
     states = Bidirectional(rnn_class(2, return_state=True))(input1)
     model = Model(input1, states)
@@ -1674,9 +1689,9 @@ def test_Bidirectional_with_initial_states(runner, rnn_class):
 
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 5,
-                 reason="None seq_length Bidirectional LSTM is not supported before opset 5.")
+                    reason="None seq_length Bidirectional LSTM is not supported before opset 5.")
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
-def test_Bidirectional_seqlen_none(runner, rnn_class):
+def test_bidirectional_seqlen_none(runner, rnn_class):
     model = Sequential()
     model.add(Embedding(39, 128))
     model.add(Bidirectional(rnn_class(256, input_shape=(None, 32), return_sequences=True)))
@@ -1853,7 +1868,7 @@ def test_recursive_and_shared_model(runner):
 
 
 @pytest.mark.skipif(is_keras_older_than("2.2.4"),
-                 reason="Low keras version is not supported.")
+                    reason="Low keras version is not supported.")
 def test_shared_model_2(runner):
     K.set_learning_phase(0)
 
@@ -1890,7 +1905,7 @@ def test_shared_model_2(runner):
 
 
 @pytest.mark.skipif(is_keras_older_than("2.2.4"),
-                 reason="ReLU support requires keras 2.2.4 or later.")
+                    reason="ReLU support requires keras 2.2.4 or later.")
 def test_shared_model_3(runner):
     def _bottleneck(x, filters, activation, strides, block_id):
         padding = 'same' if strides == 1 else 'valid'
