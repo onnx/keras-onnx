@@ -18,13 +18,13 @@ sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
 from keras2onnx.proto import is_tensorflow_older_than
 
-enable_transformer_test = True
-if os.environ.get('ENABLE_TRANSFORMER_TEST', '0') != '0':
+enable_full_transformer_test = False
+if os.environ.get('ENABLE_FULL_TRANSFORMER_TEST', '0') != '0':
     enable_transformer_test = True
 
 
-@unittest.skipIf(is_tensorflow_older_than('2.1.0') or not enable_transformer_test,
-                 "Need enable transformer test before Transformers conversion.")
+@unittest.skipIf(is_tensorflow_older_than('2.1.0'),
+                 "Transformers conversion need tensorflow 2.1.0+")
 class TestTransformers(unittest.TestCase):
 
     def setUp(self):
@@ -78,6 +78,7 @@ class TestTransformers(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
                              atol=1.e-4))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFBertForPreTraining(self):
         from transformers import BertConfig, TFBertForPreTraining
         keras.backend.clear_session()
@@ -116,6 +117,7 @@ class TestTransformers(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
                              atol=1.e-4))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFBertForNextSentencePrediction(self):
         from transformers import BertConfig, TFBertForNextSentencePrediction
         keras.backend.clear_session()
@@ -184,6 +186,7 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFOpenAIGPTModel(self):
         from transformers import OpenAIGPTConfig, TFOpenAIGPTModel
         keras.backend.clear_session()
@@ -349,6 +352,7 @@ class TestTransformers(unittest.TestCase):
             run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
                              atol=1.e-4))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFDistilBertForSequenceClassification(self):
         from transformers import DistilBertConfig, TFDistilBertForSequenceClassification
         keras.backend.clear_session()
@@ -400,6 +404,7 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFRobertaModel(self):
         from transformers import RobertaConfig, TFRobertaModel
         keras.backend.clear_session()
@@ -453,6 +458,7 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFRobertaForTokenClassification(self):
         from transformers import RobertaConfig, TFRobertaForTokenClassification
         keras.backend.clear_session()
