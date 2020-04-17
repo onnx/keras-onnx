@@ -14,10 +14,10 @@ from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 from distutils.version import StrictVersion
 
-
 """
 Tests for ONNX Operator Builder
 """
+
 
 def test_apply():
     oopb = _cmn.onnx_ops.OnnxOperatorBuilder(_cmn.OnnxObjectContainer(get_maximum_opset_supported()),
@@ -28,7 +28,7 @@ def test_apply():
 
 
 @pytest.mark.skipif(StrictVersion(onnx.__version__) < StrictVersion("1.2"),
-                 reason="Not supported in ONNX version less than 1.2, since this test requires opset 7.")
+                    reason="Not supported in ONNX version less than 1.2, since this test requires opset 7.")
 def test_model_creation():
     N, C, H, W = 2, 3, 5, 5
     input1 = keras.layers.Input(shape=(H, W, C))

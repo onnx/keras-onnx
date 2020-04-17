@@ -8,7 +8,6 @@ import keras2onnx
 import numpy as np
 import tensorflow as tf
 
-
 if ((not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2)):
     pytest.skip("Tensorflow 2.0 only tests.", allow_module_level=True)
 
@@ -69,6 +68,7 @@ def test_lenet(runner):
     oxml = keras2onnx.convert_keras(lenet)
     assert runner('lenet', oxml, data, expected)
 
+
 def test_mlf(runner):
     tf.keras.backend.clear_session()
     mlf = MLP()
@@ -76,6 +76,7 @@ def test_mlf(runner):
     expected = mlf.predict(np_input)
     oxml = keras2onnx.convert_keras(mlf)
     assert runner('lenet', oxml, np_input.numpy(), expected)
+
 
 def test_tf_ops(runner):
     tf.keras.backend.clear_session()
