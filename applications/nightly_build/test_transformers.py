@@ -23,7 +23,7 @@ if os.environ.get('ENABLE_TRANSFORMER_TEST', '0') != '0':
     enable_transformer_test = True
 
 
-@unittest.skipIf(is_tensorflow_older_than('2.1.0'),
+@unittest.skipIf(is_tensorflow_older_than('2.1.0') or not enable_transformer_test,
                  "Need enable transformer test before Transformers conversion.")
 class TestTransformers(unittest.TestCase):
 
@@ -74,7 +74,9 @@ class TestTransformers(unittest.TestCase):
         model = TFBertModel(config)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFBertForPreTraining(self):
         from transformers import BertConfig, TFBertForPreTraining
@@ -231,7 +233,9 @@ class TestTransformers(unittest.TestCase):
         model = TFOpenAIGPTDoubleHeadsModel(config)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+        self.assertTrue(
+            run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     @unittest.skip('tensorflow.GraphDef exceeds maximum protobuf size of 2GB')
     def test_TFXLMModel(self):
