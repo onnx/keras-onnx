@@ -49,6 +49,7 @@ def extract_params(op, hidden_size, input_size):
 
     return W_x, W_h, b
 
+
 def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the LSTM layer.
     """
@@ -106,8 +107,8 @@ def build_parameters(scope, operator, container, bidirectional=False):
         tensor_b = _name('B')
         container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B)
 
-
     return tensor_w, tensor_r, tensor_b
+
 
 def build_initial_states(scope, operator, container, bidirectional=False):
     """Builds the initial hidden and cell states for the LSTM layer.
@@ -118,8 +119,8 @@ def build_initial_states(scope, operator, container, bidirectional=False):
 
     # Determine if the cell states are set
     has_c = (
-        (len(operator.inputs) > 1 and not bidirectional) or
-        (len(operator.inputs) > 3 and bidirectional)
+            (len(operator.inputs) > 1 and not bidirectional) or
+            (len(operator.inputs) > 3 and bidirectional)
     )
     if not has_c:
         return initial_h, ''
@@ -182,6 +183,7 @@ def build_attributes(scope, operator, container, bidirectional=False):
             op.activation,
         ]))
     return attrs
+
 
 def build_output(scope, operator, container, output_names, bidirectional=False):
     """Builds the output operators for the LSTM layer.
