@@ -37,6 +37,14 @@ class TestTransformers(unittest.TestCase):
     def _get_token_path(self, file_name):
         return 'https://lotus.blob.core.windows.net/converter-models/transformer_tokenizer/' + file_name
 
+    def _get_tokenzier(self, tokenizer_file):
+        token_path = self._get_token_path(tokenizer_file)
+        if not os.path.exists(tokenizer_file):
+            urllib.request.urlretrieve(token_path, tokenizer_file)
+        with open(tokenizer_file, 'rb') as handle:
+            tokenizer = pickle.load(handle)
+        return tokenizer
+
     def _prepare_inputs(self, tokenizer):
         raw_data = json.dumps({
             'text': 'The quick brown fox jumps over the lazy dog.'
@@ -64,11 +72,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertModel(config)
@@ -84,11 +88,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForPreTraining(config)
@@ -103,11 +103,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForMaskedLM(config)
@@ -123,11 +119,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForNextSentencePrediction(config)
@@ -140,11 +132,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForSequenceClassification(config)
@@ -157,11 +145,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForTokenClassification(config)
@@ -174,11 +158,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
         tokenizer_file = 'bert_bert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = BertConfig()
         model = TFBertForQuestionAnswering(config)
@@ -192,11 +172,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'openai-gpt'
         tokenizer_file = 'openai_openai-gpt.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = OpenAIGPTConfig()
         model = TFOpenAIGPTModel(config)
@@ -209,11 +185,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'openai-gpt'
         tokenizer_file = 'openai_openai-gpt.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = OpenAIGPTConfig()
         model = TFOpenAIGPTLMHeadModel(config)
@@ -226,11 +198,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'openai-gpt'
         tokenizer_file = 'openai_openai-gpt.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = OpenAIGPTConfig()
         model = TFOpenAIGPTDoubleHeadsModel(config)
@@ -246,11 +214,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'xlm-mlm-enfr-1024'
         tokenizer_file = 'xlm_xlm-mlm-enfr-1024.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = XLMConfig()
         model = TFXLMModel(config)
@@ -266,11 +230,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'xlm-mlm-enfr-1024'
         tokenizer_file = 'xlm_xlm-mlm-enfr-1024.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = XLMConfig()
         model = TFXLMWithLMHeadModel(config)
@@ -286,11 +246,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'xlm-mlm-enfr-1024'
         tokenizer_file = 'xlm_xlm-mlm-enfr-1024.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = XLMConfig()
         model = TFXLMForSequenceClassification(config)
@@ -304,11 +260,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'xlm-mlm-enfr-1024'
         tokenizer_file = 'xlm_xlm-mlm-enfr-1024.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = XLMConfig()
         model = TFXLMForQuestionAnsweringSimple(config)
@@ -321,11 +273,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
         tokenizer_file = 'distilbert_distilbert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = DistilBertConfig()
         model = TFDistilBertModel(config)
@@ -338,11 +286,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
         tokenizer_file = 'distilbert_distilbert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = DistilBertConfig()
         model = TFDistilBertForMaskedLM(config)
@@ -358,11 +302,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
         tokenizer_file = 'distilbert_distilbert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = DistilBertConfig()
         model = TFDistilBertForSequenceClassification(config)
@@ -375,11 +315,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
         tokenizer_file = 'distilbert_distilbert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = DistilBertConfig()
         model = TFDistilBertForTokenClassification(config)
@@ -392,11 +328,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
         tokenizer_file = 'distilbert_distilbert-base-uncased.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = DistilBertConfig()
         model = TFDistilBertForQuestionAnswering(config)
@@ -410,11 +342,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
         tokenizer_file = 'roberta_roberta-base.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = RobertaConfig()
         model = TFRobertaModel(config)
@@ -427,11 +355,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
         tokenizer_file = 'roberta_roberta-base.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = RobertaConfig()
         model = TFRobertaForMaskedLM(config)
@@ -446,11 +370,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
         tokenizer_file = 'roberta_roberta-base.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = RobertaConfig()
         model = TFRobertaForSequenceClassification(config)
@@ -464,11 +384,7 @@ class TestTransformers(unittest.TestCase):
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
         tokenizer_file = 'roberta_roberta-base.pickle'
-        token_path = self._get_token_path(tokenizer_file)
-        if not os.path.exists(tokenizer_file):
-            urllib.request.urlretrieve(token_path, tokenizer_file)
-        with open(tokenizer_file, 'rb') as handle:
-            tokenizer = pickle.load(handle)
+        tokenizer = self._get_tokenzier(tokenizer_file)
         text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
         config = RobertaConfig()
         model = TFRobertaForTokenClassification(config)
