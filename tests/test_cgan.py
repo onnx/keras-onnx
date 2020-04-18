@@ -8,12 +8,10 @@ import tensorflow as tf
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras, is_tf_keras
-from test_utils import run_onnx_runtime
 from distutils.version import StrictVersion
 
 Activation = keras.layers.Activation
 BatchNormalization = keras.layers.BatchNormalization
-Conv2D = keras.layers.Conv2D
 Dense = keras.layers.Dense
 Dropout = keras.layers.Dropout
 Embedding = keras.layers.Embedding
@@ -121,7 +119,7 @@ class CGAN():
 
 @pytest.mark.skipif(keras2onnx.proto.tfcompat.is_tf2 and is_tf_keras, reason="Tensorflow 1.x only tests.")
 @pytest.mark.skipif(is_tf_keras and StrictVersion(tf.__version__.split('-')[0]) < StrictVersion("1.14.0"),
-                 reason="Not supported before tensorflow 1.14.0 for tf_keras")
+                    reason="Not supported before tensorflow 1.14.0 for tf_keras")
 def test_CGAN(runner):
     keras_model = CGAN().combined
     batch = 5

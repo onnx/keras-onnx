@@ -72,7 +72,7 @@ if not (is_keras_older_than("2.2.4") or is_tf_keras):
 RNN_CLASSES = [SimpleRNN, GRU, LSTM]
 
 
-def asarray(*a):
+def _asarray(*a):
     return np.array([a], dtype='f')
 
 
@@ -758,7 +758,7 @@ def test_dense(runner):
         model.compile('sgd', 'mse')
         onnx_model = keras2onnx.convert_keras(model, model.name)
 
-        data = asarray(1, 0, 0, 1)
+        data = _asarray(1, 0, 0, 1)
         expected = model.predict(data)
         assert runner('dense', onnx_model, data, expected)
 
@@ -775,7 +775,7 @@ def test_dense_add(runner):
     model.compile('sgd', 'mse')
     onnx_model = keras2onnx.convert_keras(model, model.name)
 
-    data = [asarray(1.2, 2.4, -2, 1), asarray(-1, -2, 0, 1, 2), asarray(0.5, 1.5, -3.14159)]
+    data = [_asarray(1.2, 2.4, -2, 1), _asarray(-1, -2, 0, 1, 2), _asarray(0.5, 1.5, -3.14159)]
     expected = model.predict(data)
     assert runner('onnx_dense_add', onnx_model, data, expected)
 
@@ -796,7 +796,7 @@ def test_conv_add(runner):
 
 
 def test_dense_softmax(runner):
-    data = asarray(1, 2, 3, 4)
+    data = _asarray(1, 2, 3, 4)
     model = Sequential()
     model.add(Dense(5, input_shape=(4,), activation='softmax'))
     model.add(Dense(3, input_shape=(5,), use_bias=True))
@@ -831,7 +831,7 @@ def test_dense_softmax(runner):
     (lambda: Concatenate(2), ([[1, 2], [3, 4]], [[4, 5], [6, 7]])),
 ])
 def test_merge_layer(runner, layer_type, data):
-    data2 = [asarray(*d) for d in data]
+    data2 = [_asarray(*d) for d in data]
     inputs = [Input(shape=d.shape[1:]) for d in data2]
     layer = layer_type()(inputs)
     model = keras.models.Model(inputs=inputs, outputs=layer)
@@ -1043,7 +1043,7 @@ def test_repeat_vector(runner):
     model.add(keras.layers.core.RepeatVector(3, input_shape=(4,)))
     onnx_model = keras2onnx.convert_keras(model, model.name)
 
-    data = asarray(1, 2, 3, 4)
+    data = _asarray(1, 2, 3, 4)
 
     expected = model.predict(data)
     assert runner('repeat_vector', onnx_model, data, expected)
@@ -1134,7 +1134,7 @@ def test_pooling_global(pooling_runner):
     keras.activations.linear,
 ])
 def test_activation_layer(runner, layer):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = Activation(layer, input_shape=(data.size,))
 
     model = keras.Sequential()
@@ -1177,13 +1177,13 @@ def test_selu(runner):
 
 
 def test_LeakyReLU(advanced_activation_runner):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.LeakyReLU(alpha=0.1, input_shape=(data.size,))
     advanced_activation_runner(layer, data)
 
 
 def test_ThresholdedReLU(advanced_activation_runner):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
     advanced_activation_runner(layer, data, op_version=8)
 
@@ -1192,13 +1192,13 @@ def test_ThresholdedReLU(advanced_activation_runner):
 
 
 def test_ELU(advanced_activation_runner):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.ELU(alpha=1.0, input_shape=(data.size,))
     advanced_activation_runner(layer, data)
 
 
 def test_PReLU(advanced_activation_runner):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.PReLU(alpha_initializer='zeros', input_shape=(data.size,))
     advanced_activation_runner(layer, data)
     layer = advanced_activations.PReLU(alpha_initializer='ones', input_shape=(data.size,))
@@ -1208,7 +1208,7 @@ def test_PReLU(advanced_activation_runner):
 
 
 def test_Softmax(advanced_activation_runner):
-    data = asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.Softmax(axis=-1, input_shape=(data.size,))
     advanced_activation_runner(layer, data)
 
@@ -1327,8 +1327,8 @@ def dot_runner(runner):
 
 
 def test_dot(dot_runner):
-    dot_runner(False, asarray(1, 2, 3), asarray(4, 5, 6))
-    dot_runner(True, asarray(1, 2, 3), asarray(4, 5, 6))
+    dot_runner(False, _asarray(1, 2, 3), _asarray(4, 5, 6))
+    dot_runner(True, _asarray(1, 2, 3), _asarray(4, 5, 6))
 
 
 def test_dot2(runner):
@@ -1397,7 +1397,7 @@ def batch_norm_runner(runner):
 
 
 def test_batch_normalization(batch_norm_runner):
-    data = asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
+    data = _asarray([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
     batch_norm_runner(data, 'ones', 'zeros', True, True, 3)
     batch_norm_runner(data, 'ones', 'ones', True, True, 3)
     # The CPU implementation of FusedBatchNorm only supports NHWC tensor format in tf keras
