@@ -175,33 +175,25 @@ def _layer_name_dict(tf_utils, layer, prefix, parent=None):
     return output_dict
 
 
-def _to_tf_ops(layer_name, graph, fstr):
+def _to_tf_ops(layer_name, fstr, ops_table):
     ops = []
     op_name = fstr.format(layer_name) if fstr is not None else None
     if op_name is None:
         return ops
 
-    try:
-        ops[0:] = [graph.get_operation_by_name(op_name)]
-        idx = 1
-        if not re.match(r".+_\d+", layer_name):  # if layer name already numbered, skipped then.
-            while True:  # break out by exception.
-                op_name = fstr.format("%s_%d" % (layer_name, idx))
-                ops[idx:] = [graph.get_operation_by_name(op_name)]
-                idx += 1
-    except KeyError:
-        pass
+    if re.match(r".+_\d+$", layer_name):  # if layer name already numbered, skipped then.
+        return ops
+
+    idx = 0
+    while True:
+        op_name = fstr.format("%s_%d" % (layer_name, idx + 1))
+        if op_name in ops_table:
+            ops.append(ops_table[op_name])
+        else:
+            break
+        idx += 1
 
     return ops
-
-
-def _advance_output_node_if_successor(graph, layer, output):
-    for op_ in graph.get_operations():
-        if op_.name.find(layer) == 0:
-            if output in [ts_.op.name for ts_ in op_.inputs]:
-                return op_.name
-
-    return output
 
 
 def build_layer_outputs(model, graph, outputs):
@@ -211,6 +203,17 @@ def build_layer_outputs(model, graph, outputs):
     output_dict = {}
     layer_dict = _layer_name_dict(tf_utils, model, model.name)
 
+    ops_table = {op_.name: op_ for op_ in graph.get_operations()}
+
+    def add_output_node(graph, op, fx_list, layer_name):
+        output_node_name = op.name
+        if len(fx_list) > 1:  # if there is no output node function.
+            # fx_[1] is output node redirect function.
+            output_node_name = fx_list[1](lobj, op)
+        assert graph.get_operation_by_name(output_node_name) is not None, "Parsing layer({}) failed.".format(lobj)
+        if output_node_name not in output_dict:  # if there is already a same kind of layer, not overwrite it.
+            output_dict[output_node_name] = layer_dict[layer_name]
+
     for ln_, layer_info_ in layer_dict.items():
         lobj = layer_info_[0]
         fstr_list, fx_list = keras_layer_spec(type(lobj))
@@ -218,16 +221,21 @@ def build_layer_outputs(model, graph, outputs):
             continue
 
         for fstr_ in fstr_list:
-            for op_ in _to_tf_ops(ln_, graph, fstr_):
-                if len(fx_list) <= 1:
-                    output_dict[op_.name] = layer_dict[ln_]
-                else:
-                    # fx_[1] is output node redirect function.
-                    output_node = fx_list[1](lobj, op_)
-                    output_node = _advance_output_node_if_successor(graph, ln_, output_node)
-                    assert graph.get_operation_by_name(output_node) is not None, "Parsing layer({}) failed.".format(
-                        lobj)
-                    output_dict[output_node] = layer_dict[ln_]
+            op_name = fstr_.format(ln_)
+            if op_name not in ops_table:
+                continue
+            add_output_node(graph, ops_table[op_name], fx_list, ln_)
+
+    # now process the case when a layer was re-used several times in one model.
+    for ln_, layer_info_ in layer_dict.items():
+        lobj = layer_info_[0]
+        fstr_list, fx_list = keras_layer_spec(type(lobj))
+        if fstr_list is None:
+            continue
+
+        for fstr_ in fstr_list:
+            for op_ in _to_tf_ops(ln_, fstr_, ops_table):
+                add_output_node(graph, op_, fx_list, ln_)
 
     return output_dict
 
