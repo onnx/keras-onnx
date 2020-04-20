@@ -299,37 +299,38 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # enable the ONNX optimizations
     graph = None
     nodes = container.nodes
-    try:
-        import onnxconverter_common
-        origin_node_number = len(container.nodes)
-        if target_opset < 9:
-            nodes = onnxconverter_common.optimizer.optimize_onnx(nodes, nchw_inputs=nchw_inputs,
-                                                                 inputs=container.inputs + extra_inputs,
-                                                                 outputs=container.outputs)
-            node_number = len(nodes)
-        else:
-            graph = onnxconverter_common.optimizer.optimize_onnx_graph(nodes, nchw_inputs=nchw_inputs,
-                                                                       inputs=container.inputs,
-                                                                       outputs=container.outputs,
-                                                                       initializers=container.initializers,
-                                                                       model_value_info=container.value_info,
-                                                                       model_name=model_name,
-                                                                       target_opset=container.target_opset)
-            node_number = len(graph.node)
-        k2o_logger().info("The node number after optimization: {} -> {}".format(origin_node_number, node_number))
-    except ImportError:
-        onnx_not_imported = 'onnxconverter_common is not imported,'
-        if nchw_inputs:
-            raise Exception(
-                '{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
-        k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
-    except Exception as e:
-        # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
-        k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
-        k2o_logger().warning(str(e))
-        import traceback
-        tb = traceback.format_exc()
-        k2o_logger().warning(tb)
+    if not topology.debug_mode:
+        try:
+            import onnxconverter_common
+            origin_node_number = len(container.nodes)
+            if target_opset < 9:
+                nodes = onnxconverter_common.optimizer.optimize_onnx(nodes, nchw_inputs=nchw_inputs,
+                                                                     inputs=container.inputs + extra_inputs,
+                                                                     outputs=container.outputs)
+                node_number = len(nodes)
+            else:
+                graph = onnxconverter_common.optimizer.optimize_onnx_graph(nodes, nchw_inputs=nchw_inputs,
+                                                                           inputs=container.inputs,
+                                                                           outputs=container.outputs,
+                                                                           initializers=container.initializers,
+                                                                           model_value_info=container.value_info,
+                                                                           model_name=model_name,
+                                                                           target_opset=container.target_opset)
+                node_number = len(graph.node)
+            k2o_logger().info("The node number after optimization: {} -> {}".format(origin_node_number, node_number))
+        except ImportError:
+            onnx_not_imported = 'onnxconverter_common is not imported,'
+            if nchw_inputs:
+                raise Exception(
+                    '{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
+            k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
+        except Exception as e:  # noqa
+            # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
+            k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
+            k2o_logger().warning(str(e))
+            import traceback
+            tb = traceback.format_exc()
+            k2o_logger().warning(tb)
 
     if graph is None:
         # Create a graph from its main components

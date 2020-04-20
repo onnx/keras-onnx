@@ -36,6 +36,7 @@ dist
 # test generated files
 .pytest_cache/
 .cache
+.ipynb_checkpoints/
 htmlcov
 coverage.xml
 .coverage
@@ -43,3 +44,5 @@ docs/auto_examples/*
 docs/examples/imagenet*.json
 docs/examples/*.onnx
 docs/examples/tiny_yolov2*
+tutorial/*.onnx
+tutorial/.ipynb_checkpoints/*

@@ -27,13 +27,7 @@ def _simple_layer_name_extractor(fstr_list, node_name):
 
 
 def _conv_layer_spec_outputs(layer, node):
-    if type(layer) == _layer.DepthwiseConv2D:
-        if not layer.use_bias:
-            return node.name
-        else:
-            ri = node.name.rindex('/')
-            return node.name[:ri + 1] + 'BiasAdd'
-    elif type(layer) == _layer.Conv1D:
+    if type(layer) == _layer.Conv1D:
         return node.name + '/Squeeze'
 
     activation_map = {
@@ -42,15 +36,26 @@ def _conv_layer_spec_outputs(layer, node):
         tf.nn.softmax: 'Softmax',
         tf.nn.relu: 'Relu',
         tf.nn.elu: 'Elu',
-        tf.nn.tanh: 'Tanh'}
+        tf.nn.tanh: 'Tanh',
+        tf.nn.swish: 'mul'}
 
     node_act = activation_map.get(layer.activation, None)
+    if node_act is None:
+        actname_map = {a_.__name__: a_ for a_ in activation_map}
+        act_trans = actname_map.get(layer.activation.__name__, None)
+        if act_trans is not None:
+            node_act = activation_map.get(act_trans)
+
     assert node_act is not None, "Unsupported activation in the layer({})".format(layer.activation)
     if node_act:
         ri = node.name.rindex('/')
         return node.name[:ri + 1] + node_act
     else:
-        return node.name
+        if not layer.use_bias:
+            return node.name
+        else:
+            ri = node.name.rindex('/')
+            return node.name[:ri + 1] + 'BiasAdd'
 
 
 def _relu_like_spec_outputs(layer, node):
@@ -69,11 +74,17 @@ _keras_layer_spec = {
     _layer.MaxPooling1D: (["{}/MaxPool"], [_default_layer_name_extractor]),
     _layer.MaxPooling2D: (["{}/MaxPool"], [_default_layer_name_extractor]),
     _layer.MaxPooling3D: (["{}/MaxPool"], [_default_layer_name_extractor]),
+
     _layer.Conv1D: (["{}/conv1d"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
+    _layer.Conv2D: (["{}/Conv2D"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
+
     _layer.Conv2DTranspose: (["{}/conv2d_transpose"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.DepthwiseConv2D: (["{}/depthwise"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
+
     _layer.LeakyReLU: (["{}/LeakyRelu"], [_default_layer_name_extractor]),
-    _adv_activations.PReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs])
+    _adv_activations.PReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs]),
+
+    _layer.Reshape: (["{}/Reshape"], [_default_layer_name_extractor])
 }
 
 if not is_keras_older_than('2.2.0'):
