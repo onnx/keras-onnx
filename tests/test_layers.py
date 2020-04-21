@@ -305,6 +305,19 @@ def test_tf_maximum_minimum(runner):
             assert runner('tf_maximum_minimum', onnx_model, [data1, data2], expected)
 
 
+def test_tf_one_hot(runner):
+    def my_func(x):
+        return tf.one_hot(tf.cast(x, tf.int32), 3, 5.0, -1.0, 1)
+
+    model = Sequential()
+    model.add(Lambda(lambda x: my_func(x), input_shape=[3]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_one_hot')
+    keras2onnx.save_model(onnx_model, 'one_hot.onnx')
+    data = np.array([[0, 1, 2]]).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('tf_one_hot', onnx_model, data, expected)
+
+
 def test_tf_pad(runner):
     def my_func_1(x):
         paddings = tf.constant([[0, 0], [1, 3], [2, 4]])

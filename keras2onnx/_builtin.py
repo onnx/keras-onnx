@@ -34,6 +34,7 @@ class TYPES:
     Conv2D = 'Conv2D'
     Cumsum = 'Cumsum'
     DepthwiseConv2dNative = 'DepthwiseConv2dNative'
+    Einsum = 'Einsum'
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
     FloorDiv = 'FloorDiv'
@@ -44,6 +45,8 @@ class TYPES:
     GatherV2 = 'GatherV2'
     GreaterEqual = 'GreaterEqual'
     LessEqual = 'LessEqual'
+    LogicalAnd = 'LogicalAnd'
+    LogicalNot = 'LogicalNot'
     LogSoftmax = 'LogSoftmax'
     MatMul = 'MatMul'
     Max = 'Max'
@@ -54,6 +57,7 @@ class TYPES:
     NonMaxSuppressionV2 = 'NonMaxSuppressionV2'
     NonMaxSuppressionV3 = 'NonMaxSuppressionV3'
     NotEqual = 'NotEqual'
+    OneHot = 'OneHot'
     Pack = 'Pack'
     Pad = 'Pad'
     PadV2 = 'PadV2'
@@ -742,6 +746,20 @@ def convert_tf_conv2d(scope, operator, container):
     _convert_tf_conv2d(scope, operator, container)
 
 
+@converter_func(TYPES.Einsum)
+def convert_tf_einsum(scope, operator, container):
+    if operator.target_opset < 12:
+        raise ValueError("Einsum op is not supported until opset 12")
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    equation_str = node.get_attr('equation').decode("utf-8")
+    oopb.add_node_with_output("Einsum",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              equation=equation_str)
+
+
 @converter_func(TYPES.ExpandDims)
 def convert_tf_expand_dims(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -938,6 +956,24 @@ def convert_tf_greater_equal(scope, operator, container):
 @converter_func(TYPES.LessEqual)
 def convert_tf_less_equal(scope, operator, container):
     _convert_tf_compare_equal(scope, operator, container, 'LessEqual', 'Greater')
+
+
+@converter_func(TYPES.LogicalAnd)
+def convert_tf_logical_not(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.add_node_with_output('And',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
+
+
+@converter_func(TYPES.LogicalNot)
+def convert_tf_logical_not(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.add_node_with_output('Not',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 @converter_func(TYPES.LogSoftmax)
@@ -1713,6 +1749,32 @@ def convert_tf_not_equal(scope, operator, container):
                                   name=operator.full_name + '_not')
 
 
+
+@converter_func(TYPES.OneHot)
+def convert_tf_one_hot(scope, operator, container):
+    if operator.target_opset < 9:
+        raise ValueError("OneHot op is not supported until opset 9")
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    axis = node.get_attr('axis')
+
+    depth = oopb.apply_unsqueeze(operator.inputs[1].full_name,
+                                 name=operator.full_name + '_unsqueeze_1',
+                                 axes=[0])
+    on_value = oopb.apply_unsqueeze(operator.inputs[2].full_name,
+                                    name=operator.full_name + '_unsqueeze_2',
+                                    axes=[0])
+    off_value = oopb.apply_unsqueeze(operator.inputs[3].full_name,
+                                     name=operator.full_name + '_unsqueeze_3',
+                                     axes=[0])
+    off_on_value = oopb.apply_concat(off_value + on_value,
+                                     name=operator.full_name + '_concat',
+                                     axis=0)
+    oopb.add_node_with_output('OneHot', [operator.inputs[0].full_name] + depth + off_on_value,
+                              operator.output_full_names,
+                              name=operator.full_name + '_one_hot', axis=axis)
+
+
 @converter_func(TYPES.ReadVariableOp)
 def convert_tf_read_variable_op(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -2096,6 +2158,8 @@ direct_ops = {"Abs": ("apply_abs",),
               "Erf": 9,
               "Exp": ("apply_exp",),
               "Floor": ("apply_floor",),
+              "Greater": ("apply_greater",),
+              "Less": ("apply_less",),
               "Log": ("apply_log",),
               "Mul": ("apply_mul",),
               "Neg": ("apply_neg",),
