@@ -29,13 +29,8 @@ def convert_keras_embed(scope, operator, container):
             container.add_node('Not', equal_out, operator.output_masks[0].full_name,
                                name=operator.full_name + 'mask_not')
 
-    # Reshape the indexes we want to embed to 1-D tensor. Otherwise, Gather's output may get wrong shape, which is the
-    # same as our CoreML Embedding converter.
-    reshaped_input_name = scope.get_unique_variable_name('embedding_reshaped')
-    apply_reshape(scope, operator.inputs[0].full_name, reshaped_input_name, container, desired_shape=[0, -1])
-
     cast_name = scope.get_unique_variable_name('casted')
-    apply_cast(scope, reshaped_input_name, cast_name, container, to=onnx_proto.TensorProto.INT32)
+    apply_cast(scope, operator.inputs[0].full_name, cast_name, container, to=onnx_proto.TensorProto.INT32)
 
     # Prepare the weight matrix (i.e., the vectors of all input indices) as an initializer so that the following main
     # operator can access it.
