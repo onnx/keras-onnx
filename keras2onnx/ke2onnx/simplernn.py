@@ -15,6 +15,7 @@ from ..common.onnx_ops import (
     apply_split,
     apply_squeeze,
     apply_transpose,
+    apply_unsqueeze,
     OnnxOperatorBuilder,
 )
 
@@ -197,13 +198,9 @@ def build_initial_states(scope, operator, container, bidirectional=False):
         apply_concat(scope, [forward_h, backward_h], initial_h, container)
 
     else:
-        hidden_size = operator.raw_operator.units
-        desired_shape = [1, -1, hidden_size]
-
-        # Add a reshape after initial_h, 2d -> 3d
+        # Unsqueeze dim 0 to represent num_directions
         input_h = operator.inputs[1].full_name
-        apply_reshape(scope, input_h, initial_h, container, desired_shape=desired_shape)
-
+        apply_unsqueeze(scope, input_h, initial_h, container, axes=[0])
     return initial_h
 
 
