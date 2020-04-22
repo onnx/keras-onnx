@@ -1976,6 +1976,8 @@ def _prepare_StridedSlice(node, target_opset):
 
 @converter_func(TYPES.StridedSlice)
 def convert_tf_strided_slice(scope, operator, container):
+    if operator.full_name == 'TFNet/deconv2d_7/strided_slice_1':
+        aa = 1
     node = operator.raw_operator
     new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_axes = _prepare_StridedSlice(
         node, operator.target_opset)

@@ -104,13 +104,12 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                           ],
                          operator.inputs[1].full_name + '_prob_shape_0')
     prob_range = oopb.add_node('Range',
-                         [('_start', oopb.int64, np.array([0], dtype='int64')),
-                          prob_shape_0,
-                          # ('_limit', oopb.int64, np.array([1000], dtype='int64')),
-                          ('_delta', oopb.int64, np.array([1], dtype='int64'))
-                          ],
-                         operator.inputs[1].full_name + '_prob_range',
-                         op_domain='com.microsoft')
+                               [('_start', oopb.int64, np.array([0], dtype='int64')),
+                                prob_shape_0,
+                                # ('_limit', oopb.int64, np.array([1000], dtype='int64')),
+                                ('_delta', oopb.int64, np.array([1], dtype='int64'))
+                                ],
+                               operator.inputs[1].full_name + '_prob_range')
 
     attrs = {'axes': [1]}
     prob_range_unsqueeze = oopb.add_node('Unsqueeze',
@@ -129,8 +128,7 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
 
     deltas_specific = oopb.add_node('GatherND',
                          [deltas_squeeze, indices],
-                         operator.inputs[2].full_name + '_deltas_specific',
-                         op_domain='com.microsoft')
+                         operator.inputs[2].full_name + '_deltas_specific')
     # output shape: [spatial_dimension, 4]
 
     BBOX_STD_DEV = np.array([0.1, 0.1, 0.2, 0.2], dtype='float32')
@@ -580,7 +578,7 @@ def convert_DetectionLayer(scope, operator, container):
     container.add_node("GatherND",
                        [score_squeeze.full_name, class_box_idx_output.full_name],
                        score_gather,
-                       op_version=operator.target_opset, op_domain='com.microsoft',
+                       op_version=operator.target_opset,
                        name=nms_node.name + '_score_gather')
     # output shape: [num_selected_indices]
 
@@ -651,8 +649,7 @@ def convert_DetectionLayer(scope, operator, container):
                                   [all_gather,
                                    np.array([0, 0, DETECTION_MAX_INSTANCES, 0],
                                             dtype=np.int64)],
-                                  nms_node.name + '_padded_result',
-                                  op_domain='com.microsoft')
+                                  nms_node.name + '_padded_result')
     detection_final = oopb.add_node('Slice',
                                  [padded_result,
                                   ('_start', oopb.int64, np.array([0], dtype='int64')),

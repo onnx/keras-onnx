@@ -585,6 +585,9 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
         if not nodes:  # already processed by the _parse_nodes
             continue
 
+        if not layer_key_ and nodes[0].name == 'TFNet/deconv2d_7/strided_slice_1':
+            aa = 1
+
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_key_.name, type(layer_key_)) if
                            layer_key_ else (nodes[0].name, "Custom_Layer"))
         if isinstance(layer_key_, keras.layers.TimeDistributed):
@@ -705,6 +708,9 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
                                              varset, visited, q_overall)
         if not layer_info:  # already processed by the _parse_nodes_v2
             continue
+
+        if not layer_info.layer and layer_info.nodelist[0].name == 'TFNet/deconv2d_7/strided_slice_1':
+            aa = 1
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_info.layer.name, type(layer_info.layer)) if
                            layer_info.layer else (layer_info.nodelist[0].name, "Custom_Layer"))
