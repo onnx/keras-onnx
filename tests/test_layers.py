@@ -1545,6 +1545,34 @@ def test_LSTM(runner):
             expected = model.predict(data)
             assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
+                    reason="keras LSTM does not have time_major attribute")
+def test_LSTM_time_major_return_seq_true(runner):
+    inputs1 = keras.Input(shape=(3, 5))
+    data = np.random.rand(1, 3, 5).astype(np.float32)
+    # Transpose input to be time major
+    input_transposed = tf.transpose(inputs1, perm=[1,0,2])
+    lstm1, state_h, state_c = LSTM(units=2, time_major=True, return_state=True,
+                                   return_sequences=True)(input_transposed)
+    lstm1_trans = tf.transpose(lstm1, perm=[1,0,2])
+    model = keras.Model(inputs=inputs1, outputs=[lstm1_trans, state_h, state_c])
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    expected = model.predict(data)
+    assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
+                    reason="keras LSTM does not have time_major attribute")
+def test_LSTM_time_major_return_seq_false(runner):
+    inputs1 = keras.Input(shape=(3, 5))
+    data = np.random.rand(1, 3, 5).astype(np.float32)
+    # Transpose input to be time major
+    input_transposed = tf.transpose(inputs1, perm=[1,0,2])
+    lstm1, state_h, state_c = LSTM(units=2, time_major=True, return_state=True,
+                                   return_sequences=False)(input_transposed)
+    model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    expected = model.predict(data)
+    assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
 def test_LSTM_with_bias(runner):
     inputs1 = keras.Input(shape=(1, 1))
