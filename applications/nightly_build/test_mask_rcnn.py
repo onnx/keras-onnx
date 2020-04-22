@@ -29,8 +29,6 @@ from distutils.version import StrictVersion
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
-enable_mask_rcnn_test = True
-
 # mask rcnn code From https://github.com/matterport/Mask_RCNN
 class TestMaskRCNN(unittest.TestCase):
 
@@ -41,7 +39,7 @@ class TestMaskRCNN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0") or not enable_mask_rcnn_test,
+    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0"),
                      "Mask-rcnn conversion needs contrib op for onnx < 1.6.0.")
     def test_mask_rcnn(self):
         set_converter('CropAndResize', convert_tf_crop_and_resize)

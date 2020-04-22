@@ -109,7 +109,9 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                           # ('_limit', oopb.int64, np.array([1000], dtype='int64')),
                           ('_delta', oopb.int64, np.array([1], dtype='int64'))
                           ],
-                         operator.inputs[1].full_name + '_prob_range')
+                         operator.inputs[1].full_name + '_prob_range',
+                         op_domain='com.microsoft',
+                         op_version=1)
 
     attrs = {'axes': [1]}
     prob_range_unsqueeze = oopb.add_node('Unsqueeze',
