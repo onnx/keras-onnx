@@ -29,11 +29,7 @@ from distutils.version import StrictVersion
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
-enable_mask_rcnn_test = False
-
-import onnxruntime
-if StrictVersion(onnxruntime.__version__.split('-')[0]) == StrictVersion('1.1.1'):
-    enable_mask_rcnn_test = True
+enable_mask_rcnn_test = True
 
 # mask rcnn code From https://github.com/matterport/Mask_RCNN
 class TestMaskRCNN(unittest.TestCase):
