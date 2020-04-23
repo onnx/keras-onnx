@@ -7,166 +7,18 @@ import sys
 import numbers
 import tensorflow
 import numpy as np
-from typing import Union
-from onnx import numpy_helper, mapping
+
+from keras2onnx._consts import TYPES, NCHW_TO_NHWC, NHWC_TO_NCHW, HWCN_TO_NCHW
+from onnx import numpy_helper
 from .common.utils import count_dynamic_dim
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
 from .proto import keras
 from .proto.tfcompat import is_tf2
-
-
-class TYPES:
-    # tf-node types:
-    Identity = 'Identity'
-    Const = 'Const'
-    AddN = 'AddN'
-    Any = 'Any'
-    All = 'All'
-    BatchMatMul = 'BatchMatMul'
-    BatchMatMulV2 = 'BatchMatMulV2'
-    BatchToSpaceND = 'BatchToSpaceND'
-    BiasAdd = 'BiasAdd'
-    BiasAddV1 = 'BiasAddV1'
-    Cast = 'Cast'
-    ConcatV2 = 'ConcatV2'
-    Conv1D = 'Conv1D'
-    Conv2D = 'Conv2D'
-    Cumsum = 'Cumsum'
-    DepthwiseConv2dNative = 'DepthwiseConv2dNative'
-    Einsum = 'Einsum'
-    ExpandDims = 'ExpandDims'
-    Fill = 'Fill'
-    FloorDiv = 'FloorDiv'
-    FusedBatchNorm = 'FusedBatchNorm'
-    FusedBatchNormV2 = 'FusedBatchNormV2'
-    FusedBatchNormV3 = 'FusedBatchNormV3'
-    GatherNd = 'GatherNd'
-    GatherV2 = 'GatherV2'
-    GreaterEqual = 'GreaterEqual'
-    LessEqual = 'LessEqual'
-    LogicalAnd = 'LogicalAnd'
-    LogicalNot = 'LogicalNot'
-    LogSoftmax = 'LogSoftmax'
-    MatMul = 'MatMul'
-    Max = 'Max'
-    Maximum = 'Maximum'
-    Mean = 'Mean'
-    Min = 'Min'
-    Minimum = 'Minimum'
-    NonMaxSuppressionV2 = 'NonMaxSuppressionV2'
-    NonMaxSuppressionV3 = 'NonMaxSuppressionV3'
-    NotEqual = 'NotEqual'
-    OneHot = 'OneHot'
-    Pack = 'Pack'
-    Pad = 'Pad'
-    PadV2 = 'PadV2'
-    Prod = 'Prod'
-    Range = 'Range'
-    ReadVariableOp = 'ReadVariableOp'
-    Reshape = 'Reshape'
-    ResizeBilinear = 'ResizeBilinear'
-    ResizeNearestNeighbor = 'ResizeNearestNeighbor'
-    Round = 'Round'
-    Rsqrt = 'Rsqrt'
-    ScatterNd = 'ScatterNd'
-    Select = 'Select'
-    Shape = 'Shape'
-    Size = 'Size'
-    Slice = 'Slice'
-    Softmax = 'Softmax'
-    SpaceToBatchND = 'SpaceToBatchND'
-    Split = 'Split'
-    SplitV = 'SplitV'
-    Square = 'Square'
-    SquaredDifference = 'SquaredDifference'
-    Squeeze = 'Squeeze'
-    StridedSlice = 'StridedSlice'
-    Sum = 'Sum'
-    Tile = 'Tile'
-    TopKV2 = 'TopKV2'
-    Transpose = 'Transpose'
-    Unpack = 'Unpack'
-    VarHandleOp = 'VarHandleOp'
-    VariableV2 = 'VariableV2'
-    Where = 'Where'
-    ZerosLike = 'ZerosLike'
-
-    # converter internal types:
-    TD_Reshape = '_reshape_timedistributed'
-
-
-def is_placeholder_node(node):
-    return len(node.inputs) == 0 and node.type in ['Placeholder', "PlaceholderV2", 'PlaceholderWithDefault'] and \
-           node.outputs[0].dtype.name != 'resource'
-
-
-def tsname_to_node(name):
-    return name.split(':')[0]
-
-
-NCHW_TO_NHWC = [0, 2, 3, 1]
-NHWC_TO_NCHW = [0, 3, 1, 2]
-HWCN_TO_NCHW = [3, 2, 0, 1]
-NCHW_TO_HWCN = [2, 3, 1, 0]
-
-
-def _is_nhwc(node):
-    return node.get_attr('data_format') == b'NHWC'
-
-
-_MAX_FOLDING_NODE_NUMBER = 15
-
-
-def _count_input_nodes(tensor):  # type: (tensorflow.Tensor)->int
-    nodes_to_keep = set()
-    node_inputs = [tensor.op]
-    while node_inputs:
-        nd_ = node_inputs[0]
-        del node_inputs[0]
-        if nd_ in nodes_to_keep:
-            continue
-
-        if is_placeholder_node(nd_):
-            return -1
-        nodes_to_keep.add(nd_)
-        if len(nodes_to_keep) >= _MAX_FOLDING_NODE_NUMBER:
-            return -1
-
-        node_inputs.extend(in_.op for in_ in nd_.inputs)
-
-    return len(nodes_to_keep)
-
-
-def _cal_tensor_value(tensor):  # type: (tensorflow.Tensor)->Union[np.ndarray, None]
-    if _count_input_nodes(tensor) < 0:
-        return None
-
-    node = tensor.op
-    if node.type in ["Const", "ConstV2"]:
-        make_ndarray = tensorflow.make_ndarray
-        np_arr = make_ndarray(node.get_attr("value"))
-        return np_arr
-    else:
-        try:
-            cls_sess = tensorflow.Session if hasattr(tensorflow, 'Session') else tensorflow.compat.v1.Session
-            with cls_sess(graph=node.graph) as sess:
-                np_arr = sess.run(tensor)
-                return np_arr
-        except (ValueError, tensorflow.errors.InvalidArgumentError, tensorflow.errors.OpError):
-            return None
-
-
-def _cal_tensor_shape(tensor):
-    if len(tensor.shape) > 0 and hasattr(tensor.shape[0], 'value'):
-        return [x.value for x in tensor.shape]
-    else:
-        return list(tensor.shape)
-
-
-def _to_onnx_type(dt_type):
-    # TensorFlow data types integrate seamlessly with numpy
-    return mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dt_type.as_numpy_dtype)]
+from ._tf_utils import (is_nhwc as _is_nhwc,
+                        cal_tensor_value as _cal_tensor_value,
+                        cal_tensor_shape as _cal_tensor_shape,
+                        to_onnx_type as _to_onnx_type)
 
 
 def default_convert(scope, operator, container):
@@ -2180,7 +2032,7 @@ direct_ops = {"Abs": ("apply_abs",),
               }
 
 
-def tf_op_convert(scope, operator, container):
+def direct_tf_op_convert(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     type = operator.raw_operator.type
     item = direct_ops[type]
@@ -2201,4 +2053,5 @@ def tf_op_convert(scope, operator, container):
                                   )
 
 
-set_converters({k: tf_op_convert for k in direct_ops.keys()})
+def register_direct_tf_ops():
+    set_converters({k: direct_tf_op_convert for k in direct_ops.keys()})

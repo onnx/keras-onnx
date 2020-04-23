@@ -203,13 +203,6 @@ def _remove_unused_initializers(nodes, initializers):
     return adjusted_initializers
 
 
-def _blindly_converter_for_debug(scope, operator, container):
-    container.add_node(operator.type,
-                       operator.input_full_names,
-                       operator.output_full_names,
-                       name=operator.full_name)
-
-
 def convert_topology(topology, model_name, doc_string, target_opset, channel_first_inputs=None):
     """
     This function is used to convert our Topology object defined in _parser.py into a ONNX model (type: ModelProto).
@@ -275,10 +268,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         k2o_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
         cvt = get_converter(operator.type)
         if cvt is None:
-            if topology.debug_mode:
-                cvt = _blindly_converter_for_debug
-            else:
-                raise RuntimeError("Unexpected error on find the converter for op {}".format(operator.type))
+            raise RuntimeError("Unexpected error on find the converter for op {}".format(operator.type))
         cvt(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
@@ -326,7 +316,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         except Exception as e:  # noqa
             # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
-            k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
+            k2o_logger().warning(
+                'There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
             k2o_logger().warning(str(e))
             import traceback
             tb = traceback.format_exc()
