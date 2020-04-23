@@ -16,6 +16,7 @@ from .funcbook import converter_func, set_converters
 from .proto import keras
 from .proto.tfcompat import is_tf2
 from ._tf_utils import (is_nhwc as _is_nhwc,
+                        tf_attrs_to_onnx as _to_onnx_attrs,
                         cal_tensor_value as _cal_tensor_value,
                         cal_tensor_shape as _cal_tensor_shape,
                         to_onnx_type as _to_onnx_type)
@@ -308,7 +309,7 @@ def convert_tf_cum_sum(scope, operator, container):
         raise ValueError("CumSum op is not supported for opset < 11")
     node = operator.raw_operator
     oopb = OnnxOperatorBuilder(container, scope)
-    attrs = {'exclusive': node.get_attr('exclusive'), 'reverse':  node.get_attr('reverse') }
+    attrs = {'exclusive': node.get_attr('exclusive'), 'reverse': node.get_attr('reverse')}
     oopb.add_node_with_output('CumSum',
                               operator.input_full_names,
                               operator.output_full_names,
@@ -714,6 +715,7 @@ def convert_tf_fill(scope, operator, container):
                                   name=operator.full_name,
                                   **attrs)
 
+
 @converter_func(TYPES.FloorDiv)
 def convert_tf_floor_div(scope, operator, container):
     node = operator.raw_operator
@@ -729,6 +731,7 @@ def convert_tf_floor_div(scope, operator, container):
         oopb.apply_op_with_output('apply_div', operator.input_full_names,
                                   operator.outputs[0].full_name,
                                   name=operator.full_name)
+
 
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
@@ -833,7 +836,8 @@ def convert_tf_logsoftmax(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     logits_rank = len(_cal_tensor_shape(node.inputs[0]))
-    axis = node.get_attr('axis') if hasattr(node, 'axis') else -1
+    attrs = _to_onnx_attrs(node)
+    axis = attrs['axis'] if hasattr(attrs, 'axis') else -1
     if operator.target_opset < 11 and axis < 0:
         axis += logits_rank
 
@@ -1115,7 +1119,8 @@ def _convert_tf_pad(scope, operator, container):
                                       desired_shape=[-1])[0]
     else:
         paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
-    mode = node.get_attr("mode") if hasattr(node, 'mode') else None
+    attrs = _to_onnx_attrs(node)
+    mode = attrs["mode"] if hasattr(attrs, 'mode') else None
 
     if mode:
         mode = mode.s.decode("utf-8").lower()
@@ -1601,7 +1606,6 @@ def convert_tf_not_equal(scope, operator, container):
                                   name=operator.full_name + '_not')
 
 
-
 @converter_func(TYPES.OneHot)
 def convert_tf_one_hot(scope, operator, container):
     if operator.target_opset < 9:
@@ -1702,7 +1706,8 @@ def convert_tf_softmax(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     logits_rank = len(_cal_tensor_shape(node.inputs[0]))
-    axis = node.get_attr('axis') if hasattr(node, 'axis') else -1
+    attrs = _to_onnx_attrs(node)
+    axis = attrs['axis'] if hasattr(attrs, 'axis') else -1
     if operator.target_opset < 11 and axis < 0:
         axis += logits_rank
 
@@ -1981,55 +1986,58 @@ def convert_tf_where(scope, operator, container):
                                   name=operator.full_name + '_transpose',
                                   perm=list(reversed(range(len(node.outputs[0].shape)))))
 
+
 @converter_func(TYPES.ZerosLike)
 def convert_tf_zeros_like(scope, operator, container):
     node = operator.raw_operator
     oopb = OnnxOperatorBuilder(container, scope)
     dtype = _to_onnx_type(node.outputs[0].dtype)
     oopb.apply_op_with_output('apply_mul',
-                              [ operator.inputs[0].full_name,
-                                ('_zero', dtype, np.zeros((), dtype=np.int64)) ],
+                              [operator.inputs[0].full_name,
+                               ('_zero', dtype, np.zeros((), dtype=np.int64))],
                               operator.outputs[0].full_name,
                               name=operator.full_name)
 
-direct_ops = {"Abs": ("apply_abs",),
-              "Acos": 7,
-              "Acosh": 9,
-              "Add": ("apply_add",),
-              "AddV2": ("apply_add",),
-              "Asin": 7,
-              "Asinh": 9,
-              "Atan": 7,
-              "Atanh": 9,
-              "Ceil": ("apply_ceil",),
-              "Cos": 7,
-              "Cosh": 9,
-              "Div": ("apply_div",),
-              "Elu": ("apply_elu",),
-              "Equal": 7,
-              "Erf": 9,
-              "Exp": ("apply_exp",),
-              "Floor": ("apply_floor",),
-              "Greater": ("apply_greater",),
-              "Less": ("apply_less",),
-              "Log": ("apply_log",),
-              "Mul": ("apply_mul",),
-              "Neg": ("apply_neg",),
-              "Pow": ("apply_pow",),
-              "RealDiv": ("apply_div",),
-              "Reciprocal": ("apply_reciprocal",),
-              "Relu": ("apply_relu",),
-              "Sigmoid": ("apply_sigmoid",),
-              "Sin": 7,
-              "Sinh": 9,
-              "Softplus": 1,
-              "Softsign": 1,
-              "Sqrt": ("apply_sqrt",),
-              "StopGradient": ("apply_identity",),
-              "Sub": ("apply_sub",),
-              "Tan": 7,
-              "Tanh": ("apply_tanh",)
-              }
+
+direct_ops = {
+    "Abs": ("apply_abs",),
+    "Acos": 7,
+    "Acosh": 9,
+    "Add": ("apply_add",),
+    "AddV2": ("apply_add",),
+    "Asin": 7,
+    "Asinh": 9,
+    "Atan": 7,
+    "Atanh": 9,
+    "Ceil": ("apply_ceil",),
+    "Cos": 7,
+    "Cosh": 9,
+    "Div": ("apply_div",),
+    "Elu": ("apply_elu",),
+    "Equal": 7,
+    "Erf": 9,
+    "Exp": ("apply_exp",),
+    "Floor": ("apply_floor",),
+    "Greater": ("apply_greater",),
+    "Less": ("apply_less",),
+    "Log": ("apply_log",),
+    "Mul": ("apply_mul",),
+    "Neg": ("apply_neg",),
+    "Pow": ("apply_pow",),
+    "RealDiv": ("apply_div",),
+    "Reciprocal": ("apply_reciprocal",),
+    "Relu": ("apply_relu",),
+    "Sigmoid": ("apply_sigmoid",),
+    "Sin": 7,
+    "Sinh": 9,
+    "Softplus": 1,
+    "Softsign": 1,
+    "Sqrt": ("apply_sqrt",),
+    "StopGradient": ("apply_identity",),
+    "Sub": ("apply_sub",),
+    "Tan": 7,
+    "Tanh": ("apply_tanh",)
+}
 
 
 def direct_tf_op_convert(scope, operator, container):

@@ -73,3 +73,15 @@ def cal_tensor_shape(tensor):
 def to_onnx_type(dt_type):
     # TensorFlow data types integrate seamlessly with numpy
     return mapping.NP_TYPE_TO_TENSOR_TYPE[np.dtype(dt_type.as_numpy_dtype)]
+
+
+def tf_attrs_to_onnx(node):
+    attrs = {}
+    for s_ in node.node_def.attr:
+        if s_.startswith('T'):  # all T starts attr is TF internal.
+            continue
+        v = node.get_attr(s_)
+        if isinstance(v, tensorflow.dtypes.DType):
+            v = to_onnx_type(v)
+        attrs[s_] = v
+    return attrs
