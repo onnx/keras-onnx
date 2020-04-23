@@ -2,35 +2,29 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-
+from onnxconverter_common.oopb import OnnxOperatorBuilder
 from .funcbook import converter_func
-from ._tf_utils import (tf_attrs_to_onnx as _to_onnx_attrs,
-                        cal_tensor_shape as _cal_tensor_shape,
-                        to_onnx_type as _to_onnx_type)
+from ._tf_utils import tf_attrs_to_onnx as _to_onnx_attrs
 
 
 def _random_converter(scope, operator, container):
     tf_op = operator.raw_operator
     op_type = tf_op.type
     if op_type == 'RandomStandardNormal':
-        op_type = 'RandomNormal'
+        op_type = 'RandomNormalLike'
+    else:
+        op_type = op_type + 'Like'
     inputs = [var_.full_name for var_ in operator.inputs]
 
     attrs = {}
-    shape = _cal_tensor_shape(tf_op.inputs[0])
-    attrs['shape'] = shape
-    del inputs[0]
-
-    if 'seed' in _to_onnx_attrs(tf_op):
-        attrs['seed'] = float(tf_op.get_attr('seed'))
-
-    container.add_node(op_type,
-                       inputs,
-                       [var_.full_name for var_ in operator.outputs],
-                       name=operator.raw_operator.name,
-                       op_version=1,
-                       **attrs
-                       )
+    if 'seed2' in _to_onnx_attrs(tf_op):
+        attrs['seed'] = float(tf_op.get_attr('seed2'))
+    with OnnxOperatorBuilder(container, scope).as_default(tf_op.name) as oopb:
+        cast_n = oopb.cast(inputs, to=oopb.int64)
+        const_op = oopb.add_node('ConstantOfShape', cast_n, op_version=9)
+        oopb.add_node(op_type, const_op,
+                      outputs=[var_.full_name for var_ in operator.outputs],
+                      op_version=1, **attrs)
 
 
 @converter_func(
