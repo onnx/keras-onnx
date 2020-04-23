@@ -314,7 +314,6 @@ def test_tf_one_hot(runner):
     model = Sequential()
     model.add(Lambda(lambda x: my_func(x), input_shape=[3]))
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_one_hot')
-    keras2onnx.save_model(onnx_model, 'one_hot.onnx')
     data = np.array([[0, 1, 2]]).astype(np.float32)
     expected = model.predict(data)
     assert runner('tf_one_hot', onnx_model, data, expected)
