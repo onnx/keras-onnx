@@ -35,7 +35,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     """
     if isinstance(model, tf.keras.Model) and not is_tf_keras:
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
-                        " Please set environment variable TF_KERAS = 1.")
+                        " Please set environment variable TF_KERAS = 1 before importing keras2onnx.")
 
     set_logger_level(logging.DEBUG if debug_mode else logging.INFO)
     if is_tf2:
