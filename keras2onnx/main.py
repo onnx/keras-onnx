@@ -15,6 +15,7 @@ from .parser import parse_graph, parse_graph_modeless
 from .topology import Topology
 from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
+from ._builtin import register_direct_tf_ops
 from ._parser_1x import build_opdict_from_keras
 from ._parse_tf import tsname_to_node, build_layer_output_from_model
 
@@ -59,6 +60,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
         output_names = [n.name for n in model.outputs]
 
     static_set_ke2onnx_converters(set_converter)
+    register_direct_tf_ops()
     dump_graph_into_tensorboard(tf_graph)
     topology = Topology(model, tf_graph,
                         target_opset=target_opset,
