@@ -120,6 +120,7 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
         import onnxruntime
         sess = onnxruntime.InferenceSession(temp_model_file)
     except ImportError:
+        keras2onnx.common.k2o_logger().warning("Cannot import ONNXRuntime!")
         return True
 
     if isinstance(data, dict):

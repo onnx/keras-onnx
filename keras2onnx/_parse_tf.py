@@ -12,7 +12,8 @@ from .funcbook import get_converter
 from .proto import keras
 from .proto.tfcompat import normalize_tensor_shape, is_subclassed
 from .ke2onnx import keras_layer_spec
-from ._builtin import TYPES, is_placeholder_node, tsname_to_node
+from ._consts import TYPES
+from ._tf_utils import is_placeholder_node, tsname_to_node
 
 
 def infer_variable_type(tensor, opset, inbound_node_shape=None):

@@ -9,11 +9,10 @@ from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_concat,
-    apply_identity,
     apply_reshape,
-    apply_slice,
     apply_split,
     apply_squeeze,
+    apply_unsqueeze,
     apply_transpose,
     OnnxOperatorBuilder
 )
@@ -142,12 +141,9 @@ def build_initial_states(scope, operator, container, bidirectional=False):
         apply_concat(scope, [forward_h, backward_h], initial_c, container)
 
     else:
-        hidden_size = operator.raw_operator.units
-        desired_shape = [1, -1, hidden_size]
-
-        # Add a reshape after initial_c, 2d -> 3d
+        # Unsqueeze dim 0 to represent num_directions
         input_c = operator.inputs[2].full_name
-        apply_reshape(scope, input_c, initial_c, container, desired_shape=desired_shape)
+        apply_unsqueeze(scope, input_c, initial_c, container, axes=[0])
 
     return initial_h, initial_c
 
@@ -194,46 +190,31 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     lstm_y, lstm_h, lstm_c = output_names
 
     op = operator.raw_operator
-    hidden_size = op.units
     output_seq = op.return_sequences
     _, seq_length, input_size = simplernn.extract_input_shape(op)
-    is_static_shape = seq_length is not None
 
     _name = name_func(scope, operator)
 
     output_name = operator.outputs[0].full_name
 
-    oopb = OnnxOperatorBuilder(container, scope)
-
+    time_major = op.time_major if hasattr(op, "time_major") else False
     # Create output-adjusting operators
     if output_seq:
-        transposed_y = _name('y_transposed')
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, lstm_y, transposed_y, container, perm=perm)
+        lstm_out = lstm_y
+        if not time_major:
+            # Onnx LSTM produces time major output. Add a transpose operator to
+            # make it batch_major, if the keras op was not time_major.
+            # This transforms [ S, 1, B, I] -> [ B, 1, S, I ] where B is
+            # batch_size and S is seq_len.
+            perm = [2, 1, 0, 3]
+            lstm_out = _name('y_transposed')
+            apply_transpose(scope, lstm_y, lstm_out, container, perm=perm)
 
-        if is_static_shape:
-            apply_reshape(scope, transposed_y, output_name, container,
-                          desired_shape=[-1, seq_length, hidden_size])
-        else:
-            input_name = operator.inputs[0].full_name
-            input_shape_tensor = oopb.add_node('Shape', [input_name],
-                                               input_name + '_shape_tensor')
-
-            seq_dim = _name('seq_dim')
-            apply_slice(scope, input_shape_tensor, seq_dim, container, [1], [2], axes=[0])
-
-            shape_tensor = oopb.add_node('Concat',
-                                         [('_a', oopb.int64, np.array([-1], dtype='int64')),
-                                          seq_dim,
-                                          ('_b', oopb.int64, np.array([hidden_size], dtype='int64'))
-                                          ],
-                                         input_name + '_output_seq_shape', axis=0)
-            shape_tensor_output = oopb.add_node('Reshape',
-                                                [transposed_y, shape_tensor],
-                                                input_name + '_output_seq_shape_1')
-            apply_identity(scope, shape_tensor_output, output_name, container)
+        # Squeeze the num_direction dim as we know its size is 1 for
+        # lstm(forward/reverse).
+        apply_squeeze(scope, lstm_out, output_name, container, axes=[1])
     else:
-        apply_reshape(scope, lstm_h, output_name, container, desired_shape=[-1, hidden_size])
+        apply_squeeze(scope, lstm_h, output_name, container, axes=[0])
 
 
 def build_output_states(scope, operator, container, output_names, bidirectional=False):
@@ -291,11 +272,21 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
 
     if bidirectional:
         output_seq = op.forward_layer.return_sequences
+        time_major = op.forward_layer.time_major if hasattr(op.forward_layer, "time_major") else False
     else:
         output_seq = op.return_sequences
+        time_major = op.time_major if hasattr(op, "time_major") else False
 
     # Inputs
-    lstm_x = _name('X')
+    lstm_x = operator.inputs[0].full_name
+    if not time_major:
+        # If the keras op was not time_major, we add a transpose op to make the
+        # input time_major as ONNX lstm expects time_major input.
+        # Transform [ B, S, I ] -> [ S, B, I] where B is batch_size and S is
+        # seq_len.
+        lstm_x = _name('X')
+        apply_transpose(scope, operator.inputs[0].full_name, lstm_x, container, perm=[1, 0, 2])
+
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h, initial_c = build_initial_states(scope, operator, container, bidirectional)
@@ -316,10 +307,6 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h'), _name('Y_c')]
-
-    # Reshape Keras input format into ONNX input format
-    input_name = operator.inputs[0].full_name
-    apply_transpose(scope, input_name, lstm_x, container, perm=[1, 0, 2])
 
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_lstm',
