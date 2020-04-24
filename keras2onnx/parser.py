@@ -11,9 +11,9 @@ from .proto.tfcompat import tensorflow as tf
 from .proto.tfcompat import is_tf2
 from .common import k2o_logger
 from .topology import Topology
-from .funcbook import get_converter
-from ._builtin import TYPES
-
+from .funcbook import get_converter, set_converter
+from ._consts import TYPES
+from ._tf_ops import pass_thru_converter
 from ._parse_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
 from ._parser_1x import (extract_inbound_nodes,
@@ -306,8 +306,7 @@ def _check_tfnodes_converter_availability(graph, nodelist, debug_mode):
 
 
 def _on_parsing_tf_nodes(graph, nodelist, varset, debug_mode):
-    if not (_check_tfnodes_converter_availability(graph, nodelist, debug_mode) or debug_mode):
-        return
+    _check_tfnodes_converter_availability(graph, nodelist, debug_mode)
     for node_ in nodelist:
         k2o_logger().debug("Processing a tf node - %s" % node_.name)
         operator = varset.declare_local_operator(node_.type, raw_model=node_, op_name=node_.name)
@@ -325,7 +324,11 @@ def _on_parsing_tf_nodes(graph, nodelist, varset, debug_mode):
             operator.add_input(i0)
 
         cvt = get_converter(operator.type)
-        if cvt is not None and hasattr(cvt, 'shape_infer'):
+        if cvt is None:
+            assert isinstance(operator.type, str), \
+                "Only tf-op can be pass_thru conversion, type: {}".format(type(operator.type))
+            set_converter(operator.type, pass_thru_converter)
+        elif hasattr(cvt, 'shape_infer'):
             operator.shape_infer = cvt.shape_infer
 
 
