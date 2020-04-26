@@ -15,9 +15,10 @@ from .parser import parse_graph, parse_graph_modeless
 from .topology import Topology
 from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
+from ._tf_utils import tsname_to_node
 from ._builtin import register_direct_tf_ops
 from ._parser_1x import build_opdict_from_keras
-from ._parse_tf import tsname_to_node, build_layer_output_from_model
+from ._parser_tf import build_layer_output_from_model
 
 
 def convert_keras(model, name=None, doc_string='', target_opset=None,

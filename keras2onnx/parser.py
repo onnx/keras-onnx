@@ -14,8 +14,8 @@ from .topology import Topology
 from .funcbook import get_converter, set_converter
 from ._consts import TYPES
 from ._tf_ops import pass_thru_converter
-from ._parse_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
-                        tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
+from ._parser_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
+                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
 from ._parser_1x import (extract_inbound_nodes,
                          list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
@@ -294,15 +294,15 @@ def _check_tfnode_converter_availability(graph, node):
 
 
 def _check_tfnodes_converter_availability(graph, nodelist, debug_mode):
+    status = True
     for n_ in nodelist:
         if not _check_tfnode_converter_availability(graph, n_):
             k2o_logger().warning(
-                "The tf.op node {} of type {} cannot be converted".format(n_.name, n_.type))
-            if debug_mode:
-                continue
-            return False
+                "WARN: No corresponding ONNX op matches the tf.op node {} of type {}".format(n_.name, n_.type) +
+                "\n      The generated ONNX model needs run with the custom op supports.")
+            status = False
 
-    return True
+    return status
 
 
 def _on_parsing_tf_nodes(graph, nodelist, varset, debug_mode):
