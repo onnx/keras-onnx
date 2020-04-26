@@ -764,6 +764,52 @@ def test_any_all(runner):
             assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
+def test_causal(runner):
+    filters = 32
+    stride = 1
+    kernel_size = 3
+    dilation_size = 1
+    dropout = 0.2
+    input_shape = (2, 3)
+
+    input_layer = keras.layers.Input(shape=input_shape)
+
+    conv1 = keras.layers.Conv1D(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=stride,
+        padding='causal',
+        dilation_rate=dilation_size,
+        activation='relu',
+        kernel_initializer=keras.initializers.RandomNormal(0, 0.01)
+    )(input_layer)
+
+    dropout1 = keras.layers.Dropout(dropout)(conv1)
+
+    conv2 = keras.layers.Conv1D(
+        filters=filters,
+        kernel_size=kernel_size,
+        strides=stride,
+        padding='causal',
+        dilation_rate=dilation_size,
+        activation='relu',
+        kernel_initializer=keras.initializers.RandomNormal(0, 0.01)
+    )(dropout1)
+
+    dropout2 = keras.layers.Dropout(dropout)(conv2)
+
+    output_layer = keras.layers.Activation('relu')(dropout2)
+    output_layer = keras.layers.Flatten()(output_layer)
+    output_layer = keras.layers.Dense(3, activation='softmax')(output_layer)
+
+    model = keras.models.Model(inputs=input_layer, outputs=output_layer)
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_causal')
+    batch_data_shape = (1,) + input_shape
+    data1 = np.random.rand(*batch_data_shape).astype(np.float32)
+    expected = model.predict(data1)
+    assert runner('onnx_causal', onnx_model, data1, expected)
+
 def test_dense(runner):
     for bias_value in [True, False]:
         model = keras.Sequential()
