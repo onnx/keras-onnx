@@ -11,7 +11,6 @@ import json
 import urllib.request
 import pickle
 from os.path import dirname, abspath
-from keras2onnx.proto.tfcompat import is_tf2
 from keras2onnx.proto import keras
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
@@ -191,7 +190,8 @@ class TestTransformers(unittest.TestCase):
         model = TFOpenAIGPTLMHeadModel(config)
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     def test_TFOpenAIGPTDoubleHeadsModel(self):
         from transformers import OpenAIGPTConfig, TFOpenAIGPTDoubleHeadsModel

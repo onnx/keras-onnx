@@ -7,7 +7,7 @@ from typing import Iterable
 
 from .common import k2o_logger
 from .funcbook import get_converter
-from ._parse_tf import infer_variable_type, tsname_to_node, adjust_input_batch_size
+from ._parser_tf import infer_variable_type, tsname_to_node, adjust_input_batch_size
 
 
 def extract_inbound_nodes(layer):
