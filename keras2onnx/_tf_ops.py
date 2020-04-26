@@ -37,7 +37,7 @@ def convert_tf_random_standard_normal(scope, operator, container):
 
 def pass_thru_converter(scope, operator, container):
     """
-    This the converter to copy the original graph node with its def into a ONNX node format.
+    This converter is to copy the original graph node with its def into a ONNX node format.
     """
     tf_op = operator.raw_operator
     attrs = _to_onnx_attrs(tf_op)
