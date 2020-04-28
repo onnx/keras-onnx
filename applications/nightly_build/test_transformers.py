@@ -165,6 +165,34 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    def test_TFTransfoXLModel(self):
+        from transformers import TransfoXLConfig, TFTransfoXLModel
+        keras.backend.clear_session()
+        # pretrained_weights = 'transfo-xl-wt103'
+        tokenizer_file = 'transfo_transfo-xl-wt103.pickle'
+        tokenizer = self._get_tokenzier(tokenizer_file)
+        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
+        config = TransfoXLConfig()
+        model = TFTransfoXLModel(config)
+        model._set_inputs(inputs)
+        #TODO: MatrixBandPart
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=12)
+        self.assertIsNotNone(onnx_model)
+
+    def test_TFXLNetModel(self):
+        from transformers import XLNetConfig, TFXLNetModel
+        keras.backend.clear_session()
+        # pretrained_weights = 'xlnet-base-cased'
+        tokenizer_file = 'xlnet_xlnet-base-cased.pickle'
+        tokenizer = self._get_tokenzier(tokenizer_file)
+        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
+        config = XLNetConfig()
+        model = TFXLNetModel(config)
+        model._set_inputs(inputs)
+        # TODO: MatrixDiag
+        onnx_model = keras2onnx.convert_keras(model, model.name, target_opset=12, debug_mode=True)
+        self.assertIsNotNone(onnx_model)
+
     @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFOpenAIGPTModel(self):
         from transformers import OpenAIGPTConfig, TFOpenAIGPTModel
