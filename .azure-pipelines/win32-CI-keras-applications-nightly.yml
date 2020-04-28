@@ -68,7 +68,7 @@ jobs:
         INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS: pip install transformers
-        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py test_transformers.py --doctest-modules --junitxml=junit/test-results-v2.xml
+        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py test_transformers.py test_efn.py --doctest-modules --junitxml=junit/test-results-v2.xml
 
     maxParallel: 3
 
@@ -125,7 +125,7 @@ jobs:
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      coverage run --include=keras2onnx/* tests/test_layers.py
+      coverage run --include=keras2onnx/* -m pytest tests/test_layers.py
       coverage report -m
       coverage html
     displayName: 'coverage'
