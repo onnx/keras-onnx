@@ -778,6 +778,7 @@ def convert_tf_gather_nd(scope, operator, container):
                               operator.outputs[0].full_name,
                               name=operator.full_name)
 
+
 @converter_func(TYPES.GreaterEqual)
 def convert_tf_greater_equal(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -1527,19 +1528,28 @@ def convert_tf_tile(scope, operator, container):
 @converter_func(TYPES.TopKV2)
 def convert_tf_topkv2(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
     cast_0 = oopb.add_node('Cast',
                            operator.inputs[0].full_name,
                            operator.inputs[0].full_name + '_0_cast', to=oopb.float)
-    cast_1 = oopb.add_node('Cast',
-                           operator.inputs[1].full_name,
-                           operator.inputs[1].full_name + '_1_cast', to=oopb.int64)
-    unsqueeze = oopb.add_node('Unsqueeze',
-                              cast_1,
-                              operator.inputs[1].full_name + '_unsqueeze', axes=[0])
-    oopb.add_node_with_output("TopK",
-                              [cast_0, unsqueeze],
+    k = _cal_tensor_value(node.inputs[1])
+    if k is None:
+        if operator.target_opset < 10:
+            raise ValueError("TopK op k need be static until opset 10")
+        cast_1 = oopb.add_node('Cast',
+                               operator.inputs[1].full_name,
+                               operator.inputs[1].full_name + '_1_cast', to=oopb.int64)
+        unsqueeze = oopb.add_node('Unsqueeze',
+                                  cast_1,
+                                  operator.inputs[1].full_name + '_unsqueeze', axes=[0])
+        k_value = unsqueeze
+    else:
+        k_value = k.item(0)
+    oopb.apply_op_with_output('apply_topk',
+                              cast_0,
                               operator.output_full_names,
-                              name=operator.full_name)
+                              operator.inputs[0].full_name + '_topk',
+                              k=k_value)
 
 
 @converter_func(TYPES.Transpose)
