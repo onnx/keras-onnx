@@ -227,7 +227,7 @@ def _remove_unused_nodes(nodes, inputs, outputs):
             if in_ in output_dict:
                 node_inputs.append(output_dict[in_])
             else:
-                assert in_ in input_dict
+                assert in_ == '' or in_ in input_dict
 
     return [nd_ for nd_ in nodes if id(nd_) in nodes_to_keep]
 
