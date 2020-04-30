@@ -26,6 +26,7 @@ class TestEfn(unittest.TestCase):
             os.remove(fl)
 
     def test_custom(self):
+        print("\ttest_custom")
         from efficientnet import tfkeras as efn
         keras.backend.set_learning_phase(0)
         base_model = efn.EfficientNetB0(input_shape=(600, 600, 3), weights=None)
@@ -35,6 +36,7 @@ class TestEfn(unittest.TestCase):
         self.assertTrue(*res)
 
     def test_efn(self):
+        print("\ttest_efn")
         from efficientnet import tfkeras as efn
         keras.backend.set_learning_phase(0)
         model = efn.EfficientNetB0(weights=None)
