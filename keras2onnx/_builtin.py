@@ -779,38 +779,20 @@ def convert_tf_gather_nd(scope, operator, container):
                               name=operator.full_name)
 
 
-def _convert_tf_compare_equal(scope, operator, container, tf_op_string, onnx_op_string):
-    if operator.target_opset < 7:
-        raise ValueError(tf_op_string + " op is not supported for opset < 7")
-    oopb = OnnxOperatorBuilder(container, scope)
-    if operator.target_opset >= 9:
-        compare_node = oopb.add_node(onnx_op_string,
-                                     operator.input_full_names,
-                                     operator.full_name + '_' + onnx_op_string.lower())
-        oopb.add_node_with_output('Not',
-                                  [compare_node],
-                                  operator.outputs[0].full_name,
-                                  name=operator.full_name)
-    else:
-        compare_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
-                                        operator.full_name + '_input_0_cast', to=oopb.float)
-        compare_input_1 = oopb.add_node('Cast', [operator.inputs[1].full_name],
-                                        operator.full_name + '_input_1_cast', to=oopb.float)
-        less_out = oopb.add_node(onnx_op_string, [compare_input_0, compare_input_1],
-                                 operator.full_name + '_' + onnx_op_string.lower())
-        oopb.add_node_with_output('Not', less_out,
-                                  operator.output_full_names,
-                                  name=operator.full_name + '_not')
-
-
 @converter_func(TYPES.GreaterEqual)
 def convert_tf_greater_equal(scope, operator, container):
-    _convert_tf_compare_equal(scope, operator, container, 'GreaterEqual', 'Less')
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_greater_or_equal', operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 @converter_func(TYPES.LessEqual)
 def convert_tf_less_equal(scope, operator, container):
-    _convert_tf_compare_equal(scope, operator, container, 'LessEqual', 'Greater')
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_less_or_equal', operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 @converter_func(TYPES.LogicalAnd)
@@ -1546,19 +1528,28 @@ def convert_tf_tile(scope, operator, container):
 @converter_func(TYPES.TopKV2)
 def convert_tf_topkv2(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
     cast_0 = oopb.add_node('Cast',
                            operator.inputs[0].full_name,
                            operator.inputs[0].full_name + '_0_cast', to=oopb.float)
-    cast_1 = oopb.add_node('Cast',
-                           operator.inputs[1].full_name,
-                           operator.inputs[1].full_name + '_1_cast', to=oopb.int64)
-    unsqueeze = oopb.add_node('Unsqueeze',
-                              cast_1,
-                              operator.inputs[1].full_name + '_unsqueeze', axes=[0])
-    oopb.add_node_with_output("TopK",
-                              [cast_0, unsqueeze],
+    k = _cal_tensor_value(node.inputs[1])
+    if k is None:
+        if operator.target_opset < 10:
+            raise ValueError("TopK op k need be static until opset 10")
+        cast_1 = oopb.add_node('Cast',
+                               operator.inputs[1].full_name,
+                               operator.inputs[1].full_name + '_1_cast', to=oopb.int64)
+        unsqueeze = oopb.add_node('Unsqueeze',
+                                  cast_1,
+                                  operator.inputs[1].full_name + '_unsqueeze', axes=[0])
+        k_value = unsqueeze
+    else:
+        k_value = k.item(0)
+    oopb.apply_op_with_output('apply_topk',
+                              cast_0,
                               operator.output_full_names,
-                              name=operator.full_name)
+                              operator.inputs[0].full_name + '_topk',
+                              k=k_value)
 
 
 @converter_func(TYPES.Transpose)
