@@ -67,6 +67,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFBertModel(self):
+        print("\ttest_TFBertModel")
         from transformers import BertConfig, TFBertModel
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
@@ -98,6 +99,7 @@ class TestTransformers(unittest.TestCase):
                              atol=1.e-4))
 
     def test_TFBertForMaskedLM(self):
+        print("\ttest_TFBertForMaskedLM")
         from transformers import BertConfig, TFBertForMaskedLM
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
@@ -127,6 +129,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFBertForSequenceClassification(self):
+        print("\ttest_TFBertForSequenceClassification")
         from transformers import BertConfig, TFBertForSequenceClassification
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
@@ -140,6 +143,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFBertForTokenClassification(self):
+        print("\ttest_TFBertForTokenClassification")
         from transformers import BertConfig, TFBertForTokenClassification
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
@@ -153,6 +157,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFBertForQuestionAnswering(self):
+        print("\ttest_TFBertForQuestionAnswering")
         from transformers import BertConfig, TFBertForQuestionAnswering
         keras.backend.clear_session()
         # pretrained_weights = 'bert-base-uncased'
@@ -179,7 +184,9 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    '''
     def test_TFOpenAIGPTLMHeadModel(self):
+        print("\ttest_TFOpenAIGPTLMHeadModel")
         from transformers import OpenAIGPTConfig, TFOpenAIGPTLMHeadModel
         keras.backend.clear_session()
         # pretrained_weights = 'openai-gpt'
@@ -194,6 +201,7 @@ class TestTransformers(unittest.TestCase):
                              atol=1.e-4))
 
     def test_TFOpenAIGPTDoubleHeadsModel(self):
+        print("\ttest_TFOpenAIGPTDoubleHeadsModel")
         from transformers import OpenAIGPTConfig, TFOpenAIGPTDoubleHeadsModel
         keras.backend.clear_session()
         # pretrained_weights = 'openai-gpt'
@@ -269,6 +277,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFDistilBertModel(self):
+        print("\ttest_TFDistilBertModel")
         from transformers import DistilBertConfig, TFDistilBertModel
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
@@ -282,6 +291,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFDistilBertForMaskedLM(self):
+        print("\ttest_TFDistilBertForMaskedLM")
         from transformers import DistilBertConfig, TFDistilBertForMaskedLM
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
@@ -311,6 +321,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFDistilBertForTokenClassification(self):
+        print("\ttest_TFDistilBertForTokenClassification")
         from transformers import DistilBertConfig, TFDistilBertForTokenClassification
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
@@ -324,6 +335,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFDistilBertForQuestionAnswering(self):
+        print("\ttest_TFDistilBertForQuestionAnswering")
         from transformers import DistilBertConfig, TFDistilBertForQuestionAnswering
         keras.backend.clear_session()
         # pretrained_weights = 'distilbert-base-uncased'
@@ -351,6 +363,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
     def test_TFRobertaForMaskedLM(self):
+        print("\ttest_TFRobertaForMaskedLM")
         from transformers import RobertaConfig, TFRobertaForMaskedLM
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
@@ -366,6 +379,7 @@ class TestTransformers(unittest.TestCase):
                              atol=1.e-4))
 
     def test_TFRobertaForSequenceClassification(self):
+        print("\ttest_TFRobertaForSequenceClassification")
         from transformers import RobertaConfig, TFRobertaForSequenceClassification
         keras.backend.clear_session()
         # pretrained_weights = 'roberta-base'
@@ -391,7 +405,7 @@ class TestTransformers(unittest.TestCase):
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
-
+    '''
 
 if __name__ == "__main__":
     unittest.main()
