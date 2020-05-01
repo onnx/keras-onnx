@@ -666,6 +666,15 @@ def test_tf_tile(runner):
     assert runner('onnx_tile', onnx_model, data, expected)
 
 
+def test_tf_topk(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: tf.nn.top_k(x, k=2)[0], input_shape=[5, 5]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_topk')
+    data = np.random.rand(3, 5, 5).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_topk', onnx_model, data, expected)
+
+
 def test_tf_transpose(runner):
     model = Sequential()
     model.add(Lambda(lambda x: tf.transpose(x, perm=[0, 2, 3, 1]), input_shape=[2, 3, 4]))
