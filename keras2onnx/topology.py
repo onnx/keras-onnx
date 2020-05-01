@@ -321,7 +321,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # enable the ONNX optimizations
     graph = None
     extra_inputs = _build_extra_inputs(container)
-    nodes = _remove_unused_nodes(container.nodes, container.inputs + extra_inputs, container.outputs)
+    # nodes = _remove_unused_nodes(container.nodes, container.inputs + extra_inputs, container.outputs)
+    nodes = container.nodes
 
     if not topology.debug_mode:
         try:
