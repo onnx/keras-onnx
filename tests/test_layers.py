@@ -1015,6 +1015,24 @@ def test_flatten(runner):
     assert runner('flatten', onnx_model, data, expected)
 
 
+def test_opt_push_transpose_unsqueeze(runner):
+    for input_shape_ in [(1, 5, 7), (1, 5)]:
+        model = keras.Sequential()
+        if len(input_shape_) == 3:
+            model.add(Conv2D(64, (3, 3),
+                             input_shape=input_shape_, padding='same', ))
+        else:
+            model.add(Conv1D(64, 3,
+                             input_shape=input_shape_, padding='same', ))
+        model.add(Lambda(lambda x: tf.squeeze(x, [1])))
+        model.add(Lambda(lambda x: tf.expand_dims(x, 1)))
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        batch_input_shape = (4,) + input_shape_
+        x = np.random.rand(*batch_input_shape).astype(np.float32)
+        expected = model.predict(x)
+        assert runner(onnx_model.graph.name, onnx_model, x, expected)
+
+
 def test_flatten2(runner):
     C = 3
     H = 5
