@@ -39,8 +39,8 @@ def _count_input_nodes(tensor):  # type: (tensorflow.Tensor)->int
         if len(nodes_to_keep) >= _MAX_FOLDING_NODE_NUMBER:
             return -1
 
-        if nd_.type in ['Shape', 'ShapeN', 'Size']:
-            continue
+        #if nd_.type in ['Shape', 'ShapeN', 'Size']:
+        #    continue
         node_inputs.extend(in_.op for in_ in nd_.inputs)
 
     return len(nodes_to_keep)
