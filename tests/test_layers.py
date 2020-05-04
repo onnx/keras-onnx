@@ -194,16 +194,15 @@ def test_tf_concat(runner):
 
 @pytest.mark.parametrize("use_bias", [True, False])
 def test_depthwise_conv2d(runner, use_bias):
-    for use_bias_ in [True, False]:
-        model = Sequential()
-        model.add(InputLayer(input_shape=(8, 8, 2)))
-        model.add(keras.layers.DepthwiseConv2D(
-            kernel_size=(3, 3), strides=(1, 1), padding="VALID",
-            data_format='channels_last', use_bias=use_bias))
-        onnx_model = keras2onnx.convert_keras(model, 'test_depthwise_conv2d')
-        data = np.random.rand(3, 8, 8, 2).astype(np.float32)
-        expected = model.predict(data)
-        assert runner('onnx_depthwise_conv2d', onnx_model, data, expected)
+    model = Sequential()
+    model.add(InputLayer(input_shape=(8, 8, 2)))
+    model.add(keras.layers.DepthwiseConv2D(
+        kernel_size=(3, 3), strides=(1, 1), padding="VALID",
+        data_format='channels_last', use_bias=use_bias))
+    onnx_model = keras2onnx.convert_keras(model, 'test_depthwise_conv2d')
+    data = np.random.rand(3, 8, 8, 2).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_depthwise_conv2d', onnx_model, data, expected)
 
 
 def test_tf_expand_dims(runner):
