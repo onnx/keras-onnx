@@ -83,7 +83,7 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     kenode_input_shapes = kenode.input_shapes if isinstance(kenode.input_shapes, list) else [kenode.input_shapes]
     for n_, i_ in enumerate(inputs):
         iname = prefix + i_.name
-        k2o_logger().debug('input : ' + iname)
+        k2o_logger().debug('\tinput : ' + iname)
         var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset, kenode_input_shapes[n_]))
         i0 = varset.get_local_variable_or_declare_one(iname, var_type)
         operator.add_input(i0)
@@ -92,14 +92,14 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
         in_mask = layer.input_mask if isinstance(layer.input_mask, (list, tuple)) else [layer.input_mask]
         for im_ in [m_ for m_ in in_mask if m_ is not None]:
             mts_name = im_.name  # input mask in a shared model is not supported yet, why is it needed?
-            k2o_logger().debug('input mask: ' + mts_name)
+            k2o_logger().debug('\tinput mask: ' + mts_name)
             mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(im_, varset.target_opset))
             operator.add_input_mask(mts_var)
 
     kenode_output_shapes = kenode.output_shapes if isinstance(kenode.output_shapes, list) else [kenode.output_shapes]
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
-        k2o_logger().debug('output: ' + oname)
+        k2o_logger().debug('\toutput: ' + oname)
         o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset, kenode_output_shapes[n_]))
         operator.add_output(o1)
 
@@ -107,7 +107,7 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
         out_mask = layer.output_mask if isinstance(layer.output_mask, (list, tuple)) else [layer.output_mask]
         for om_ in [m_ for m_ in out_mask if m_ is not None]:
             mts_name = prefix + om_.name
-            k2o_logger().debug('output mask: ' + mts_name)
+            k2o_logger().debug('\toutput mask: ' + mts_name)
             mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(om_, varset.target_opset))
             operator.add_output_mask(mts_var)
 

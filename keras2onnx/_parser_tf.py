@@ -311,27 +311,27 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
     for o_ in layer_info.outputs:
         if o_ not in output_masks:  # the layer converter will handle output_mask by itself.
             oname = prefix + o_.name
-            k2o_logger().debug('output: ' + oname)
+            k2o_logger().debug('\toutput: ' + oname)
             o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
             operator.add_output(o1)
 
     for i_ in layer_info.inputs:
         if i_ not in input_masks:  # the layer converter will handle input_mask by itself.
             iname = prefix + i_.name
-            k2o_logger().debug('input : ' + iname)
+            k2o_logger().debug('\tinput : ' + iname)
             var_type = adjust_input_batch_size(infer_variable_type(i_, varset.target_opset))
             i0 = varset.get_local_variable_or_declare_one(iname, var_type)
             operator.add_input(i0)
 
     for om_ in [m_ for m_ in output_masks if m_ is not None]:
         mts_name = prefix + om_.name
-        k2o_logger().debug('output mask: ' + mts_name)
+        k2o_logger().debug('\toutput mask: ' + mts_name)
         mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(om_, varset.target_opset))
         operator.add_output_mask(mts_var)
 
     for im_ in [m_ for m_ in input_masks if m_ is not None]:
         mts_name = im_.name  # input mask in a shared model is not supported yet, why is it needed?
-        k2o_logger().debug('input mask: ' + mts_name)
+        k2o_logger().debug('\tinput mask: ' + mts_name)
         mts_var = varset.get_local_variable_or_declare_one(mts_name, infer_variable_type(im_, varset.target_opset))
         operator.add_input_mask(mts_var)
 
