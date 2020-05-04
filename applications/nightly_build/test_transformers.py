@@ -81,7 +81,7 @@ class TestTransformers(unittest.TestCase):
         self.assertTrue(
             run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
                              atol=1.e-4))
-    '''
+
     @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFBertForPreTraining(self):
         from transformers import BertConfig, TFBertForPreTraining
@@ -404,7 +404,6 @@ class TestTransformers(unittest.TestCase):
         predictions = model.predict(inputs)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
-    '''
 
 if __name__ == "__main__":
     unittest.main()
