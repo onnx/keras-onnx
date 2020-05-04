@@ -313,12 +313,12 @@ def _on_parsing_tf_nodes(graph, nodelist, varset, debug_mode):
 
         for o_ in node_.outputs:
             oname = o_.name
-            k2o_logger().debug('output: ' + oname)
+            k2o_logger().debug('\toutput: ' + oname)
             out0 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
             operator.add_output(out0)
 
         for i_ in node_.inputs:
-            k2o_logger().debug('input : ' + i_.name)
+            k2o_logger().debug('\tinput : ' + i_.name)
             var_type = infer_variable_type(i_, varset.target_opset)
             i0 = varset.get_local_variable_or_declare_one(i_.name, var_type)
             operator.add_input(i0)
