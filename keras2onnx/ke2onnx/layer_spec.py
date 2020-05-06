@@ -52,7 +52,10 @@ def _conv_layer_spec_outputs(layer, node):
         return node.name[:ri + 1] + node_act
     else:
         if not layer.use_bias:
-            return node.name
+            if node.inputs[0].op.type == 'SpaceToBatchND':
+                return node.name + '/BatchToSpaceND'
+            else:
+                return node.name
         else:
             ri = node.name.rindex('/')
             return node.name[:ri + 1] + 'BiasAdd'
