@@ -165,6 +165,27 @@ class TestTransformers(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files))
 
+    def test_TFGPT2(self):
+        if enable_full_transformer_test:
+            from transformers import GPT2Config, TFGPT2Model, TFGPT2LMHeadModel, TFGPT2DoubleHeadsModel
+            model_list = [TFGPT2Model, TFGPT2LMHeadModel, TFGPT2DoubleHeadsModel]
+        else:
+            from transformers import GPT2Config, TFGPT2Model
+            model_list = [TFGPT2Model]
+        # pretrained_weights = 'gpt2'
+        tokenizer_file = 'gpt2_gpt2.pickle'
+        tokenizer = self._get_tokenzier(tokenizer_file)
+        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
+        config = GPT2Config()
+        for model_instance_ in model_list:
+            keras.backend.clear_session()
+            model = model_instance_(config)
+            predictions = model.predict(inputs)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            self.assertTrue(
+                run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                                 atol=1.e-4))
+
     @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFOpenAIGPTModel(self):
         from transformers import OpenAIGPTConfig, TFOpenAIGPTModel
