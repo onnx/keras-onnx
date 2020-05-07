@@ -180,7 +180,9 @@ class TestTransformers(unittest.TestCase):
         for model_instance_ in model_list:
             keras.backend.clear_session()
             model = model_instance_(config)
-            predictions = model.predict(inputs)
+            model._set_inputs(inputs)
+            predictions_original = model(inputs)
+            predictions = [predictions_original[0]] + list(v_.numpy() for v_ in predictions_original[1])
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(
                 run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
