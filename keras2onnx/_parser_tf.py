@@ -248,7 +248,8 @@ def extract_outputs_from_subclassing_model(model, output_dict, input_names, outp
 
     function = _saving_utils.trace_model_call(model)
     concrete_func = function.get_concrete_function()
-    output_names.extend([ts_.name for ts_ in concrete_func.outputs])
+    for k_, v_ in concrete_func.structured_outputs.items():
+        output_names.extend([ts_.name for ts_ in v_.op.outputs])
     output_dict.update(build_layer_outputs(model, concrete_func.graph, concrete_func.outputs))
     graph_def, converted_input_indices = _convert_to_constants(
         concrete_func, lower_control_flow=True)
