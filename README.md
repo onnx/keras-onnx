@@ -103,6 +103,7 @@ feed = dict([(input.name, x[n]) for n, input in enumerate(sess.get_inputs())])
 pred_onnx = sess.run(None, feed)
 ```
 
+The inference result is a list which aligns with keras model prediction result `model.predict()`.
 An alternative way to load onnx model to runtime session is to save the model first:
 ```
 temp_model_file = 'model.onnx'
