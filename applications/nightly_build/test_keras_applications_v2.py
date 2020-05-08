@@ -28,7 +28,7 @@ class TestKerasApplications(unittest.TestCase):
 
     def test_DenseNet121(self):
         DenseNet121 = keras.applications.densenet.DenseNet121
-        model = DenseNet121(include_top=True, weights='imagenet')
+        model = DenseNet121(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
@@ -44,15 +44,23 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    def test_ResNet50(self):
-        ResNet50 = keras.applications.resnet_v2.ResNet50V2
-        model = ResNet50(include_top=True, weights=None)
+    def test_NASNetMobile(self):
+        NASNetMobile = keras.applications.nasnet.NASNetMobile
+        model = NASNetMobile(weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 
-    def test_DenseNet121(self):
-        DenseNet121 = keras.applications.densenet.DenseNet121
-        model = DenseNet121(include_top=True, weights=None)
+    def test_InceptionV3(self):
+        keras.backend.set_learning_phase(0)
+        InceptionV3 = keras.applications.inception_v3.InceptionV3
+        model = InceptionV3(include_top=True)
+        model.save('inception.h5')
+        res = run_image(model, self.model_files, img_path, target_size=299, tf_v2=True)
+        self.assertTrue(*res)
+
+    def test_ResNet50(self):
+        ResNet50 = keras.applications.resnet_v2.ResNet50V2
+        model = ResNet50(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, tf_v2=True)
         self.assertTrue(*res)
 

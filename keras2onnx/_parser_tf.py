@@ -231,15 +231,10 @@ def build_layer_outputs(model, graph, outputs):
             continue
 
         for fstr_ in fstr_list:
-            for op_ in _to_tf_ops(ln_, graph, fstr_):
-                if len(fx_list) <= 1:
-                    output_dict[op_.name] = layer_dict[ln_]
-                else:
-                    # fx_[1] is output node redirect function.
-                    output_tensor = fx_list[1](lobj, op_)
-                    assert graph.get_operation_by_name(output_tensor) is not None, "Parsing layer({}) failed.".format(
-                        lobj)
-                    output_dict[output_tensor] = layer_dict[ln_]
+            op_name = fstr_.format(ln_)
+            if op_name not in ops_table:
+                continue
+            add_output_node(graph, ops_table[op_name], fx_list, ln_)
 
     # now process the case when a layer was re-used several times in one model.
     for ln_, layer_info_ in layer_dict.items():
