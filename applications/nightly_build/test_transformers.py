@@ -12,6 +12,8 @@ import urllib.request
 import pickle
 from os.path import dirname, abspath
 from keras2onnx.proto import keras
+import numpy as np
+import tensorflow as tf
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
@@ -44,13 +46,17 @@ class TestTransformers(unittest.TestCase):
             tokenizer = pickle.load(handle)
         return tokenizer
 
-    def _prepare_inputs(self, tokenizer):
+    def _prepare_inputs(self, tokenizer, batch_size=3):
         raw_data = json.dumps({
-            'text': 'The quick brown fox jumps over the lazy dog.'
+            'text': 'The quick brown fox jumps over lazy dog.'
         })
         text = json.loads(raw_data)['text']
-        inputs = tokenizer.encode_plus(text, add_special_tokens=True, return_tensors='tf')
-        inputs_onnx = {k_: v_.numpy() for k_, v_ in inputs.items()}
+        # The tokenizers are generated using transformers 2.5.0, but model_max_length is introduced and needed in 2.9.0. 
+        if not hasattr(tokenizer, 'model_max_length'):
+            tokenizer.model_max_length = 1024
+        inputs_raw = tokenizer.encode_plus(text, add_special_tokens=True)
+        inputs_onnx = {k_: np.repeat(np.expand_dims(v_, axis=0), batch_size, axis=0) for k_, v_ in inputs_raw.items()}
+        inputs = {k_: tf.constant(v_) for k_, v_ in inputs_onnx.items()}
         return text, inputs, inputs_onnx
 
     @unittest.skip("Output shape mismatch for tf model prediction.")
@@ -180,7 +186,9 @@ class TestTransformers(unittest.TestCase):
         for model_instance_ in model_list:
             keras.backend.clear_session()
             model = model_instance_(config)
-            predictions = model.predict(inputs)
+            model._set_inputs(inputs)
+            predictions_original = model(inputs)
+            predictions = [predictions_original[0]] + list(v_.numpy() for v_ in predictions_original[1])
             onnx_model = keras2onnx.convert_keras(model, model.name)
             self.assertTrue(
                 run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
@@ -220,7 +228,8 @@ class TestTransformers(unittest.TestCase):
         # pretrained_weights = 'openai-gpt'
         tokenizer_file = 'openai_openai-gpt.pickle'
         tokenizer = self._get_tokenzier(tokenizer_file)
-        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer)
+        # tf.gather(hidden_states, cls_index, batch_dims=len(hidden_shape) - 2), batch_dims = 1 in this case
+        text, inputs, inputs_onnx = self._prepare_inputs(tokenizer, batch_size=1)
         config = OpenAIGPTConfig()
         model = TFOpenAIGPTDoubleHeadsModel(config)
         predictions = model.predict(inputs)
