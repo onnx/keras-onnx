@@ -15,7 +15,8 @@ from .funcbook import get_converter, set_converter
 from ._consts import TYPES
 from ._tf_ops import pass_thru_converter
 from ._parser_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
-                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size)
+                         tsname_to_node, on_parsing_keras_layer_v2, adjust_input_batch_size as _adjust_input_batch_size,
+                         adjust_input_output_size as _adjust_input_output_size)
 from ._parser_1x import (extract_inbound_nodes,
                          list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
@@ -756,6 +757,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
     """
     top_level = topo.declare_scope('__root')
 
+    dim_variable_counter = 0
     # Create the onnx model input name before parsing to keep ...
     # ... the model input names are identical to the original Keras model.
     for idx_ in range(len(topo.raw_model.model.inputs)):
@@ -765,6 +767,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
             idx_key = list(topo.raw_model.model.inputs.keys())[idx_]
         input_ts = topo.raw_model.model.inputs[idx_key]
         var_type = _adjust_input_batch_size(infer_variable_type(input_ts, target_opset))
+        dim_variable_counter = _adjust_input_output_size(var_type, dim_variable_counter)
         str_value = input_ts.name
         var0 = None
         if hasattr(topo.raw_model.model, 'input_names'):
@@ -789,6 +792,7 @@ def parse_graph(topo, graph, target_opset, output_names, keras_node_dict):
     for idx_, ts_ in enumerate(output_tensors):
         op = top_level.declare_local_operator(TYPES.Identity)
         var_type = _adjust_input_batch_size(infer_variable_type(ts_, target_opset))
+        dim_variable_counter = _adjust_input_output_size(var_type, dim_variable_counter)
         str_value = ts_.name
         use_ts_name = False
         if hasattr(topo.raw_model.model, 'output_names'):

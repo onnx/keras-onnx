@@ -54,6 +54,15 @@ def adjust_input_batch_size(var_type):
     return var_type
 
 
+def adjust_input_output_size(var_type, dim_variable_counter):
+    if len(var_type.shape) > 0:
+        for dim in range(1, len(var_type.shape)):
+            if var_type.shape[dim] is None:
+                dim_variable_counter += 1
+                var_type.shape[dim] = 'M' + str(dim_variable_counter)
+    return dim_variable_counter
+
+
 def _get_layer_name(reserved, ts_or_op):
     return ts_or_op.rsplit('/', 1)[0]
 
