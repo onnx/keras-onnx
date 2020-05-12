@@ -137,7 +137,9 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     if expected is None:
         return
 
-    if not isinstance(expected, list):
+    if isinstance(expected, tuple):
+        expected = list(expected)
+    elif not isinstance(expected, list):
         expected = [expected]
 
     res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
