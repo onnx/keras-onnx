@@ -483,27 +483,28 @@ def _get_output_nodes(node_list, node):
 
 
 def _filter_out_input(node_name):
-    # tf.keras BN layer sometimes create a placeholder node 'scale' in tf2.x. 
+    # tf.keras BN layer sometimes create a placeholder node 'scale' in tf 2.x.
+    # It creates 'cond/input' since tf 2.2.
     # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
-    filter_out = re.match(r"batch_normalization_\d+\/scale$", node_name)
-    filter_out = filter_out or re.match(r"batch_normalization_\d+\/cond/input", node_name) # since tf 2.2
+    filter_patterns = [r"batch_normalization_\d+\/scale$", r"batch_normalization_\d+\/cond/input"]
+    filter_out = False
+    for pattern_ in filter_patterns:
+        filter_out = filter_out or re.match(pattern_, node_name)
     return filter_out
 
 
 def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_overall):
     for input_ in cur_node.inputs:
         predecessor = input_.op
-        if is_placeholder_node(predecessor):
-            if not _filter_out_input(predecessor.name):
-                inputs.add(predecessor)
-                graph_inputs.add(predecessor)
-                continue
+        if is_placeholder_node(predecessor) and not _filter_out_input(predecessor.name):
+            inputs.add(predecessor)
+            graph_inputs.add(predecessor)
+            continue
         if predecessor in layer_nodes or len(layer_nodes) == 0:
             subgraph.append(predecessor)
         else:
-            if not _filter_out_input(predecessor.name):
-                inputs.add(predecessor)
-                q_overall.put_nowait(predecessor)
+            inputs.add(predecessor)
+            q_overall.put_nowait(predecessor)
 
 
 def _visit_nodelist(activated_keras_nodes, input_nodes, layer_key,
