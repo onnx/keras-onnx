@@ -483,7 +483,7 @@ def _get_output_nodes(node_list, node):
 
 
 def _filter_out_input(node_name):
-    # tf.keras BN layer sometimes create a placeholder node 'scale' in tf2.x.
+    # tf.keras BN layer sometimes create a placeholder node 'scale' in tf2.x. 
     # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
     filter_out = re.match(r"batch_normalization_\d+\/scale$", node_name)
     filter_out = filter_out or re.match(r"batch_normalization_\d+\/cond/input", node_name) # since tf 2.2
