@@ -111,6 +111,7 @@ jobs:
       pip install keras-tcn==2.8.3
       $(UNINSTALL_KERAS)
       pip install git+https://github.com/qubvel/efficientnet
+      $(INSTALL_TRANSFORMERS)
     displayName: 'Install dependencies'
 
   - script: |
