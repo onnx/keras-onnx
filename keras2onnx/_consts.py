@@ -15,6 +15,8 @@ class TYPES:
     AddN = 'AddN'
     Any = 'Any'
     All = 'All'
+    ArgMax = 'ArgMax'
+    ArgMin = 'ArgMin'
     BatchMatMul = 'BatchMatMul'
     BatchMatMulV2 = 'BatchMatMulV2'
     BatchToSpaceND = 'BatchToSpaceND'
