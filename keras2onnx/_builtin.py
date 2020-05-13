@@ -40,6 +40,28 @@ def convert_tf_addn(scope, operator, container):
                               name=operator.full_name + '_add')
 
 
+def _convert_tf_argmax_argmin_helper(scope, operator, container, arg_str):
+    node = operator.raw_operator
+    axis = _cal_tensor_value(node.inputs[1]).item(0)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output("apply_" + arg_str,
+                              operator.input_full_names[0],
+                              operator.output_full_names,
+                              name=operator.full_name + '_' + arg_str,
+                              axis=axis,
+                              keepdims=0)
+
+
+@converter_func(TYPES.ArgMax)
+def convert_tf_argmax(scope, operator, container):
+    _convert_tf_argmax_argmin_helper(scope, operator, container, 'argmax')
+
+
+@converter_func(TYPES.ArgMin)
+def convert_tf_argmin(scope, operator, container):
+    _convert_tf_argmax_argmin_helper(scope, operator, container, 'argmin')
+
+
 @converter_func(TYPES.BatchToSpaceND)
 def convert_tf_batch_to_space(scope, operator, container):
     node = operator.raw_operator

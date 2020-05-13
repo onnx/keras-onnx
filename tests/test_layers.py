@@ -105,6 +105,16 @@ def test_tf_addn(runner):
     assert runner('tf_add_n', onnx_model, [data1, data2], expected)
 
 
+@pytest.mark.parametrize("arg_func", [tf.argmax, tf.argmin])
+def test_tf_argmax_argmin(runner, arg_func):
+    model = Sequential()
+    model.add(Lambda(lambda x: arg_func(x, axis=2), input_shape=[3, 4, 2]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_arg')
+    data = np.random.rand(5, 3, 4, 2).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_arg', onnx_model, data, expected)
+
+
 def test_tf_conv(runner):
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
@@ -203,6 +213,43 @@ def test_depthwise_conv2d(runner, use_bias):
     data = np.random.rand(3, 8, 8, 2).astype(np.float32)
     expected = model.predict(data)
     assert runner('onnx_depthwise_conv2d', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(get_maximum_opset_supported() < 12,
+                    reason="Einsum is not supported until opset 12.")
+def test_tf_einsum(runner):
+    def my_func_1(x):
+        return tf.einsum('i,d->id', x[0][:, 0], x[1][:, 1])
+
+    def my_func_2(x):
+        return tf.einsum('ibh,hnd->ibnd', x[0][:, 0], x[1][:, 1])
+
+    def my_func_3(x):
+        return tf.einsum('ibnd,hnd->ibh', x[0][:, 0], x[1][:, 1])
+
+    def my_func_4(x):
+        return tf.einsum('ibnd,jbnd->ijbn', x[0][:, 0], x[1][:, 1])
+
+    def my_func_5(x):
+        return tf.einsum('ijbn,jbnd->ibnd', x[0][:, 0], x[1][:, 1])
+
+    input1_shape = [(3,), (2, 3, 2), (2, 3, 4, 2), (2, 3, 4, 2), (2, 2, 4, 3)]
+    input2_shape = [(3,), (2, 4, 5), (2, 4, 2), (2, 3, 4, 2), (2, 4, 3, 5)]
+    myFunc = [my_func_1, my_func_2, my_func_3, my_func_4, my_func_5]
+
+    for idx_ in range(5):
+        K.clear_session()
+        input1 = Input(shape=input1_shape[idx_])
+        input2 = Input(shape=input2_shape[idx_])
+        added = Lambda(myFunc[idx_])([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_einsum')
+        batch_data1_shape = (2,) + input1_shape[idx_]
+        batch_data2_shape = (2,) + input2_shape[idx_]
+        data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+        data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+        expected = model.predict([data1, data2])
+        assert runner('onnx_einsum', onnx_model, [data1, data2], expected)
 
 
 def test_tf_expand_dims(runner):
