@@ -43,13 +43,26 @@ def convert_tf_addn(scope, operator, container):
 def _convert_tf_argmax_argmin_helper(scope, operator, container, arg_str):
     node = operator.raw_operator
     axis = _cal_tensor_value(node.inputs[1]).item(0)
+    dtype = _to_onnx_type(node.outputs[0].dtype)
     oopb = OnnxOperatorBuilder(container, scope)
-    oopb.apply_op_with_output("apply_" + arg_str,
-                              operator.input_full_names[0],
-                              operator.output_full_names,
+    arg_func = oopb.apply_argmax if arg_str == 'argmax' else oopb.apply_argmin
+    if dtype == oopb.int64:
+        oopb.apply_op_with_output("apply_" + arg_str,
+                                  operator.input_full_names[0],
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_' + arg_str,
+                                  axis=axis,
+                                  keepdims=0)
+    else:
+        arg_output = arg_func(operator.input_full_names[0],
                               name=operator.full_name + '_' + arg_str,
                               axis=axis,
                               keepdims=0)
+        oopb.apply_op_with_output("apply_cast",
+                                  arg_output,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_cast',
+                                  to=dtype)
 
 
 @converter_func(TYPES.ArgMax)

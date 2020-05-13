@@ -114,6 +114,13 @@ def test_tf_argmax_argmin(runner, arg_func):
     expected = model.predict(data)
     assert runner('onnx_arg', onnx_model, data, expected)
 
+    model = Sequential()
+    model.add(Lambda(lambda x: arg_func(x, axis=2, output_type=tf.int32), input_shape=[3, 4, 2]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_arg')
+    data = np.random.rand(5, 3, 4, 2).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_arg', onnx_model, data, expected)
+
 
 def test_tf_conv(runner):
     model = Sequential()
