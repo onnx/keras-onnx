@@ -900,6 +900,16 @@ def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
                                   name=operator.full_name + '_identity')
 
 
+@converter_func(TYPES.MatrixInverse)
+def convert_tf_logical_not(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.add_node_with_output('Inverse',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              op_domain='com.microsoft',
+                              op_version=1)
+
 @converter_func(TYPES.Maximum)
 def convert_tf_maximum(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)

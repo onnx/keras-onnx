@@ -42,6 +42,7 @@ class TYPES:
     LogicalNot = 'LogicalNot'
     LogSoftmax = 'LogSoftmax'
     MatMul = 'MatMul'
+    MatrixInverse = 'MatrixInverse'
     Max = 'Max'
     Maximum = 'Maximum'
     Mean = 'Mean'

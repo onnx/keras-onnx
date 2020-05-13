@@ -6,7 +6,7 @@
 import pytest
 import keras2onnx
 import numpy as np
-from onnxconverter_common.onnx_ex import get_maximum_opset_supported
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported, onnx_builtin_opset_version
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
                               is_tensorflow_older_than, is_tensorflow_later_than,
@@ -165,6 +165,37 @@ def test_tf_bias_add(runner):
     data = np.random.rand(5, 2, 3, 4).astype(np.float32)
     expected = model.predict(data)
     assert runner('onnx_bias_add', onnx_model, data, expected)
+
+
+def test_tf_clip(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: K.clip(x, 0, 10), input_shape=[5, 5]))
+    data = np.random.randint(-5, 15, size=(1, 5, 5)).astype(np.float32)
+    expected = model.predict(data)
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_clip')
+    assert runner('onnx_tf_clip', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(onnx_builtin_opset_version() < 12,
+                    reason="Inverse is not supported until opset 12")
+def test_tf_inverse(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: tf.linalg.inv(x), input_shape=[5, 5]))
+    data = np.random.rand(3, 5, 5).astype(np.float32)
+    expected = model.predict(data)
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_inverse')
+    assert runner('onnx_tf_inverse', onnx_model, data, expected)
+
+
+def test_tf_pow(runner):
+    model = Sequential()
+    y = tf.constant([[2.0, 2.0], [2.0, 2.0]])
+    model.add(Lambda(lambda x: tf.math.pow(tf.cast(x, tf.int32), tf.cast(y, tf.int32)), input_shape=[2, 2]))
+    data = (100 * np.random.rand(3, 2, 2)).astype(np.float32)
+    expected = model.predict(data)
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pow', target_opset=12)
+    keras2onnx.save_model(onnx_model, 'pow.onnx')
+    assert runner('onnx_tf_pow', onnx_model, data, expected)
 
 
 def test_tf_concat(runner):
