@@ -67,6 +67,7 @@ jobs:
       pip install -e .
       python -c "import onnxruntime"
       python -c "import onnxconverter_common"
+      set TF_KERAS=0
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
