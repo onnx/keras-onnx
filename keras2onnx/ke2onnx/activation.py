@@ -6,8 +6,7 @@
 import tensorflow as tf
 from ..proto import keras, is_tf_keras
 from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_sigmoid, apply_tanh, \
-    apply_softmax, apply_identity, apply_selu, apply_clip
-
+    apply_softmax, apply_identity, apply_selu, apply_clip, apply_mul
 
 activation_get = keras.activations.get
 
@@ -19,7 +18,6 @@ if not is_tf_keras:
         pass
 if not relu6 and hasattr(keras.applications.mobilenet, 'relu6'):
     relu6 = keras.applications.mobilenet.relu6
-
 
 activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   activation_get('softmax'): apply_softmax,
@@ -56,11 +54,14 @@ def convert_keras_activation(scope, operator, container):
         apply_identity(scope, input_name, output_name, container)
     elif activation in [activation_get('selu'), keras.activations.selu]:
         apply_selu(scope, input_name, output_name, container, alpha=1.673263, gamma=1.050701)
-    elif activation in [relu6]:
+    elif activation in [relu6] or activation.__name__ == 'relu6':
         # relu6(x) = min(relu(x), 6)
         apply_relu(scope, input_name, output_name + "_relu6", container)
         apply_clip(scope, output_name + "_relu6", output_name, container,
                    min=0, max=6)
+    elif activation.__name__ in ['swish']:
+        apply_sigmoid(scope, input_name, output_name + '_sig', container)
+        apply_mul(scope, [input_name, output_name + '_sig'], output_name, container)
     else:
         if activation in [activation_get('softsign'), keras.activations.softsign]:
             op_type = 'Softsign'

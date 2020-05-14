@@ -5,117 +5,160 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
-from ..common.onnx_ops import apply_reshape, apply_transpose
-from .common import extract_recurrent_activation
+from ..common import name_func
+from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
+from . import simplernn
+
+TensorProto = onnx_proto.TensorProto
 
 
-def convert_keras_gru(scope, operator, container):
+def extract_params(op):
+    """Returns a tuple of the GRU paramters, and converts them into the format for ONNX.
+    """
+    params = op.get_weights()
+    W = params[0].T
+    R = params[1].T
+
+    B = None
+    if op.use_bias:
+        B = params[2]
+
+    return W, R, B
+
+def build_parameters(scope, operator, container, bidirectional=False):
+    """Returns the parameter initialization values after extracting them from the GRU layer.
+    """
     op = operator.raw_operator
-    hidden_size = op.units
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
-    input_size = input_shape[-1]
-    output_seq = op.return_sequences
-    output_state = op.return_state
-    reverse_input = op.go_backwards
+    _, seq_length, input_size = simplernn.extract_input_shape(op)
 
-    op_type = 'GRU'
-    attrs = {'name': operator.full_name}
-    gru_input_names = []
+    _name = name_func(scope, operator)
 
-    gru_x_name = scope.get_unique_variable_name('gru_x')
-    apply_transpose(scope, operator.inputs[0].full_name, gru_x_name, container, perm=[1, 0, 2])
-    gru_input_names.append(gru_x_name)
+    tensor_w = _name('W')
+    tensor_r = _name('R')
+    tensor_b = ''
 
-    tensor_w_name = scope.get_unique_variable_name('tensor_w')
-    W = op.get_weights()[0].T
-    container.add_initializer(tensor_w_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 3 * hidden_size, input_size], W.flatten())
-    gru_input_names.append(tensor_w_name)
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+        hidden_size = forward_layer.units
 
-    tensor_r_name = scope.get_unique_variable_name('tensor_r')
-    R = op.get_weights()[1].T
-    container.add_initializer(tensor_r_name, onnx_proto.TensorProto.FLOAT,
-                              [1, 3 * hidden_size, hidden_size], R.flatten())
-    gru_input_names.append(tensor_r_name)
+        W, R, B = extract_params(forward_layer)
+        W_back, R_back, B_back = extract_params(backward_layer)
 
-    B = op.get_weights()[2]
-    if op.use_bias and len(B) > 0:
-        tensor_b_name = scope.get_unique_variable_name('tensor_b')
-        if B.size == 3 * hidden_size:
-            B = np.concatenate([B, np.zeros(3 * hidden_size)])
-        container.add_initializer(tensor_b_name, onnx_proto.TensorProto.FLOAT, [1, 6 * hidden_size], B.flatten())
-        gru_input_names.append(tensor_b_name)
+        W = np.concatenate([W, W_back])
+        W_shape = [2, 3 * hidden_size, input_size]
+
+        R = np.concatenate([R, R_back])
+        R_shape = [2, 3 * hidden_size, hidden_size]
+
+        if B is not None:
+            if B.size == 3 * hidden_size:
+                B = np.concatenate([B, np.zeros(3 * hidden_size)])
+            if B_back.size == 3 * hidden_size:
+                B_back = np.concatenate([B_back, np.zeros(3 * hidden_size)])
+            B = np.concatenate([B, B_back])
+            B_shape = [2, 6 * hidden_size]
+
     else:
-        gru_input_names.append('')
+        hidden_size = op.units
 
-    # sequence lens
-    gru_input_names.append('')
-    # inital_h
-    if len(operator.inputs) == 1:
-        gru_input_names.append('')
+        W, R, B = extract_params(op)
+        W_shape = [1, 3 * hidden_size, input_size]
+        R_shape = [1, 3 * hidden_size, hidden_size]
+
+        if B is not None:
+            if B.size == 3 * hidden_size:
+                B = np.concatenate([B, np.zeros(3 * hidden_size)])
+            B_shape = [1, 6 * hidden_size]
+
+    # Create initializers
+    container.add_initializer(tensor_w, TensorProto.FLOAT, W_shape, W.flatten())
+    container.add_initializer(tensor_r, TensorProto.FLOAT, R_shape, R.flatten())
+
+    if B is not None:
+        tensor_b = _name('B')
+        container.add_initializer(tensor_b, TensorProto.FLOAT, B_shape, B.flatten())
+
+    return tensor_w, tensor_r, tensor_b
+
+
+def build_attributes(scope, operator, container, bidirectional=False):
+    """Returns a dictionary of attributes for the GRU layer.
+    """
+    op = operator.raw_operator
+
+    attrs = {}
+
+    if bidirectional:
+        forward_layer = op.forward_layer
+        backward_layer = op.backward_layer
+
+        attrs['direction'] = 'bidirectional'
+        attrs['hidden_size'] = forward_layer.units
+        attrs.update(simplernn.extract_activations([
+            forward_layer.recurrent_activation,
+            forward_layer.activation,
+            backward_layer.recurrent_activation,
+            backward_layer.activation,
+
+        ]))
+
     else:
-        # Add a reshape after initial_h, 2d -> 3d
-        input_reshape_name = scope.get_unique_variable_name('input_reshape')
-        apply_reshape(scope, operator.inputs[1].full_name, input_reshape_name, container,
-                      desired_shape=[1, -1, hidden_size])
-        gru_input_names.append(input_reshape_name)
+        attrs['direction'] = 'reverse' if op.go_backwards else 'forward'
+        attrs['hidden_size'] = op.units
+        attrs.update(simplernn.extract_activations([
+            op.recurrent_activation,
+            op.activation
+        ]))
 
-    activation_types = []
-    alphas = []
-    betas = []
-    for (activation_type, alpha, beta) in \
-            [extract_recurrent_activation(op.recurrent_activation), extract_recurrent_activation(op.activation)]:
-        activation_types.append(activation_type.encode('utf-8'))
-        if alpha is not None:
-            alphas.append(alpha)
-        if beta is not None:
-            betas.append(beta)
+    return attrs
 
-    attrs['activations'] = activation_types
-    if alphas:
-        attrs['activation_alpha'] = alphas
-    if betas:
-        attrs['activation_beta'] = betas
 
-    # Set up other attributes
-    attrs['direction'] = 'reverse' if reverse_input else 'forward'
-    attrs['hidden_size'] = hidden_size
+def convert_keras_gru(scope, operator, container, bidirectional=False):
+    op = operator.raw_operator
 
-    # Set up version-dependent attributes
-    if container.target_opset < 3:
-        op_version = 1
-        attrs['output_sequence'] = 1 if output_seq else 0
-    elif container.target_opset <= 5:
-        attrs['output_sequence'] = 1 if output_seq else 0
-        op_version = 3
+    _name = name_func(scope, operator)
+
+    if bidirectional:
+        output_seq = op.forward_layer.return_sequences
+        reset_after = op.forward_layer.reset_after
     else:
-        op_version = 7
+        output_seq = op.return_sequences
+        reset_after = op.reset_after
 
-    if container.target_opset >= 3:
-        attrs['linear_before_reset'] = 1 if op.reset_after else 0
+    # Inputs
+    gru_x = _name('X')
+    tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
+    sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
+    initial_h = simplernn.build_initial_states(scope, operator, container, bidirectional)
 
-    # We use the collected information to build ONNX's GRU. ONNX GRU's outputs will be saved onto two intermediate
-    # tensors and we will adjust them subsequently to mimic Keras output format.
-    gru_y_name = scope.get_unique_variable_name('gru_y')
-    gru_h_name = scope.get_unique_variable_name('gru_h')
-    gru_output_names = [gru_y_name, gru_h_name]
-    container.add_node(op_type, gru_input_names, gru_output_names, op_version=op_version, **attrs)
+    input_names = [
+        gru_x,
+        tensor_w,
+        tensor_r,
+        tensor_b,
+        sequence_lengths,
+        initial_h,
+    ]
 
-    # Create output-adjusting operators
-    if output_seq:
-        intermediate_result_name = scope.get_unique_variable_name('intermediate_result')
-        perm = [1, 0, 2] if container.target_opset <= 5 else [2, 0, 1, 3]
-        apply_transpose(scope, gru_y_name, intermediate_result_name, container, perm=perm)
-        apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, 0, hidden_size])
-    else:
-        # Here we ignore ONNX GRU's first output because it's useless.
-        intermediate_result_name = scope.get_unique_variable_name('intermediate_result')
-        apply_transpose(scope, gru_h_name, intermediate_result_name, container, perm=[1, 0, 2])
-        apply_reshape(scope, intermediate_result_name, operator.outputs[0].full_name, container,
-                      desired_shape=[-1, hidden_size])
+    # Attributes
+    attrs = build_attributes(scope, operator, container, bidirectional)
 
-    if output_state:
-        apply_reshape(scope, gru_h_name, operator.outputs[1].full_name, container, desired_shape=[-1, hidden_size])
+    # Outputs
+    output_names = [_name('Y'), _name('Y_h')]
+
+    # Transpose input values
+    input_name = operator.inputs[0].full_name
+    apply_transpose(scope, input_name, gru_x, container, perm=[1, 0, 2])
+
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_gru',
+                              input_names,
+                              output_names,
+                              name=op.name,
+                              output_seq=output_seq,
+                              reset_after=reset_after,
+                              **attrs)
+
+    simplernn.build_output(scope, operator, container, output_names, bidirectional)
+    simplernn.build_output_states(scope, operator, container, output_names, bidirectional)

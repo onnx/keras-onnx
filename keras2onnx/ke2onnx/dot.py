@@ -6,7 +6,7 @@
 import numbers
 import numpy as np
 
-from ..proto import is_keras_later_than
+from ..proto import is_keras_later_than, is_tf_keras
 from ..proto.tfcompat import is_tf2
 from ..common import cvtfunc
 from ..common.onnx_ops import OnnxOperatorBuilder
@@ -433,7 +433,7 @@ def convert_keras_dot_post_224(scope, operator, container):
 
 @cvtfunc(shape_infer=_calculate_keras_dot_output_shapes)
 def convert_keras_dot(scope, operator, container):
-    if not is_keras_later_than("2.2.4"):
-        convert_keras_dot_224(scope, operator, container)
-    else:
+    if (is_tf2 and is_tf_keras) or is_keras_later_than("2.2.4"):
         convert_keras_dot_post_224(scope, operator, container)
+    else:
+        convert_keras_dot_224(scope, operator, container)

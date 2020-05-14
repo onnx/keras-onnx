@@ -20,7 +20,9 @@ class OnnxOperatorBuilder:
         self.int32 = onnx_proto.TensorProto.INT32
         self.int64 = onnx_proto.TensorProto.INT64
         self.float = onnx_proto.TensorProto.FLOAT
+        self.float16 = onnx_proto.TensorProto.FLOAT16
         self.double = onnx_proto.TensorProto.DOUBLE
+        self.bool = onnx_proto.TensorProto.BOOL
 
         apply_operations = onnxconverter_common.onnx_ops.__dict__
         for k_, m_ in apply_operations.items():
@@ -80,3 +82,10 @@ class OnnxOperatorBuilder:
         ox_inputs = self._process_inputs(inputs, name)
         apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)
         return outputs
+
+    def apply_op_with_output(self, apply_func_name, inputs, outputs, name, **attrs):
+        apply_operations = onnxconverter_common.onnx_ops.__dict__
+        apply_func = apply_operations[apply_func_name]
+        assert apply_func is not None, "{} not implemented in onnx_ops.py.".format(apply_func_name)
+        ox_inputs = self._process_inputs(inputs, name)
+        apply_func(self._scope, ox_inputs, outputs, self._container, operator_name=name, **attrs)

@@ -5,7 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto, keras
-from ..common.onnx_ops import apply_softmax, apply_add
+from ..common.onnx_ops import apply_softmax, apply_add, OnnxOperatorBuilder
 from .activation import activation_map
 activation_get = keras.activations.get
 
@@ -21,10 +21,9 @@ def convert_keras_dense(scope, operator, container):
 
     # Do a numpy matmul. If the input is 2-D, it will be a standard matrix multiplication. Otherwise, it follows Numpy's
     # matmul behavior.
-    op_version = 1 if container.target_opset < 9 else 9
-    transformed_tensor_name = scope.get_unique_variable_name('transformed_tensor')
-    container.add_node('MatMul', [operator.inputs[0].full_name, weight_name], transformed_tensor_name,
-                       name=operator.full_name, op_version=op_version)
+    oopb = OnnxOperatorBuilder(container, scope)
+    transformed_tensor_name = oopb.apply_matmul([operator.inputs[0].full_name, weight_name],
+                                                name=operator.raw_operator.name)
 
     # Allocate bias vector
     if len(parameters) == 1:
@@ -38,7 +37,7 @@ def convert_keras_dense(scope, operator, container):
 
     # Add bias
     biased_tensor_name = scope.get_unique_variable_name('biased_tensor_name')
-    apply_add(scope, [transformed_tensor_name, bias_name], biased_tensor_name, container,
+    apply_add(scope, transformed_tensor_name + [ bias_name ], biased_tensor_name, container,
               axis=-1, broadcast=1)
 
     # Create an activation function node and apply activation function to the intermediate tensor

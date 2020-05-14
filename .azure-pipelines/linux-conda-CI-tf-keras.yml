@@ -18,16 +18,19 @@ jobs:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         TENSORFLOW_PATH: tensorflow==1.11.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        TENSORFLOW_PATH: tensorflow==1.14.0
+        TENSORFLOW_PATH: tensorflow==1.15.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
 
       Python37:
-        python.version: '3.7.3'
+        python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        TENSORFLOW_PATH: tensorflow
+        TENSORFLOW_PATH: tensorflow-cpu
+        INSTALL_ORT:
 
     maxParallel: 3
 
@@ -47,12 +50,13 @@ jobs:
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
       pip install $(TENSORFLOW_PATH)
-      pip install -r requirements.txt
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
       cd ..
+      pip install -r requirements.txt
       pip install -r requirements-dev.txt
+      $(INSTALL_ORT)
     displayName: 'Install dependencies'
 
   - script: |

@@ -10,12 +10,7 @@ from ..proto import onnx_proto
 
 def convert_keras_batch_normalization(scope, operator, container):
     op = operator.raw_operator
-    if hasattr(op, 'input_shape'):
-        shape_len = len(op.input_shape)
-    elif hasattr(op, '_input_shape'):
-        shape_len = len(op._input_shape)
-    else:
-        raise AttributeError('There is no input_shape or _input_shape for the operator: ' + operator.full_name)
+    shape_len = len(operator.get_input_shape())
 
     if isinstance(op.axis, list):
         if len(op.axis) == 1:
@@ -73,7 +68,7 @@ def convert_keras_batch_normalization(scope, operator, container):
 
     if skip_transpose:
         # If no transpose is required, we can simply use the output of ONNX BatchNorm as the final outcome
-        apply_batch_norm(scope, input_tensor_names, operator.output_full_names, container,
+        apply_batch_norm(scope, input_tensor_names, operator.output_full_names[0:5], container,
                          operator_name=operator.full_name, epsilon=epsilon, is_test=is_test,
                          momentum=momentum, spatial=spatial)
     else:

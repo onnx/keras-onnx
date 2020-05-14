@@ -10,60 +10,40 @@
 The keras2onnx model converter enables users to convert Keras models into the [ONNX](https://onnx.ai) model format.
 Initially, the Keras converter was developed in the project [onnxmltools](https://github.com/onnx/onnxmltools). keras2onnx converter development was moved into an [independent repository](https://github.com/onnx/keras-onnx) to support more kinds of Keras models and reduce the complexity of mixing multiple converters.
 
-All Keras layers have been supported for conversion using keras2onnx since **ONNX opset 7**. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) for details on Keras layers. The keras2onnx converter also supports the lambda/custom layer by working with the [tf2onnx](https://github.com/onnx/tensorflow-onnx) converter which is embedded directly into the source tree to avoid version conflicts and installation complexity.
+Most of the common Keras layers have been supported for conversion using keras2onnx. Please refer to the [Keras documentation](https://keras.io/layers/about-keras-layers/) or [tf.keras docs](https://www.tensorflow.org/api_docs/python/tf/keras/layers) for details on Keras layers.
 
-Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) to convert their Keras models to the ONNX format. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset for your WinML version.
+Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) which wrap its call on keras2onnx to convert the Keras models. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset number for your WinML version.
 
-keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x** (CI build). It does not support **Python 2.x**.
+keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x/2.0/2.1**  (CI build). It does not support **Python 2.x**.
+
+# Install
+You can install latest release of Keras2ONNX from PyPi: **Due to some reason, the package release paused, please install it from the source, and the support of keras or tf.keras over tensorflow 2.x is only available in the source.**
+
+```
+pip install keras2onnx
+```
+or install from source:
+
+```
+pip install git+https://github.com/microsoft/onnxconverter-common
+pip install git+https://github.com/onnx/keras-onnx
+```
+Before running the converter, please notice that tensorflow has to be installed in your python environment,
+you can choose **tensorflow**/**tensorflow-cpu** package(CPU version) or **tensorflow-gpu**(GPU version)
 
 # Notes
+Keras2ONNX supports the new Keras subclassing model which was introduced in tensorflow 2.0 since the version **1.6.5**. Some typical subclassing models like [huggingface/transformers](https://github.com/huggingface/transformers) have been converted into ONNX and validated by ONNXRuntime.<br>
 
-# tf.keras v.s. keras.io
+Since its version 2.3, the [multi-backend Keras (keras.io)](https://keras.io/#multi-backend-keras-and-tfkeras) stops the support of the tensorflow version above 2.0. The auther suggests to switch to tf.keras for the new features.
+## Multi-backend Keras and tf.keras:
 Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
 
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
-
-# Usage
-Before running the converter, please notice that tensorflow has to be installed in your python environment,
-you can choose **tensorflow** package(CPU version) or **tensorflow-gpu**(GPU version)
+# Development
+Keras2ONNX depends on [onnxconverter-common](https://github.com/microsoft/onnxconverter-common). In practice, the latest code of this converter requires the latest version of onnxconverter-common, so if you install this converter from its source code, please install the onnxconverter-common in source code mode before keras2onnx installation.
 
 # Validated pre-trained Keras models
-We converted successfully for all the keras application models, and several other pretrained models. See below:
-
-|  Model Name        | Category | Notes |
-|----------|-------|------|
-| Xception | Computer Vision |
-| VGG16, VGG19 | Computer Vision |
-| ResNet50 | Computer Vision |
-| InceptionV3, InceptionResNetV2 | Computer Vision |
-| MobileNet, MobileNetV2 | Computer Vision |
-| DenseNet121, DenseNet169, DenseNet201 | Computer Vision |
-| NASNetMobile, NASNetLarge | Computer Vision |
-| [FCN, FCN-Resnet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/fcn.py) | Computer Vision |
-| [PSPNet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/pspnet.py) | Computer Vision |
-| [Segnet, VGG-Segnet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/segnet.py) | Computer Vision |
-| [UNet](https://github.com/divamgupta/image-segmentation-keras/blob/master/keras_segmentation/models/unet.py) | Computer Vision |
-| [LPCNet](https://github.com/mozilla/LPCNet) | Speech |
-| [Temporal Convolutional Network](https://github.com/philipperemy/keras-tcn) | Time sequence |
-| [ACGAN (Auxiliary Classifier GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/acgan/acgan.py) | GAN |
-| [Adversarial Autoencoder](https://github.com/eriklindernoren/Keras-GAN/blob/master/aae/aae.py) | GAN |
-| [BGAN (Boundary-Seeking GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bgan/bgan.py) | GAN |
-| [BIGAN (Bidirectional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/bigan/bigan.py) | GAN |
-| [CGAN (Conditional GAN)](https://github.com/eriklindernoren/Keras-GAN/blob/master/cgan/cgan.py) | GAN |
-| [Coupled GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/cogan/cogan.py) | GAN |
-| [Deep Convolutional GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/discogan/discogan.py) | GAN |
-| [DualGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/dualgan/dualgan.py) | GAN |
-| [Generative Adversarial Network](https://github.com/eriklindernoren/Keras-GAN/blob/master/gan/gan.py) | GAN |
-| [InfoGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/infogan/infogan.py) | GAN |
-| [LSGAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/lsgan/lsgan.py) | GAN |
-| [Pix2Pix](https://github.com/eriklindernoren/Keras-GAN/blob/master/pix2pix/pix2pix.py) | GAN |
-| [Semi-Supervised GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/sgan/sgan.py) | GAN |
-| [Super-Resolution GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/srgan/srgan.py) | GAN |
-| [Wasserstein GAN](https://github.com/eriklindernoren/Keras-GAN/blob/master/wgan/wgan.py) | GAN |
-| [Wasserstein GAN GP](https://github.com/eriklindernoren/Keras-GAN/blob/master/wgan_gp/wgan_gp.py) | GAN |
-| [keras-team examples](https://github.com/keras-team/keras/blob/master/examples/) | Text and Sequence | addition_rnn, babi_rnn, imdb_bidirectional_lstm, imdb_cnn_lstm, imdb_lstm, lstm_text_generation, reuters_mlp |
-
-The following models need customed conversion, see the instruction column.
+Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. However some models with a lot of custom operations need custom conversion, the following are some examples.
 
 |  Model Name        | Category | Instruction |
 |----------|-------|-------|
@@ -125,9 +105,8 @@ pred_onnx = sess.run(None, feed)
 
 An alternative way to load onnx model to runtime session is to save the model first:
 ```
-import onnx
 temp_model_file = 'model.onnx'
-onnx.save_model(onnx_model, temp_model_file)
+keras2onnx.save_model(onnx_model, temp_model_file)
 sess = onnxruntime.InferenceSession(temp_model_file)
 ```
 

@@ -18,20 +18,52 @@ jobs:
       Python35:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
+        INSTALL_KERAS: pip install keras==2.1.6
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET:
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
       Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
-        KERAS: keras==2.2.4
+        INSTALL_KERAS: pip install keras==2.2.4
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        KERAS: keras
+        INSTALL_KERAS: pip install keras
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
+        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
+
+      Python37-official-ort:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.6.0
+        INSTALL_KERAS: pip install keras
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
+        INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
+
+      Python37-tf2:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.6.0
+        INSTALL_KERAS:
+        UNINSTALL_KERAS: pip uninstall keras -y
+        INSTALL_TENSORFLOW: pip install tensorflow==2.1.0
+        INSTALL_ORT: pip install onnxruntime==1.1.1
+        INSTALL_KERAS_RESNET: pip install keras-resnet
+        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py --doctest-modules --junitxml=junit/test-results-keras_applications_v2.xml
 
     maxParallel: 3
 
@@ -53,23 +85,25 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      pip install tensorflow==1.14.0
-      pip install %KERAS%
-      pip install -r requirements.txt
-      git clone -b r1.6 https://github.com/microsoft/onnxconverter-common
+      %INSTALL_TENSORFLOW%
+      %INSTALL_KERAS%
+      git clone -b r1.6.9 https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
       cd ..
+      pip install -r requirements.txt
       pip install -r requirements-dev.txt
-      pip install -i https://test.pypi.org/simple/ ort-nightly
+      %INSTALL_ORT%
       pip install opencv-python
       pip install tqdm
-      pip install keras-segmentation
+      pip install keras-segmentation==0.2.0
       pip install matplotlib
       git clone https://github.com/qqwweee/keras-yolo3
       %INSTALL_KERAS_RESNET%
       pip install git+https://www.github.com/keras-team/keras-contrib.git
-      pip install keras-tcn
+      pip install keras-tcn==2.8.3
+      %UNINSTALL_KERAS%
+      pip install git+https://github.com/qubvel/efficientnet
     displayName: 'Install dependencies'
 
   - script: |
@@ -78,14 +112,14 @@ jobs:
       echo Test onnxruntime installation... && python -c "import onnxruntime"
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
       cd applications/nightly_build
-      python run_all.py --exclude "test_mask_rcnn.py"
+      %NIGHTLY_BUILD_TEST%
     displayName: 'pytest'
 
   - script: |
       call activate py$(python.version)
       pip install -e .
       echo Test onnxruntime installation... && python -c "import onnxruntime"
-      coverage run --include=keras2onnx/* --omit=keras2onnx/ktf2onnx/* tests/test_layers.py
+      coverage run --include=keras2onnx/* tests/test_layers.py
       coverage report -m
       coverage html
     displayName: 'coverage'

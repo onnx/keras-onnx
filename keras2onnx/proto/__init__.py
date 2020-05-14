@@ -5,12 +5,14 @@
 ###############################################################################
 import os
 import onnx
+import tensorflow
 from distutils.version import StrictVersion
 
 # Rather than using ONNX protobuf definition throughout our codebase, we import ONNX protobuf definition here so that
 # we can conduct quick fixes by overwriting ONNX functions without changing any lines elsewhere.
 from onnx import onnx_pb as onnx_proto
 from onnx import helper
+from onnx import save_model as save_model
 
 
 def get_opset_number_from_onnx():
@@ -45,3 +47,11 @@ def is_keras_older_than(version_str):
 
 def is_keras_later_than(version_str):
     return StrictVersion(keras.__version__.split('-')[0]) > StrictVersion(version_str)
+
+
+def is_tensorflow_older_than(version_str):
+    return StrictVersion(tensorflow.__version__.split('-')[0]) < StrictVersion(version_str)
+
+
+def is_tensorflow_later_than(version_str):
+    return StrictVersion(tensorflow.__version__.split('-')[0]) > StrictVersion(version_str)

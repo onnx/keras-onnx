@@ -7,12 +7,13 @@ import os
 import sys
 import unittest
 import keras2onnx
+from keras2onnx import set_converter
 from keras2onnx.proto import keras
 import onnx
 import numpy as np
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, print_mismatches, tf2onnx_contrib_op_conversion
+from test_utils import run_onnx_runtime, print_mismatches, convert_tf_crop_and_resize
 
 import urllib.request
 MASKRCNN_WEIGHTS_PATH = r'https://github.com/matterport/Mask_RCNN/releases/download/v2.0/mask_rcnn_coco.h5'
@@ -28,6 +29,11 @@ from distutils.version import StrictVersion
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 
+enable_mask_rcnn_test = False
+
+import onnxruntime
+if StrictVersion(onnxruntime.__version__.split('-')[0]) == StrictVersion('1.1.1'):
+    enable_mask_rcnn_test = True
 
 # mask rcnn code From https://github.com/matterport/Mask_RCNN
 class TestMaskRCNN(unittest.TestCase):
@@ -39,10 +45,11 @@ class TestMaskRCNN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.5.0"),
-                     "NonMaxSuppression op is not supported for onnx < 1.5.0.")
+    @unittest.skipIf(StrictVersion(onnx.__version__.split('-')[0]) < StrictVersion("1.6.0") or not enable_mask_rcnn_test,
+                     "Mask-rcnn conversion needs contrib op for onnx < 1.6.0.")
     def test_mask_rcnn(self):
-        onnx_model = keras2onnx.convert_keras(model.keras_model, custom_op_conversions=tf2onnx_contrib_op_conversion)
+        set_converter('CropAndResize', convert_tf_crop_and_resize)
+        onnx_model = keras2onnx.convert_keras(model.keras_model)
 
         import skimage
         img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')

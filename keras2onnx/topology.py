@@ -9,7 +9,6 @@ from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
 from .proto import helper, onnx_proto
 
-
 try:
     from onnxconverter_common.topology import OPSET_TO_IR_VERSION
 except ImportError:
@@ -19,9 +18,39 @@ except ImportError:
     }
 
 
+class KerasTfModelContainer(object):
+    def __init__(self, model, graph):
+        self._input_raw_names = list()
+        self._output_raw_names = list()
+        self.tf_graph = graph
+        self.model = model
+
+    @property
+    def raw_model(self):
+        return self.tf_graph
+
+    def add_input_name(self, name):
+        # The order of adding strings matters. The final model's input names are sequentially added as this list
+        if name not in self._input_raw_names:
+            self._input_raw_names.append(name)
+
+    def add_output_name(self, name):
+        # The order of adding strings matters. The final model's output names are sequentially added as this list
+        if name not in self._output_raw_names:
+            self._output_raw_names.append(name)
+
+    @property
+    def input_names(self):
+        return [name for name in self._input_raw_names]
+
+    @property
+    def output_names(self):
+        return [name for name in self._output_raw_names]
+
+
 class Topology:
 
-    def __init__(self, model, target_opset=None, custom_op_dict=None,
+    def __init__(self, model, graph, target_opset=None, custom_op_dict=None,
                  reserved_variable_names=None, reserved_operator_names=None):
         """
         Initialize a Topology object, which is an intermediate representation of a computational graph.
@@ -35,7 +64,7 @@ class Topology:
         :param reserved_operator_names: A set of strings which are not allowed to be used as a operator name
         """
         self.scopes = []
-        self.raw_model = model
+        self.raw_model = KerasTfModelContainer(model, graph)
         self.scope_names = set()
         self.variable_name_set = reserved_variable_names if reserved_variable_names is not None else set()
         self.operator_name_set = reserved_operator_names if reserved_operator_names is not None else set()
@@ -167,6 +196,27 @@ class Topology:
         self._check_structure()
 
 
+def _remove_unused_initializers(nodes, initializers):
+    adjusted_initializers = []
+    nodes_input_set = set()
+    for n_ in nodes:
+        for input_name_ in n_.input:
+            nodes_input_set.add(input_name_)
+
+    for initializers_ in initializers:
+        if initializers_.name in nodes_input_set:
+            adjusted_initializers.append(initializers_)
+
+    return adjusted_initializers
+
+
+def _blindly_converter_for_debug(scope, operator, container):
+    container.add_node(operator.type,
+                       operator.input_full_names,
+                       operator.output_full_names,
+                       name=operator.full_name)
+
+
 def _get_main_opset_version(model):
     """
     Returns the main opset version.
@@ -240,7 +290,13 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     for operator in topology.topological_operator_iterator():
         scope = next(scope for scope in topology.scopes if scope.name == operator.scope)
         k2o_logger().debug("Converting the operator (%s): %s" % (operator.full_name, operator.type))
-        get_converter(operator.type)(scope, operator, container)
+        cvt = get_converter(operator.type)
+        if cvt is None:
+            if topology.debug_mode:
+                cvt = _blindly_converter_for_debug
+            else:
+                raise RuntimeError("Unexpected error on find the converter for op {}".format(operator.type))
+        cvt(scope, operator, container)
 
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
     # However, In ONNX, for target opset < 9, initializers should also be model's (GraphProto) inputs.
@@ -258,11 +314,25 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         extra_inputs.append(value_info)
 
     # enable the ONNX optimizations
+    graph = None
     try:
         import onnxconverter_common
-        nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
-                                                             inputs=container.inputs + extra_inputs,
-                                                             outputs=container.outputs)
+        origin_node_number = len(container.nodes)
+        if target_opset < 9:
+            nodes = onnxconverter_common.optimizer.optimize_onnx(container.nodes, nchw_inputs=nchw_inputs,
+                                                                 inputs=container.inputs + extra_inputs,
+                                                                 outputs=container.outputs)
+            node_number = len(nodes)
+        else:
+            graph = onnxconverter_common.optimizer.optimize_onnx_graph(container.nodes, nchw_inputs=nchw_inputs,
+                                                                       inputs=container.inputs,
+                                                                       outputs=container.outputs,
+                                                                       initializers=container.initializers,
+                                                                       model_value_info=container.value_info,
+                                                                       model_name=model_name,
+                                                                       target_opset=container.target_opset)
+            node_number = len(graph.node)
+        k2o_logger().info("The node number after optimization: {} -> {}".format(origin_node_number, node_number))
     except ImportError:
         onnx_not_imported = 'onnxconverter_common is not imported,'
         if nchw_inputs:
@@ -273,18 +343,25 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     except Exception as e:
         # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
         k2o_logger().warning('There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
+        k2o_logger().warning(str(e))
+        import traceback
+        tb = traceback.format_exc()
+        k2o_logger().warning(tb)
         nodes = container.nodes
 
-    # Create a graph from its main components
-    if target_opset < 9:
-        graph = helper.make_graph(nodes, model_name, container.inputs + extra_inputs,
-                                  container.outputs, container.initializers)
-    else:
-        graph = helper.make_graph(nodes, model_name, container.inputs,
-                                  container.outputs, container.initializers)
+    if graph is None:
+        # Create a graph from its main components
+        adjusted_initializers = _remove_unused_initializers(nodes, container.initializers)
+        adjusted_extra_inputs = _remove_unused_initializers(nodes, extra_inputs)
+        if target_opset < 9:
+            graph = helper.make_graph(nodes, model_name, container.inputs + adjusted_extra_inputs,
+                                      container.outputs, adjusted_initializers)
+        else:
+            graph = helper.make_graph(nodes, model_name, container.inputs,
+                                      container.outputs, adjusted_initializers)
 
-    # Add extra information related to the graph
-    graph.value_info.extend(container.value_info)
+        # Add extra information related to the graph
+        graph.value_info.extend(container.value_info)
 
     # Create model
     onnx_model = helper.make_model(graph)
@@ -311,10 +388,9 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
         i += 1
         if container.target_opset < op_version:
             raise RuntimeError(('The specified opset %d is too low to convert this model, ' +
-                               'which requires at least opset %d.') % (container.target_opset, op_version))
+                                'which requires at least opset %d.') % (container.target_opset, op_version))
         elif container.target_opset > op_version:
             k2o_logger().warning('The maximum opset needed by this model is only %d.' % op_version)
-
 
     # Add extra information
     opv = _get_main_opset_version(onnx_model) or target_opset

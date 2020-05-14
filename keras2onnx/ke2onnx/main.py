@@ -3,8 +3,6 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
-from collections.abc import Iterable
-
 import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
@@ -34,43 +32,6 @@ from .lstm import convert_keras_lstm
 from .bidirectional import convert_bidirectional
 
 
-def extract_inbound_nodes(layer):
-    if hasattr(layer, 'inbound_nodes'):
-        return layer.inbound_nodes
-    elif hasattr(layer, '_inbound_nodes'):
-        return layer._inbound_nodes
-    else:
-        raise ValueError("Failed to find inbound_nodes and _inbound_nodes when parsing %s" % layer.name)
-
-
-def list_input_tensors(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.input_tensors may not be a list, though the word is plural.
-    """
-    return [node.input_tensors] if hasattr(node.input_tensors, 'dtype') else node.input_tensors
-
-
-def list_output_tensors(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.output_tensors may not be a list, though the output_tensors is plural.
-    """
-    return [node.output_tensors] if hasattr(node.output_tensors, 'dtype') else node.output_tensors
-
-
-def list_input_shapes(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.input_shapes may not be a list, though the input_shapes is plural.
-    """
-    return node.input_shapes if isinstance(node.input_shapes[0], Iterable) else [node.input_shapes]
-
-
-def list_output_shapes(node):
-    """
-    Since Tensorflow 1.14, sometimes the node.output_shapes may not be a list, though the output_shapes is plural.
-    """
-    return node.output_shapes if isinstance(node.output_shapes[0], Iterable) else [node.output_shapes]
-
-
 def convert_keras_reshape(scope, operator, container):
     iop = operator.raw_operator
     target_shape = [-1 if i_ is None else i_ for i_ in iop.output_shape]
@@ -91,7 +52,7 @@ def convert_keras_concat(scope, operator, container):
 
 def convert_keras_flatten(scope, operator, container):
     iop = operator.raw_operator
-    shape_len = len(iop.input_shape)
+    shape_len = len(operator.get_input_shape())
 
     if iop.data_format == 'channels_last' or shape_len < 3:
         apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
@@ -107,8 +68,10 @@ def convert_keras_flatten(scope, operator, container):
 
 
 def _apply_not_equal(oopb, target_opset, operator):
+    if operator.mask_value is None:
+        raise ValueError("Masking value was not properly parsed for layer '{}'".format(operator.full_name))
     if target_opset >= 11:
-        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([0], dtype='float32')],
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([operator.mask_value], dtype='float32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
@@ -116,8 +79,8 @@ def _apply_not_equal(oopb, target_opset, operator):
         k2o_logger().warning("On converting a model with opset < 11, " +
                              "the masking layer result may be incorrect if the model input is in range (0, 1.0).")
         equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
-                                      operator.full_name + '_input_cast', to=6)
-        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
+                                      operator.full_name + '_input_cast', to=oopb.int32)
+        equal_out = oopb.add_node('Equal', [equal_input_0, np.array([operator.mask_value], dtype='int32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
@@ -162,30 +125,6 @@ def convert_keras_repeat_vector(scope, operator, container):
 
 def convert_keras_training_only_layer(scope, operator, container):
     apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
-
-
-def build_opdict_from_keras(model):
-    # type: (keras.Model) -> {}
-
-    output_dict = {}
-    for l_ in model.layers:
-        if hasattr(l_, 'layers'):
-            submodel_dict = build_opdict_from_keras(l_)
-            shared_layer = False
-            for node_ in extract_inbound_nodes(l_):
-                shared_layer |= any(
-                    ts_.name not in submodel_dict for ts_ in list_output_tensors(node_))
-                if shared_layer:
-                    break
-            if not shared_layer:  # shared layer(model) will be processed as a whole.
-                output_dict.update(submodel_dict)
-                continue
-
-        for node_ in extract_inbound_nodes(l_):
-            for ts_ in list_output_tensors(node_):
-                output_dict[ts_.name] = (l_, model)
-
-    return output_dict
 
 
 _layer = keras.layers
@@ -255,6 +194,9 @@ keras_layer_to_operator = {
     _layer.Dropout: convert_keras_training_only_layer,
     _layer.GaussianDropout: convert_keras_training_only_layer,
     _layer.GaussianNoise: convert_keras_training_only_layer,
+    _layer.SpatialDropout1D: convert_keras_training_only_layer,
+    _layer.SpatialDropout2D: convert_keras_training_only_layer,
+    _layer.SpatialDropout3D: convert_keras_training_only_layer,
 
     _layer.SimpleRNN: convert_keras_simple_rnn,
     _layer.GRU: convert_keras_gru,
@@ -274,6 +216,8 @@ if not is_keras_older_than('2.2.0'):
 
 if is_tf_keras and is_tf2:
     keras_layer_to_operator.update({
+        _layer.recurrent_v2.GRU: convert_keras_gru,
+        _layer.recurrent_v2.LSTM: convert_keras_lstm,
         _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
 
