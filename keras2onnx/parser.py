@@ -482,15 +482,24 @@ def _get_output_nodes(node_list, node):
     return [n_ for n_ in node_list if n_ not in nodes_has_children]  # need to keep the order.
 
 
+def _filter_out_input(node_name):
+    # tf.keras BN layer sometimes create a placeholder node 'scale' in tf 2.x.
+    # It creates 'cond/input' since tf 2.2.
+    # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
+    filter_patterns = [r"batch_normalization_\d+\/scale$", r"batch_normalization_\d+\/cond/input"]
+    filter_out = False
+    for pattern_ in filter_patterns:
+        filter_out = filter_out or re.match(pattern_, node_name)
+    return filter_out
+
+
 def _advance_by_input(cur_node, layer_nodes, subgraph, inputs, graph_inputs, q_overall):
     for input_ in cur_node.inputs:
         predecessor = input_.op
-        if is_placeholder_node(predecessor):
-            # tf.keras BN layer sometimes create a placeholder node 'scale' in tf2.x.
-            # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
-            if not re.match(r"batch_normalization_\d+\/scale$", predecessor.name):
-                inputs.add(predecessor)
-                graph_inputs.add(predecessor)
+        if is_placeholder_node(predecessor) and not _filter_out_input(predecessor.name):
+            inputs.add(predecessor)
+            graph_inputs.add(predecessor)
+            continue
         if predecessor in layer_nodes or len(layer_nodes) == 0:
             subgraph.append(predecessor)
         else:
@@ -735,7 +744,15 @@ def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, k
 
     for ts_i_ in input_tensors:
         var_type = _adjust_input_batch_size(infer_variable_type(ts_i_, target_opset))
-        str_value = ts_i_.name
+        if ts_i_.name.endswith(':0'):
+            str_value = ts_i_.name[:-2]
+            op = top_level.declare_local_operator(TYPES.Identity)
+            var0 = top_level.get_local_variable_or_declare_one(str_value, var_type)
+            var1 = top_level.get_local_variable_or_declare_one(ts_i_.name, var_type)
+            op.add_input(var0)
+            op.add_output(var1)
+        else:
+            str_value = ts_i_.name
         top_level.get_local_variable_or_declare_one(str_value, var_type)
         topo.raw_model.add_input_name(str_value)
 
