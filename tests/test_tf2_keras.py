@@ -50,9 +50,9 @@ class MLP(tf.keras.Model):
         return output
 
 
-class DummyModel(tf.keras.Model):
+class SimpleWrapperModel(tf.keras.Model):
     def __init__(self, func):
-        super(DummyModel, self).__init__()
+        super(SimpleWrapperModel, self).__init__()
         self.func = func
 
     def call(self, inputs, **kwargs):
@@ -88,7 +88,7 @@ def test_tf_ops(runner):
         x = x - tf.cast(tf.expand_dims(r, axis=0), tf.float32)
         return x
 
-    dm = DummyModel(op_func)
+    dm = SimpleWrapperModel(op_func)
     inputs = [tf.random.normal((3, 2, 20)), tf.random.normal((3, 2, 20))]
     expected = dm.predict(inputs)
     oxml = keras2onnx.convert_keras(dm)
@@ -186,3 +186,18 @@ def test_auto_encoder(runner):
     # The random generator is not same between different engiens.
     import onnx
     onnx.checker.check_model(oxml)
+
+
+def test_tf_where(runner):
+    def _tf_where(input_0):
+        a = tf.where(True, input_0, [0, 1, 2, 5, 7])
+        b = tf.where([True], tf.expand_dims(input_0, axis=0), tf.expand_dims([0, 1, 2, 5, 7], axis=0))
+        c = tf.logical_or(tf.cast(a, tf.bool), tf.cast(b, tf.bool))
+        return c
+
+    swm = SimpleWrapperModel(_tf_where)
+    const_in = [np.array([2, 4, 6, 8, 10])]
+    expected = swm(const_in)
+    swm._set_inputs(const_in)
+    oxml = keras2onnx.convert_keras(swm, debug_mode=True)
+    assert runner('where_test', oxml, const_in, expected)
