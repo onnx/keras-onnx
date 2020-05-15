@@ -1889,23 +1889,6 @@ def convert_tf_strided_slice(scope, operator, container):
     else:
         new_axis_unsqueeze = operator.inputs[0].full_name
 
-    data_shape = oopb.add_node('Shape',
-                                operator.inputs[0].full_name,
-                                operator.inputs[0].full_name + '_shape',
-                                op_version=9)
-    data_shape_mul = oopb.apply_mul([data_shape,
-                                    ('_start', oopb.int64, np.array(end_mask_array, dtype=np.int64))],
-                                    name=operator.inputs[0].full_name + '_shape_mul')
-    end_mask_array_neg = 1 - np.array(end_mask_array, dtype=np.int64)
-    end_cast_0 = oopb.apply_cast(node.inputs[2].name,
-                                 name=node.inputs[2].name + '_end_cast_0',
-                                 to=7)
-    end_cast_0_mul = oopb.apply_mul(end_cast_0 +
-                                    [('_start', oopb.int64, np.array(end_mask_array_neg, dtype=np.int64))],
-                                    name=operator.inputs[0].full_name + '_end_cast_0_mul')
-    end_combine = oopb.apply_add(data_shape_mul + end_cast_0_mul,
-                                 name=operator.inputs[0].full_name + '_end_combine')
-
     if operator.target_opset < 10:
         # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
         if dynamic_end:
@@ -1930,6 +1913,23 @@ def convert_tf_strided_slice(scope, operator, container):
                                      operator.inputs[2].full_name,
                                      operator.inputs[2].full_name + '_end_cast', to=7)
             cast_node_end = False
+
+        data_shape = oopb.add_node('Shape',
+                                   operator.inputs[0].full_name,
+                                   operator.inputs[0].full_name + '_shape',
+                                   op_version=9)
+        data_shape_mul = oopb.apply_mul([data_shape,
+                                         ('_start', oopb.int64, np.array(end_mask_array, dtype=np.int64))],
+                                        name=operator.inputs[0].full_name + '_shape_mul')
+        end_mask_array_neg = 1 - np.array(end_mask_array, dtype=np.int64)
+        end_cast_0 = oopb.apply_cast(node.inputs[2].name,
+                                     name=node.inputs[2].name + '_end_cast_0',
+                                     to=7)
+        end_cast_0_mul = oopb.apply_mul(end_cast_0 +
+                                        [('_start', oopb.int64, np.array(end_mask_array_neg, dtype=np.int64))],
+                                        name=operator.inputs[0].full_name + '_end_cast_0_mul')
+        end_combine = oopb.apply_add(data_shape_mul + end_cast_0_mul,
+                                     name=operator.inputs[0].full_name + '_end_combine')
 
         if cast_node_end:
             if dynamic_end:
