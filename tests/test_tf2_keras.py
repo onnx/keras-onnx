@@ -189,7 +189,8 @@ def test_auto_encoder(runner):
     onnx.checker.check_model(oxml)
 
 
-@pytest.mark.skipif((is_tensorflow_older_than('2.1.0')), 'tf 2.0 has several bug on the following code.')
+@pytest.mark.skipif((is_tensorflow_older_than('2.1.0')),
+                    reason='tf 2.0 has several bug on the following code.')
 def test_tf_where(runner):
     def _tf_where(input_0):
         a = tf.where(True, input_0, [0, 1, 2, 5, 7])
