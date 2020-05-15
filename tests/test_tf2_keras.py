@@ -189,8 +189,6 @@ def test_auto_encoder(runner):
     onnx.checker.check_model(oxml)
 
 
-@pytest.mark.skipif((is_tensorflow_older_than('2.1.0')),
-                    reason='tf 2.0 has several bug on the following code.')
 def test_tf_where(runner):
     def _tf_where(input_0):
         a = tf.where(True, input_0, [0, 1, 2, 5, 7])
@@ -199,7 +197,7 @@ def test_tf_where(runner):
         return c
 
     swm = SimpleWrapperModel(_tf_where)
-    const_in = [np.array([2, 4, 6, 8, 10])]
+    const_in = [np.array([2, 4, 6, 8, 10]).astype(np.int32)]
     expected = swm(const_in)
     swm._set_inputs(const_in)
     oxml = keras2onnx.convert_keras(swm)
