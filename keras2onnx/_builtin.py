@@ -1772,7 +1772,10 @@ def _prepare_StridedSlice(node, target_opset):
         begin = [0] * node.inputs[1].shape[0]
     end = _cal_tensor_value(node.inputs[2])
     if end is None:
-        end = [max_size] * node.inputs[2].shape[0]
+        dynamic_end = True
+        end = [max_size] * node.inputs[2].shape[0] # this is dummy and not really used.
+    else:
+        dynamic_end = False
     strides = _cal_tensor_value(node.inputs[3])
     if strides is None:
         strides = [1] * node.inputs[3].shape[0]
@@ -1780,6 +1783,15 @@ def _prepare_StridedSlice(node, target_opset):
     begin_mask = begin_mask if begin_mask is not None else 0
     end_mask = node.get_attr("end_mask")
     end_mask = end_mask if end_mask is not None else 0
+    end_mask_array = [0] * node.inputs[2].shape[0]
+    end_mask_temp = end_mask
+    end_mask_array_idx = 0
+    while end_mask_temp > 0:
+        if end_mask_temp & 1:
+            end_mask_array[end_mask_array_idx] = 1
+        end_mask_temp = end_mask_temp >> 1
+        end_mask_array_idx += 1
+
     new_axis_mask = node.get_attr("new_axis_mask")
     new_axis_mask = new_axis_mask if new_axis_mask is not None else 0
     shrink_axis_mask = node.get_attr("shrink_axis_mask")
@@ -1857,13 +1869,15 @@ def _prepare_StridedSlice(node, target_opset):
         new_begin.append(begin_item)
         new_end.append(end_item)
 
-    return new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_axes
+    return new_begin, new_end, axes, steps, needs_squeeze, \
+           begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end
 
 
 @converter_func(TYPES.StridedSlice)
 def convert_tf_strided_slice(scope, operator, container):
     node = operator.raw_operator
-    new_begin, new_end, axes, steps, needs_squeeze, begin_mask, end_mask, extra_mask, new_axis_axes = _prepare_StridedSlice(
+    new_begin, new_end, axes, steps, needs_squeeze, \
+    begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end = _prepare_StridedSlice(
         node, operator.target_opset)
     oopb = OnnxOperatorBuilder(container, scope)
 
@@ -1875,8 +1889,29 @@ def convert_tf_strided_slice(scope, operator, container):
     else:
         new_axis_unsqueeze = operator.inputs[0].full_name
 
+    data_shape = oopb.add_node('Shape',
+                                operator.inputs[0].full_name,
+                                operator.inputs[0].full_name + '_shape')
+    data_shape_mul = oopb.add_node('Mul',
+                                   [data_shape,
+                                    ('_start', oopb.int64, np.array(end_mask_array, dtype=np.int64))],
+                                   operator.inputs[0].full_name + '_shape_mul')
+    end_mask_array_neg = 1 - np.array(end_mask_array, dtype=np.int64)
+    end_cast_0 = oopb.add_node('Cast',
+                               node.inputs[2].name,
+                               node.inputs[2].name + '_end_cast_0', to=7)
+    end_cast_0_mul = oopb.add_node('Mul',
+                                   [end_cast_0,
+                                    ('_start', oopb.int64, np.array(end_mask_array_neg, dtype=np.int64))],
+                                   operator.inputs[0].full_name + '_end_cast_0_mul')
+    end_combine = oopb.add_node('Add',
+                                [data_shape_mul, end_cast_0_mul],
+                                operator.inputs[0].full_name + '_end_combine')
+
     if operator.target_opset < 10:
         # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
+        if dynamic_end:
+            raise ValueError("Slice op does not support dynamic input for opset < 10.")
         cropped_tensor_name = oopb.add_node('Slice',
                                             new_axis_unsqueeze,
                                             operator.inputs[0].full_name + '_cropping',
@@ -1898,12 +1933,19 @@ def convert_tf_strided_slice(scope, operator, container):
                                      operator.inputs[2].full_name + '_end_cast', to=7)
             cast_node_end = False
 
+        if cast_node_end:
+            if dynamic_end:
+                end_point = end_combine
+            else:
+                end_point = ('_end', oopb.int64, np.array(new_end, dtype=np.int64))
+        else:
+            end_point = end_cast
+
         cropped_tensor_name = oopb.add_node('Slice',
                                             [new_axis_unsqueeze,
                                              ('_start', oopb.int64,
                                               np.array(new_begin, dtype=np.int64)) if cast_node_begin else start_cast,
-                                             ('_end', oopb.int64,
-                                              np.array(new_end, dtype=np.int64)) if cast_node_end else end_cast,
+                                             end_point,
                                              ('_axes', oopb.int64, np.array(axes, dtype=np.int64)),
                                              ('_steps', oopb.int64, np.array(steps, dtype=np.int64))
                                              ],

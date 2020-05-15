@@ -712,6 +712,26 @@ def test_stridedslice_shrink_mask_with_version(runner):
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
 
+@pytest.mark.skipif(get_maximum_opset_supported() < 10,
+                    reason="dynamic end is not supported for Slice op, opset < 10.")
+def test_stridedslice_dynamic_end(runner):
+    def my_func(x):
+        frame_dim = tf.shape(x)[2]
+        return x[:, :-1, 1:frame_dim - 1, :]
+
+    model = Sequential()
+    filters = 8
+    kernel_size = (2, 5)
+    strides = (1, 2)
+    model.add(Conv2DTranspose(filters, kernel_size, strides, use_bias=False,
+                              padding="valid", name='conv2d_transpose', input_shape=[3, 4, 5]))
+    model.add(Lambda(my_func))
+    data1 = np.random.rand(2 * 3 * 4 * 5).astype(np.float32).reshape(2, 3, 4, 5)
+    expected = model.predict(data1)
+    onnx_model = keras2onnx.convert_keras(model, 'test_strided_slice_dynamic_input')
+    assert runner(onnx_model.graph.name, onnx_model, data1, expected)
+
+
 def test_tf_tile(runner):
     model = Sequential()
     model.add(Lambda(lambda x: tf.tile(x, [1, 1, 3]), input_shape=[2, 2]))
