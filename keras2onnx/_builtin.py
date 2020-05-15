@@ -1891,7 +1891,8 @@ def convert_tf_strided_slice(scope, operator, container):
 
     data_shape = oopb.add_node('Shape',
                                 operator.inputs[0].full_name,
-                                operator.inputs[0].full_name + '_shape')
+                                operator.inputs[0].full_name + '_shape',
+                                op_version=9)
     data_shape_mul = oopb.apply_mul([data_shape,
                                     ('_start', oopb.int64, np.array(end_mask_array, dtype=np.int64))],
                                     name=operator.inputs[0].full_name + '_shape_mul')
