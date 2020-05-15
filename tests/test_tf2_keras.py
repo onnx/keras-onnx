@@ -7,6 +7,7 @@ import pytest
 import keras2onnx
 import numpy as np
 import tensorflow as tf
+from keras2onnx.proto import is_tensorflow_older_than
 
 if (not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2):
     pytest.skip("Tensorflow 2.0 only tests.", allow_module_level=True)
@@ -188,6 +189,7 @@ def test_auto_encoder(runner):
     onnx.checker.check_model(oxml)
 
 
+@pytest.mark.skipif((is_tensorflow_older_than('2.1.0')), 'tf 2.0 has several bug on the following code.')
 def test_tf_where(runner):
     def _tf_where(input_0):
         a = tf.where(True, input_0, [0, 1, 2, 5, 7])
