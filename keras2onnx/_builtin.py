@@ -1892,21 +1892,18 @@ def convert_tf_strided_slice(scope, operator, container):
     data_shape = oopb.add_node('Shape',
                                 operator.inputs[0].full_name,
                                 operator.inputs[0].full_name + '_shape')
-    data_shape_mul = oopb.add_node('Mul',
-                                   [data_shape,
+    data_shape_mul = oopb.apply_mul([data_shape,
                                     ('_start', oopb.int64, np.array(end_mask_array, dtype=np.int64))],
-                                   operator.inputs[0].full_name + '_shape_mul')
+                                    name=operator.inputs[0].full_name + '_shape_mul')
     end_mask_array_neg = 1 - np.array(end_mask_array, dtype=np.int64)
-    end_cast_0 = oopb.add_node('Cast',
-                               node.inputs[2].name,
-                               node.inputs[2].name + '_end_cast_0', to=7)
-    end_cast_0_mul = oopb.add_node('Mul',
-                                   [end_cast_0,
-                                    ('_start', oopb.int64, np.array(end_mask_array_neg, dtype=np.int64))],
-                                   operator.inputs[0].full_name + '_end_cast_0_mul')
-    end_combine = oopb.add_node('Add',
-                                [data_shape_mul, end_cast_0_mul],
-                                operator.inputs[0].full_name + '_end_combine')
+    end_cast_0 = oopb.apply_cast(node.inputs[2].name,
+                                 name=node.inputs[2].name + '_end_cast_0',
+                                 to=7)
+    end_cast_0_mul = oopb.apply_mul(end_cast_0 +
+                                    [('_start', oopb.int64, np.array(end_mask_array_neg, dtype=np.int64))],
+                                    name=operator.inputs[0].full_name + '_end_cast_0_mul')
+    end_combine = oopb.apply_add(data_shape_mul + end_cast_0_mul,
+                                 name=operator.inputs[0].full_name + '_end_combine')
 
     if operator.target_opset < 10:
         # for now we implement common cases. Things like strides!=1 are not mappable to onnx.
@@ -1935,7 +1932,7 @@ def convert_tf_strided_slice(scope, operator, container):
 
         if cast_node_end:
             if dynamic_end:
-                end_point = end_combine
+                end_point = end_combine[0]
             else:
                 end_point = ('_end', oopb.int64, np.array(new_end, dtype=np.int64))
         else:
