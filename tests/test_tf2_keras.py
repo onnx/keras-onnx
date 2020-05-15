@@ -202,5 +202,5 @@ def test_tf_where(runner):
     const_in = [np.array([2, 4, 6, 8, 10])]
     expected = swm(const_in)
     swm._set_inputs(const_in)
-    oxml = keras2onnx.convert_keras(swm, debug_mode=True)
+    oxml = keras2onnx.convert_keras(swm)
     assert runner('where_test', oxml, const_in, expected)
