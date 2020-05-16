@@ -639,8 +639,6 @@ def convert_tf_conv2d(scope, operator, container):
 
 @converter_func(TYPES.Einsum)
 def convert_tf_einsum(scope, operator, container):
-    if operator.target_opset < 12:
-        raise ValueError("Einsum op is not supported until opset 12")
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     equation_str = node.get_attr('equation').decode("utf-8")
@@ -648,7 +646,8 @@ def convert_tf_einsum(scope, operator, container):
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name,
-                              equation=equation_str)
+                              equation=equation_str,
+                              op_version=12)
 
 
 @converter_func(TYPES.ExpandDims)
@@ -2041,19 +2040,17 @@ def convert_tf_variable_v2(scope, operator, container):
 
 @converter_func(TYPES.Where)
 def convert_tf_where(scope, operator, container):
-    if operator.target_opset < 9:
-        raise ValueError("Where op is not supported for opset < 9")
-    else:
-        oopb = OnnxOperatorBuilder(container, scope)
-        node = operator.raw_operator
-        where_node = oopb.add_node('NonZero',
-                                   operator.inputs[0].full_name,
-                                   operator.inputs[0].full_name + '_non_zero')
-        oopb.apply_op_with_output("apply_transpose",
-                                  where_node,
-                                  operator.output_full_names,
-                                  name=operator.full_name + '_transpose',
-                                  perm=list(reversed(range(len(node.outputs[0].shape)))))
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    where_node = oopb.add_node('NonZero',
+                               operator.inputs[0].full_name,
+                               operator.inputs[0].full_name + '_non_zero',
+                               op_version=9)
+    oopb.apply_op_with_output("apply_transpose",
+                              where_node,
+                              operator.output_full_names,
+                              name=operator.full_name + '_transpose',
+                              perm=list(reversed(range(len(node.outputs[0].shape)))))
 
 
 @converter_func(TYPES.ZerosLike)
