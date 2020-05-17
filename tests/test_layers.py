@@ -90,6 +90,21 @@ def test_keras_lambda(runner):
     assert runner('onnx_lambda', onnx_model, data, expected)
 
 
+@pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
+def test_keras_lambda_depth_to_space(runner, data_format):
+    input_shape = [4, 6, 8]
+    model = Sequential()
+    model.add(Lambda(
+        lambda x: tf.nn.depth_to_space(x, block_size=2, data_format=data_format),
+        input_shape=input_shape
+    ))
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda_depth_to_space')
+    data = np.random.rand(3, *input_shape).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('tf_depth_to_space', onnx_model, data, expected)
+
+
 def test_tf_addn(runner):
     input1 = Input(shape=(5, 3, 4), dtype=tf.float32)
     input2 = Input(shape=(5, 3, 4), dtype=tf.float32)
