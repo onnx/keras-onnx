@@ -27,6 +27,7 @@ class TYPES:
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
     Cumsum = 'Cumsum'
+    DepthToSpace = 'DepthToSpace'
     DepthwiseConv2dNative = 'DepthwiseConv2dNative'
     Div = 'Div'
     Einsum = 'Einsum'

@@ -373,6 +373,21 @@ def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shap
     return pads
 
 
+@converter_func(TYPES.DepthToSpace)
+def convert_tf_depth_to_space(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("DepthToSpace op is not supported for opset < 11")
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    mode = "CRD" if _is_nhwc(node) else "DCR"
+    oopb.add_node_with_output("DepthToSpace",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              blocksize=node.get_attr('block_size'),
+                              mode=mode)
+
+
 @converter_func(TYPES.DepthwiseConv2dNative)
 def convert_tf_depthwise_conv2d(scope, operator, container):
     node = operator.raw_operator
