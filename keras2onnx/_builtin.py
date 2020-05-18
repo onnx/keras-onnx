@@ -378,14 +378,29 @@ def convert_tf_depth_to_space(scope, operator, container):
     if operator.target_opset < 11:
         raise ValueError("DepthToSpace op is not supported for opset < 11")
     node = operator.raw_operator
+    block_size = node.get_attr('block_size')
     oopb = OnnxOperatorBuilder(container, scope)
-    mode = "CRD" if _is_nhwc(node) else "DCR"
-    oopb.add_node_with_output("DepthToSpace",
-                              operator.input_full_names,
-                              operator.output_full_names,
-                              name=operator.full_name,
-                              blocksize=node.get_attr('block_size'),
-                              mode=mode)
+    if _is_nhwc(node):
+        _, h, w, c = _cal_tensor_shape(node.inputs[0])
+        n = -1
+        reshaped = oopb.apply_reshape(operator.input_full_names,
+                                      name=operator.full_name + '_pre_reshape',
+                                      desired_shape=[n, h, w, block_size, block_size, c // (block_size ** 2)])
+        transposed = oopb.apply_transpose(reshaped,
+                                          name=operator.full_name + '_transpose',
+                                          perm=[0, 1, 3, 2, 4, 5])
+        oopb.apply_op_with_output("apply_reshape",
+                                  transposed,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_post_reshape',
+                                  desired_shape=[n, h * block_size, w * block_size, c // (block_size ** 2)])
+    else:
+        oopb.add_node_with_output("DepthToSpace",
+                                  operator.input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name,
+                                  blocksize=block_size,
+                                  mode="DCR")
 
 
 @converter_func(TYPES.DepthwiseConv2dNative)
