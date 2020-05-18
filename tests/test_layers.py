@@ -90,6 +90,8 @@ def test_keras_lambda(runner):
     assert runner('onnx_lambda', onnx_model, data, expected)
 
 
+@pytest.mark.skipif(is_tensorflow_older_than('1.12.0'),
+                    reason="tf.nn.depth_to_space not supported.")
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
 def test_keras_lambda_depth_to_space(runner, data_format):
     input_shape = [4, 6, 8]
