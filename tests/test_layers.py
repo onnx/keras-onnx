@@ -92,6 +92,8 @@ def test_keras_lambda(runner):
 
 @pytest.mark.skipif(is_tensorflow_older_than('1.12.0'),
                     reason="tf.nn.depth_to_space not supported.")
+@pytest.mark.skipif(get_maximum_opset_supported() < 11,
+                    reason="DepthToSpace is not supported before opset 11.")
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
 def test_keras_lambda_depth_to_space(runner, data_format):
     input_shape = [4, 6, 8]
