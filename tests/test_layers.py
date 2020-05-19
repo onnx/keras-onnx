@@ -95,10 +95,10 @@ def test_keras_lambda(runner):
 @pytest.mark.skipif(get_maximum_opset_supported() < 11,
                     reason="DepthToSpace is not supported before opset 11.")
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
-def test_keras_lambda_depth_to_space(runner, data_format):
+@pytest.mark.parametrize("input_shape", [(4, 6, 8), (None, None, 8)])
+def test_keras_lambda_depth_to_space(runner, data_format, input_shape):
     if data_format == "NCHW" and is_tensorflow_older_than("2.1.0"):
         pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.1.0")
-    input_shape = [4, 6, 8]
     model = Sequential()
     model.add(Lambda(
         lambda x: tf.nn.depth_to_space(x, block_size=2, data_format=data_format),
@@ -106,7 +106,7 @@ def test_keras_lambda_depth_to_space(runner, data_format):
     ))
 
     onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda_depth_to_space')
-    data = np.random.rand(3, *input_shape).astype(np.float32)
+    data = np.random.rand(3, 4, 6, 8).astype(np.float32)  # batch dimension + 'input_shape'
     expected = model.predict(data)
     assert runner('tf_depth_to_space', onnx_model, data, expected)
 
