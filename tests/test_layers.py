@@ -96,6 +96,8 @@ def test_keras_lambda(runner):
                     reason="DepthToSpace is not supported before opset 11.")
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
 def test_keras_lambda_depth_to_space(runner, data_format):
+    if data_format == "NCHW" and is_tensorflow_older_than("2.1.0"):
+        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.1.0")
     input_shape = [4, 6, 8]
     model = Sequential()
     model.add(Lambda(
