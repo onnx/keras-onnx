@@ -379,19 +379,20 @@ def convert_tf_depth_to_space(scope, operator, container):
     block_size = node.get_attr('block_size')
     oopb = OnnxOperatorBuilder(container, scope)
     if _is_nhwc(node):
-        _, h, w, c = _cal_tensor_shape(node.inputs[0])
-        n = -1
-        reshaped = oopb.apply_reshape(operator.input_full_names,
-                                      name=operator.full_name + '_pre_reshape',
-                                      desired_shape=[n, h, w, block_size, block_size, c // (block_size ** 2)])
-        transposed = oopb.apply_transpose(reshaped,
-                                          name=operator.full_name + '_transpose',
-                                          perm=[0, 1, 3, 2, 4, 5])
-        oopb.apply_op_with_output("apply_reshape",
-                                  transposed,
+        adjusted_input_name = oopb.apply_transpose(operator.input_full_names,
+                                                   name=operator.full_name + '_pre_transpose',
+                                                   perm=[0, 3, 1, 2])
+        depth_to_space_result = oopb.add_node("DepthToSpace",
+                                              adjusted_input_name,
+                                              name=operator.full_name,
+                                              blocksize=node.get_attr('block_size'),
+                                              mode="DCR",
+                                              op_version=11)
+        oopb.apply_op_with_output("apply_transpose",
+                                  depth_to_space_result,
                                   operator.output_full_names,
-                                  name=operator.full_name + '_post_reshape',
-                                  desired_shape=[n, h * block_size, w * block_size, c // (block_size ** 2)])
+                                  name=operator.full_name + '_post_transpose',
+                                  perm=[0, 2, 3, 1])
     else:
         oopb.add_node_with_output("DepthToSpace",
                                   operator.input_full_names,
