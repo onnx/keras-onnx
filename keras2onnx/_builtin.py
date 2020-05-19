@@ -373,6 +373,36 @@ def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shap
     return pads
 
 
+@converter_func(TYPES.DepthToSpace)
+def convert_tf_depth_to_space(scope, operator, container):
+    node = operator.raw_operator
+    block_size = node.get_attr('block_size')
+    oopb = OnnxOperatorBuilder(container, scope)
+    if _is_nhwc(node):
+        adjusted_input_name = oopb.apply_transpose(operator.input_full_names,
+                                                   name=operator.full_name + '_pre_transpose',
+                                                   perm=[0, 3, 1, 2])
+        depth_to_space_result = oopb.add_node("DepthToSpace",
+                                              adjusted_input_name,
+                                              name=operator.full_name,
+                                              blocksize=node.get_attr('block_size'),
+                                              mode="DCR",
+                                              op_version=11)
+        oopb.apply_op_with_output("apply_transpose",
+                                  depth_to_space_result,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_post_transpose',
+                                  perm=[0, 2, 3, 1])
+    else:
+        oopb.add_node_with_output("DepthToSpace",
+                                  operator.input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name,
+                                  blocksize=block_size,
+                                  mode="DCR",
+                                  op_version=11)
+
+
 @converter_func(TYPES.DepthwiseConv2dNative)
 def convert_tf_depthwise_conv2d(scope, operator, container):
     node = operator.raw_operator
