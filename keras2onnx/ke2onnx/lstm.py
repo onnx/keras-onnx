@@ -197,22 +197,20 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
 
     output_name = operator.outputs[0].full_name
 
-    time_major = op.time_major if hasattr(op, "time_major") else False
+    time_major = simplernn.is_time_major(op, bidirectional)
     # Create output-adjusting operators
     if output_seq:
-        lstm_out = lstm_y
+        # Squeeze the num_direction dim as we know its size is 1 for
+        # lstm(forward/reverse).
+        lstm_out = output_name if time_major else _name('y_squeezed')
+        apply_squeeze(scope, lstm_y, lstm_out, container, axes=[1])
         if not time_major:
             # Onnx LSTM produces time major output. Add a transpose operator to
             # make it batch_major, if the keras op was not time_major.
-            # This transforms [ S, 1, B, I] -> [ B, 1, S, I ] where B is
+            # This transforms [ S, B, I] -> [ B, S, I ] where B is
             # batch_size and S is seq_len.
-            perm = [2, 1, 0, 3]
-            lstm_out = _name('y_transposed')
-            apply_transpose(scope, lstm_y, lstm_out, container, perm=perm)
-
-        # Squeeze the num_direction dim as we know its size is 1 for
-        # lstm(forward/reverse).
-        apply_squeeze(scope, lstm_out, output_name, container, axes=[1])
+            perm = [1, 0, 2]
+            apply_transpose(scope, lstm_out, output_name, container, perm=perm)
     else:
         apply_squeeze(scope, lstm_h, output_name, container, axes=[0])
 
@@ -272,10 +270,10 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
 
     if bidirectional:
         output_seq = op.forward_layer.return_sequences
-        time_major = op.forward_layer.time_major if hasattr(op.forward_layer, "time_major") else False
     else:
         output_seq = op.return_sequences
-        time_major = op.time_major if hasattr(op, "time_major") else False
+
+    time_major = simplernn.is_time_major(op, bidirectional)
 
     # Inputs
     lstm_x = operator.inputs[0].full_name
