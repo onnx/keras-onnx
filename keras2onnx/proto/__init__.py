@@ -23,9 +23,23 @@ def _check_onnx_version():
 
 
 _check_onnx_version()
+
+
+def is_tensorflow_older_than(version_str):
+    return StrictVersion(tensorflow.__version__.split('-')[0]) < StrictVersion(version_str)
+
+
+def is_tensorflow_later_than(version_str):
+    return StrictVersion(tensorflow.__version__.split('-')[0]) > StrictVersion(version_str)
+
+
 is_tf_keras = False
-if os.environ.get('TF_KERAS', '0') != '0':
-    is_tf_keras = True
+str_tk_keras = os.environ.get('TF_KERAS', None)
+if str_tk_keras is None:
+    # With tensorflow 2.x, be default we loaded tf.keras as the framework, instead of Keras
+    is_tf_keras = not is_tensorflow_older_than('2.0.0')
+else:
+    is_tf_keras = str_tk_keras != '0'
 
 if is_tf_keras:
     from tensorflow.python import keras
@@ -43,11 +57,3 @@ def is_keras_older_than(version_str):
 
 def is_keras_later_than(version_str):
     return StrictVersion(keras.__version__.split('-')[0]) > StrictVersion(version_str)
-
-
-def is_tensorflow_older_than(version_str):
-    return StrictVersion(tensorflow.__version__.split('-')[0]) < StrictVersion(version_str)
-
-
-def is_tensorflow_later_than(version_str):
-    return StrictVersion(tensorflow.__version__.split('-')[0]) > StrictVersion(version_str)

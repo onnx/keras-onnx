@@ -6,7 +6,7 @@
 import pytest
 import keras2onnx
 import numpy as np
-from onnxconverter_common.onnx_ex import get_maximum_opset_supported, onnx_builtin_opset_version
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto.tfcompat import is_tf2, tensorflow as tf
 from keras2onnx.proto import (keras, is_tf_keras,
                               is_tensorflow_older_than, is_tensorflow_later_than,
@@ -90,6 +90,27 @@ def test_keras_lambda(runner):
     assert runner('onnx_lambda', onnx_model, data, expected)
 
 
+@pytest.mark.skipif(is_tensorflow_older_than('1.12.0'),
+                    reason="tf.nn.depth_to_space not supported.")
+@pytest.mark.skipif(get_maximum_opset_supported() < 11,
+                    reason="DepthToSpace is not supported before opset 11.")
+@pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
+@pytest.mark.parametrize("input_shape", [(4, 6, 8), (None, None, 8)])
+def test_keras_lambda_depth_to_space(runner, data_format, input_shape):
+    if data_format == "NCHW" and is_tensorflow_older_than("2.1.0"):
+        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.1.0")
+    model = Sequential()
+    model.add(Lambda(
+        lambda x: tf.nn.depth_to_space(x, block_size=2, data_format=data_format),
+        input_shape=input_shape
+    ))
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_keras_lambda_depth_to_space')
+    data = np.random.rand(3, 4, 6, 8).astype(np.float32)  # batch dimension + 'input_shape'
+    expected = model.predict(data)
+    assert runner('tf_depth_to_space', onnx_model, data, expected)
+
+
 def test_tf_addn(runner):
     input1 = Input(shape=(5, 3, 4), dtype=tf.float32)
     input2 = Input(shape=(5, 3, 4), dtype=tf.float32)
@@ -103,6 +124,23 @@ def test_tf_addn(runner):
     data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
     expected = model.predict([data1, data2])
     assert runner('tf_add_n', onnx_model, [data1, data2], expected)
+
+
+@pytest.mark.parametrize("arg_func", [tf.argmax, tf.argmin])
+def test_tf_argmax_argmin(runner, arg_func):
+    model = Sequential()
+    model.add(Lambda(lambda x: arg_func(x, axis=2), input_shape=[3, 4, 2]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_arg')
+    data = np.random.rand(5, 3, 4, 2).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_arg', onnx_model, data, expected)
+
+    model = Sequential()
+    model.add(Lambda(lambda x: arg_func(x, axis=2, output_type=tf.int32), input_shape=[3, 4, 2]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_arg')
+    data = np.random.rand(5, 3, 4, 2).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_arg', onnx_model, data, expected)
 
 
 def test_tf_conv(runner):
@@ -176,7 +214,7 @@ def test_tf_clip(runner):
     assert runner('onnx_tf_clip', onnx_model, data, expected)
 
 
-@pytest.mark.skipif(onnx_builtin_opset_version() < 12,
+@pytest.mark.skipif(get_maximum_opset_supported() < 12,
                     reason="Inverse is not supported until opset 12")
 def test_tf_inverse(runner):
     model = Sequential()
@@ -187,14 +225,15 @@ def test_tf_inverse(runner):
     assert runner('onnx_tf_inverse', onnx_model, data, expected)
 
 
+@pytest.mark.skipif(get_maximum_opset_supported() < 12,
+                    reason="Result mismatch on ORT")
 def test_tf_pow(runner):
     model = Sequential()
     y = tf.constant([[2.0, 2.0], [2.0, 2.0]])
     model.add(Lambda(lambda x: tf.math.pow(tf.cast(x, tf.int32), tf.cast(y, tf.int32)), input_shape=[2, 2]))
     data = (100 * np.random.rand(3, 2, 2)).astype(np.float32)
     expected = model.predict(data)
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pow', target_opset=12)
-    keras2onnx.save_model(onnx_model, 'pow.onnx')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pow')
     assert runner('onnx_tf_pow', onnx_model, data, expected)
 
 
@@ -234,6 +273,43 @@ def test_depthwise_conv2d(runner, use_bias):
     data = np.random.rand(3, 8, 8, 2).astype(np.float32)
     expected = model.predict(data)
     assert runner('onnx_depthwise_conv2d', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(get_maximum_opset_supported() < 12,
+                    reason="Einsum is not supported until opset 12.")
+def test_tf_einsum(runner):
+    def my_func_1(x):
+        return tf.einsum('i,d->id', x[0][:, 0], x[1][:, 1])
+
+    def my_func_2(x):
+        return tf.einsum('ibh,hnd->ibnd', x[0][:, 0], x[1][:, 1])
+
+    def my_func_3(x):
+        return tf.einsum('ibnd,hnd->ibh', x[0][:, 0], x[1][:, 1])
+
+    def my_func_4(x):
+        return tf.einsum('ibnd,jbnd->ijbn', x[0][:, 0], x[1][:, 1])
+
+    def my_func_5(x):
+        return tf.einsum('ijbn,jbnd->ibnd', x[0][:, 0], x[1][:, 1])
+
+    input1_shape = [(3,), (2, 3, 2), (2, 3, 4, 2), (2, 3, 4, 2), (2, 2, 4, 3)]
+    input2_shape = [(3,), (2, 4, 5), (2, 4, 2), (2, 3, 4, 2), (2, 4, 3, 5)]
+    myFunc = [my_func_1, my_func_2, my_func_3, my_func_4, my_func_5]
+
+    for idx_ in range(len(myFunc)):
+        K.clear_session()
+        input1 = Input(shape=input1_shape[idx_])
+        input2 = Input(shape=input2_shape[idx_])
+        added = Lambda(myFunc[idx_])([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_einsum')
+        batch_data1_shape = (2,) + input1_shape[idx_]
+        batch_data2_shape = (2,) + input2_shape[idx_]
+        data1 = np.random.rand(*batch_data1_shape).astype(np.float32)
+        data2 = np.random.rand(*batch_data2_shape).astype(np.float32)
+        expected = model.predict([data1, data2])
+        assert runner('onnx_einsum', onnx_model, [data1, data2], expected)
 
 
 def test_tf_expand_dims(runner):
@@ -687,6 +763,26 @@ def test_stridedslice_shrink_mask_with_version(runner):
         data = np.random.rand(2 * 3 * 4 * 5).astype(np.float32).reshape(2, 3, 4, 5)
         expected = model.predict(data)
         assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
+
+@pytest.mark.skipif(get_maximum_opset_supported() < 10,
+                    reason="dynamic end is not supported for Slice op, opset < 10.")
+def test_stridedslice_dynamic_end(runner):
+    def my_func(x):
+        frame_dim = tf.shape(x)[2]
+        return x[:, :-1, 1:frame_dim - 1, :]
+
+    model = Sequential()
+    filters = 8
+    kernel_size = (2, 5)
+    strides = (1, 2)
+    model.add(Conv2DTranspose(filters, kernel_size, strides=strides, use_bias=False,
+                              padding="valid", name='conv2d_transpose', input_shape=[3, 4, 5]))
+    model.add(Lambda(my_func))
+    data1 = np.random.rand(2 * 3 * 4 * 5).astype(np.float32).reshape(2, 3, 4, 5)
+    expected = model.predict(data1)
+    onnx_model = keras2onnx.convert_keras(model, 'test_strided_slice_dynamic_input')
+    assert runner(onnx_model.graph.name, onnx_model, data1, expected)
 
 
 def test_tf_tile(runner):
@@ -1255,6 +1351,8 @@ def test_LeakyReLU(advanced_activation_runner):
     advanced_activation_runner(layer, data)
 
 
+@pytest.mark.skipif(get_maximum_opset_supported() < 8,
+                    reason="ThresoldRelu needs ONNX opset 8")
 def test_ThresholdedReLU(advanced_activation_runner):
     data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.ThresholdedReLU(theta=1.0, input_shape=(data.size,))
@@ -1603,34 +1701,37 @@ def test_LSTM(runner):
             expected = model.predict(data)
             assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
+
 @pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)),
                     reason="keras LSTM does not have time_major attribute")
 def test_LSTM_time_major_return_seq_true(runner):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(1, 3, 5).astype(np.float32)
     # Transpose input to be time major
-    input_transposed = tf.transpose(inputs1, perm=[1,0,2])
+    input_transposed = tf.transpose(inputs1, perm=[1, 0, 2])
     lstm1, state_h, state_c = LSTM(units=2, time_major=True, return_state=True,
                                    return_sequences=True)(input_transposed)
-    lstm1_trans = tf.transpose(lstm1, perm=[1,0,2])
+    lstm1_trans = tf.transpose(lstm1, perm=[1, 0, 2])
     model = keras.Model(inputs=inputs1, outputs=[lstm1_trans, state_h, state_c])
     onnx_model = keras2onnx.convert_keras(model, model.name)
     expected = model.predict(data)
     assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
-@pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)) ,
+
+@pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)),
                     reason="keras LSTM does not have time_major attribute")
 def test_LSTM_time_major_return_seq_false(runner):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(1, 3, 5).astype(np.float32)
     # Transpose input to be time major
-    input_transposed = tf.transpose(inputs1, perm=[1,0,2])
+    input_transposed = tf.transpose(inputs1, perm=[1, 0, 2])
     lstm1, state_h, state_c = LSTM(units=2, time_major=True, return_state=True,
                                    return_sequences=False)(input_transposed)
     model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
     onnx_model = keras2onnx.convert_keras(model, model.name)
     expected = model.predict(data)
     assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
 
 def test_LSTM_with_bias(runner):
     inputs1 = keras.Input(shape=(1, 1))
