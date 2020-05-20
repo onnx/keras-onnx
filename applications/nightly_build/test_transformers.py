@@ -14,6 +14,7 @@ from os.path import dirname, abspath
 from keras2onnx.proto import keras
 import numpy as np
 import tensorflow as tf
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime
@@ -27,6 +28,8 @@ if os.environ.get('ENABLE_FULL_TRANSFORMER_TEST', '0') != '0':
 @unittest.skipIf(is_tensorflow_older_than('2.1.0'),
                  "Transformers conversion need tensorflow 2.1.0+")
 class TestTransformers(unittest.TestCase):
+
+    text_str = 'The quick brown fox jumps over lazy dog.'
 
     def setUp(self):
         self.model_files = []
@@ -48,7 +51,7 @@ class TestTransformers(unittest.TestCase):
 
     def _prepare_inputs(self, tokenizer, batch_size=3):
         raw_data = json.dumps({
-            'text': 'The quick brown fox jumps over lazy dog.'
+            'text': self.text_str
         })
         text = json.loads(raw_data)['text']
         # The tokenizers are generated using transformers 2.5.0, but model_max_length is introduced and needed in 2.9.0. 
@@ -193,6 +196,34 @@ class TestTransformers(unittest.TestCase):
             self.assertTrue(
                 run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
                                  atol=1.e-4))
+
+    @unittest.skipIf(get_maximum_opset_supported() < 12, "Einsum is not supported until opset 12.")
+    def test_TFXLNet(self):
+        if enable_full_transformer_test:
+            from transformers import XLNetConfig, TFXLNetModel, TFXLNetLMHeadModel, TFXLNetForSequenceClassification, \
+                TFXLNetForTokenClassification, TFXLNetForQuestionAnsweringSimple
+            model_list = [TFXLNetModel, TFXLNetLMHeadModel, TFXLNetForSequenceClassification, \
+                TFXLNetForTokenClassification, TFXLNetForQuestionAnsweringSimple]
+        else:
+            from transformers import XLNetConfig, TFXLNetModel
+            model_list = [TFXLNetModel]
+
+        # pretrained_weights = 'xlnet-large-cased'
+        tokenizer_file = 'xlnet_xlnet-large-cased.pickle'
+        tokenizer = self._get_tokenzier(tokenizer_file)
+        config = XLNetConfig(n_layer=2)
+        # The model with input mask has MatrixDiagV3 which is not a registered function/op
+        token = tokenizer.encode(self.text_str, add_special_tokens=True)
+        inputs_onnx = {'input_1': np.expand_dims(token, axis=0)}
+        inputs = tf.constant(token)[None, :]  # Batch size 1
+
+        for model_instance_ in model_list:
+            keras.backend.clear_session()
+            model = model_instance_(config)
+            predictions = model.predict(inputs)
+            onnx_model = keras2onnx.convert_keras(model)
+            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, inputs_onnx, predictions, self.model_files, rtol=1.e-2,
+                             atol=1.e-4))
 
     @unittest.skipIf(not enable_full_transformer_test, "Full transfomer test is not enabled")
     def test_TFOpenAIGPTModel(self):
