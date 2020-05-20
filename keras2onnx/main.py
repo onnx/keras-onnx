@@ -48,8 +48,13 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
         print(model.summary())
 
     name = name or model.name
-    target_opset = target_opset or get_maximum_opset_supported()
-
+    cvt_default_opset = get_maximum_opset_supported()
+    if target_opset is None:
+        target_opset = cvt_default_opset
+    elif target_opset > cvt_default_opset:
+        raise RuntimeError(
+            "The opset {} conversion not support yet, the current maximum opset version supported is {}.".format(
+                target_opset, cvt_default_opset))
     input_names = []
     output_names = []
     output_dict = {}

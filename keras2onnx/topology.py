@@ -4,7 +4,7 @@
 # license information.
 ###############################################################################
 from onnxconverter_common.onnx_ex import make_model_ex
-from .common import k2o_logger
+from .common import utils, k2o_logger
 from .common import OnnxObjectContainer, Variable, InterimContext
 from .common.data_types import TensorType, Int64Type, FloatType, StringType
 from .funcbook import get_converter
@@ -227,7 +227,8 @@ def _remove_unused_nodes(nodes, inputs, outputs):
             if in_ in output_dict:
                 node_inputs.append(output_dict[in_])
             else:
-                assert in_ == '' or in_ in input_dict
+                assert in_ == '' or in_ in input_dict, \
+                    "{} is disconnected, check the parsing log for more details.".format(in_)
 
     return [nd_ for nd_ in nodes if id(nd_) in nodes_to_keep]
 
@@ -375,5 +376,7 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
     # Create model
     onnx_model = make_model_ex(graph,
                                container.node_domain_version_pair_sets,
-                               target_opset, doc_string=doc_string)
+                               target_opset, doc_string=doc_string,
+                               producer_name=utils.get_producer(),
+                               domain=utils.get_domain())
     return onnx_model

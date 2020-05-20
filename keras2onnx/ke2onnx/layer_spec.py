@@ -41,7 +41,7 @@ def _conv_layer_spec_outputs(layer, node):
 
     node_act = activation_map.get(layer.activation, None)
     if node_act is None:
-        actname_map = {a_.__name__: a_ for a_ in activation_map}
+        actname_map = {a_.__name__: a_ for a_ in activation_map if hasattr(a_, "__name__")}
         act_trans = actname_map.get(layer.activation.__name__, None)
         if act_trans is not None:
             node_act = activation_map.get(act_trans)

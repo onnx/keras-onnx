@@ -25,8 +25,8 @@ pip install keras2onnx
 or install from source:
 
 ```
-pip install git+https://github.com/microsoft/onnxconverter-common
-pip install git+https://github.com/onnx/keras-onnx
+pip install -U git+https://github.com/microsoft/onnxconverter-common
+pip install -U git+https://github.com/onnx/keras-onnx
 ```
 Before running the converter, please notice that tensorflow has to be installed in your python environment,
 you can choose **tensorflow**/**tensorflow-cpu** package(CPU version) or **tensorflow-gpu**(GPU version)
@@ -36,23 +36,15 @@ Keras2ONNX supports the new Keras subclassing model which was introduced in tens
 
 Since its version 2.3, the [multi-backend Keras (keras.io)](https://keras.io/#multi-backend-keras-and-tfkeras) stops the support of the tensorflow version above 2.0. The auther suggests to switch to tf.keras for the new features.
 ## Multi-backend Keras and tf.keras:
-Both Keras model types are now supported in the keras2onnx converter. If the user's Keras package was installed from [Keras.io](https://keras.io/), the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
+Both Keras model types are now supported in the keras2onnx converter. If in the user python env, Keras package was installed from [Keras.io](https://keras.io/) and tensorflow package version is 1.x, the converter converts the model as it was created by the keras.io package. Otherwise, it will convert it through [tf.keras](https://www.tensorflow.org/guide/keras).<br>
 
 If you want to override this behaviour, please specify the environment variable TF_KERAS=1 before invoking the converter python API.
 # Development
 Keras2ONNX depends on [onnxconverter-common](https://github.com/microsoft/onnxconverter-common). In practice, the latest code of this converter requires the latest version of onnxconverter-common, so if you install this converter from its source code, please install the onnxconverter-common in source code mode before keras2onnx installation.
 
 # Validated pre-trained Keras models
-Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. See the tutorial [here](https://github.com/onnx/keras-onnx/tree/master/tutorial). However some models with a lot of custom operations need custom conversion, the following are some examples.
-
-|  Model Name        | Category | Instruction |
-|----------|-------|-------|
-| [YOLOv3](https://github.com/qqwweee/keras-yolo3) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/yolov3)|
-| [Mask RCNN](https://github.com/matterport/Mask_RCNN) | Computer Vision | [Readme](https://github.com/onnx/keras-onnx/tree/master/applications/mask_rcnn)|
-| [Context-Conditional GAN](https://github.com/eriklindernoren/Keras-GAN/tree/master/ccgan/ccgan.py) | GAN | [Unit test](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_ccgan.py)|
-| [Cycle GAN](https://github.com/eriklindernoren/Keras-GAN/tree/master/cyclegan/cyclegan.py) | GAN | [Unit test](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_cyclegan.py)|
-| [Disco GAN](https://github.com/eriklindernoren/Keras-GAN/tree/master/discogan/discogan.py) | GAN | [Unit test](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_discogan.py)|
-| [PixelDA (Domain Adaptation)](https://github.com/eriklindernoren/Keras-GAN/tree/master/pixelda/pixelda.py) | GAN | [Unit test](https://github.com/onnx/keras-onnx/blob/master/applications/nightly_build/test_pixelda.py)|
+Most Keras models could be converted successfully by calling ```keras2onnx.convert_keras```, including CV, GAN, NLP, Speech and etc. See the tutorial [here](https://github.com/onnx/keras-onnx/tree/master/tutorial). However some models with a lot of custom operations need custom conversion, the following are some examples,
+like [YOLOv3](https://github.com/qqwweee/keras-yolo3), and [Mask RCNN](https://github.com/matterport/Mask_RCNN).
 
 
 ## Scripts
