@@ -50,7 +50,7 @@ jobs:
       pip install $(ONNX_PATH)
       pip install h5py==2.9.0
       pip install $(TENSORFLOW_PATH)
-      git clone https://github.com/microsoft/onnxconverter-common
+      git clone -b op17 https://github.com/jiafatom/onnxconverter-common.git
       cd onnxconverter-common
       pip install -e .
       cd ..
