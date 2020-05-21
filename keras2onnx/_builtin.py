@@ -1914,9 +1914,11 @@ def _prepare_StridedSlice(node, target_opset):
 
         shrink_mask = (shrink_axis_mask >> idx) & 1
         if shrink_mask != 0:
-            shrink_begin = begin_item + _cal_tensor_shape(data_input)[idx] if begin_item < 0 else begin_item
-            new_begin.append(shrink_begin)
-            new_end.append(shrink_begin + 1)
+            new_begin.append(begin_item)
+            if begin_item == -1:
+                new_end.append(max_size)
+            else:
+                new_end.append(begin_item + 1)
             needs_squeeze.append(idx + ellipsis_gap)
             continue
 
