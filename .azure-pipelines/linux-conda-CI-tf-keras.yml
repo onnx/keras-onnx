@@ -32,6 +32,12 @@ jobs:
         TENSORFLOW_PATH: tensorflow-cpu
         INSTALL_ORT:
 
+      Python37-onnx17:
+        python.version: '3.7'
+        ONNX_PATH: onnx==1.7.0
+        TENSORFLOW_PATH: tensorflow-cpu
+        INSTALL_ORT:
+
     maxParallel: 3
 
   steps:
