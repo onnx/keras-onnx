@@ -201,16 +201,15 @@ class TestTransformers(unittest.TestCase):
     def test_TFXLNet(self):
         if enable_full_transformer_test:
             from transformers import XLNetConfig, TFXLNetModel, TFXLNetLMHeadModel, TFXLNetForSequenceClassification, \
-                TFXLNetForTokenClassification, TFXLNetForQuestionAnsweringSimple
+                TFXLNetForTokenClassification, TFXLNetForQuestionAnsweringSimple, XLNetTokenizer
             model_list = [TFXLNetModel, TFXLNetLMHeadModel, TFXLNetForSequenceClassification, \
                 TFXLNetForTokenClassification, TFXLNetForQuestionAnsweringSimple]
         else:
-            from transformers import XLNetConfig, TFXLNetModel
+            from transformers import XLNetConfig, TFXLNetModel, XLNetTokenizer
             model_list = [TFXLNetModel]
 
-        # pretrained_weights = 'xlnet-large-cased'
-        tokenizer_file = 'xlnet_xlnet-large-cased.pickle'
-        tokenizer = self._get_tokenzier(tokenizer_file)
+        # XLNetTokenizer need SentencePiece, so the pickle file does not work here.
+        tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
         config = XLNetConfig(n_layer=2)
         # The model with input mask has MatrixDiagV3 which is not a registered function/op
         token = tokenizer.encode(self.text_str, add_special_tokens=True)
