@@ -212,7 +212,7 @@ class TestTransformers(unittest.TestCase):
         tokenizer = XLNetTokenizer.from_pretrained('xlnet-large-cased')
         config = XLNetConfig(n_layer=2)
         # The model with input mask has MatrixDiagV3 which is not a registered function/op
-        token = tokenizer.encode(self.text_str, add_special_tokens=True)
+        token = np.asarray(tokenizer.encode(self.text_str, add_special_tokens=True), dtype=np.int32)
         inputs_onnx = {'input_1': np.expand_dims(token, axis=0)}
         inputs = tf.constant(token)[None, :]  # Batch size 1
 
