@@ -215,17 +215,6 @@ def test_tf_clip(runner):
 
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 12,
-                    reason="Inverse is not supported until opset 12")
-def test_tf_inverse(runner):
-    model = Sequential()
-    model.add(Lambda(lambda x: tf.linalg.inv(x), input_shape=[5, 5]))
-    data = np.random.rand(3, 5, 5).astype(np.float32)
-    expected = model.predict(data)
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_inverse')
-    assert runner('onnx_tf_inverse', onnx_model, data, expected)
-
-
-@pytest.mark.skipif(get_maximum_opset_supported() < 12,
                     reason="Result mismatch on ORT")
 def test_tf_pow(runner):
     model = Sequential()
