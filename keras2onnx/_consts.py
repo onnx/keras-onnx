@@ -57,6 +57,7 @@ class TYPES:
     Pack = 'Pack'
     Pad = 'Pad'
     PadV2 = 'PadV2'
+    Pow = 'Pow'
     Prod = 'Prod'
     Range = 'Range'
     ReadVariableOp = 'ReadVariableOp'
