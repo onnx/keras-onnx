@@ -31,7 +31,7 @@ jobs:
       # UT for standalone keras need tensorflow <= 2.0.0 (python <= 3.7)
       Python37-tf200:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.7.0
+        ONNX_PATH: onnx==1.6.0
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
         INSTALL_ORT:
