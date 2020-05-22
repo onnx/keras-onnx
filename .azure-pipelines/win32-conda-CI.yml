@@ -29,15 +29,15 @@ jobs:
         INSTALL_ORT: pip install onnxruntime==1.1.1
 
       # UT for standalone keras need tensorflow <= 2.0.0
-      Python37-tf200:
+      Python37-tf200-onnx160:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
         INSTALL_ORT:
 
-      Python38-tf200:
-        python.version: '3.8'
+      Python37-tf200-onnx170:
+        python.version: '3.7'
         ONNX_PATH: onnx==1.7.0
         KERAS: keras
         TENSORFLOW_PATH: tensorflow==2.0.0
