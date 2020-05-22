@@ -32,8 +32,8 @@ jobs:
         TENSORFLOW_PATH: tensorflow-cpu
         INSTALL_ORT:
 
-      Python37-onnx17:
-        python.version: '3.7'
+      Python38:
+        python.version: '3.8'
         ONNX_PATH: onnx==1.7.0
         TENSORFLOW_PATH: tensorflow-cpu
         INSTALL_ORT:

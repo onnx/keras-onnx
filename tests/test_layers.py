@@ -215,7 +215,7 @@ def test_tf_clip(runner):
 
 
 @pytest.mark.skipif(get_maximum_opset_supported() < 12,
-                    reason="Result mismatch on ORT")
+                    reason="Result mismatch on ORT, skip conversion for unsupported types.")
 def test_tf_pow(runner):
     model = Sequential()
     y = tf.constant([[2.0, 2.0], [2.0, 2.0]])

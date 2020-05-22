@@ -15,8 +15,8 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since tf2onnx does not support it
-      Python36-onnx123:
-        python.version: '3.6'
+      Python35:
+        python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
         INSTALL_KERAS: pip install keras==2.1.6
         UNINSTALL_KERAS:
@@ -26,7 +26,7 @@ jobs:
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
-      Python36-onnx150:
+      Python36:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         INSTALL_KERAS: pip install keras==2.2.4
@@ -60,7 +60,7 @@ jobs:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py"
 
       Python37-tf2:
-        python.version: '3.7.3'
+        python.version: '3.8'
         ONNX_PATH: onnx==1.7.0
         INSTALL_KERAS:
         UNINSTALL_KERAS: pip uninstall keras -y

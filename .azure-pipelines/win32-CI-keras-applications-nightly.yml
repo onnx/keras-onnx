@@ -59,8 +59,8 @@ jobs:
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
-      Python37-tf2:
-        python.version: '3.7'
+      Python38-tf2:
+        python.version: '3.8'
         ONNX_PATH: onnx==1.7.0
         INSTALL_KERAS:
         UNINSTALL_KERAS: pip uninstall keras -y
