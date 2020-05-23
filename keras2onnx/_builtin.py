@@ -1689,6 +1689,26 @@ def convert_tf_one_hot(scope, operator, container):
                               name=operator.full_name + '_one_hot', axis=axis)
 
 
+@converter_func(TYPES.Pow)
+def convert_tf_pow(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    if container.target_opset < 12:
+        supported_types = [oopb.float16, oopb.float, oopb.double]
+        for input_idx_ in range(2):
+            dtype = _to_onnx_type(node.inputs[input_idx_].dtype)
+            if dtype not in supported_types:
+                raise ValueError("The input type of Pow is not supported for opset < 12.")
+        dtype = _to_onnx_type(node.outputs[0].dtype)
+        if dtype not in supported_types:
+            raise ValueError("The output type of Pow is not supported for opset < 12.")
+
+    oopb.apply_op_with_output("apply_pow",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
+
+
 @converter_func(TYPES.ReadVariableOp)
 def convert_tf_read_variable_op(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -1835,7 +1855,6 @@ def _prepare_StridedSlice(node, target_opset):
     # onnx slice op can't remove a axis, track axis and add a squeeze op if needed
     needs_squeeze = []
     ellipsis_gap = 0
-    data_input = node.inputs[0]
 
     new_axis_len = 0
     cur_new_axis_mask = new_axis_mask
@@ -1879,9 +1898,11 @@ def _prepare_StridedSlice(node, target_opset):
 
         shrink_mask = (shrink_axis_mask >> idx) & 1
         if shrink_mask != 0:
-            shrink_begin = begin_item + _cal_tensor_shape(data_input)[idx] if begin_item < 0 else begin_item
-            new_begin.append(shrink_begin)
-            new_end.append(shrink_begin + 1)
+            new_begin.append(begin_item)
+            if begin_item == -1:
+                new_end.append(max_size)
+            else:
+                new_end.append(begin_item + 1)
             needs_squeeze.append(idx + ellipsis_gap)
             continue
 
@@ -2119,7 +2140,6 @@ direct_ops = {
     "Log": ("apply_log",),
     "Mul": ("apply_mul",),
     "Neg": ("apply_neg",),
-    "Pow": ("apply_pow",),
     "RealDiv": ("apply_div",),
     "Reciprocal": ("apply_reciprocal",),
     "Relu": ("apply_relu",),

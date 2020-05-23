@@ -205,6 +205,27 @@ def test_tf_bias_add(runner):
     assert runner('onnx_bias_add', onnx_model, data, expected)
 
 
+def test_tf_clip(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: K.clip(x, 0, 10), input_shape=[5, 5]))
+    data = np.random.randint(-5, 15, size=(1, 5, 5)).astype(np.float32)
+    expected = model.predict(data)
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_clip')
+    assert runner('onnx_tf_clip', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(get_maximum_opset_supported() < 12,
+                    reason="Result mismatch on ORT, skip conversion for unsupported types.")
+def test_tf_pow(runner):
+    model = Sequential()
+    y = tf.constant([[2.0, 2.0], [2.0, 2.0]])
+    model.add(Lambda(lambda x: tf.math.pow(tf.cast(x, tf.int32), tf.cast(y, tf.int32)), input_shape=[2, 2]))
+    data = (100 * np.random.rand(3, 2, 2)).astype(np.float32)
+    expected = model.predict(data)
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pow')
+    assert runner('onnx_tf_pow', onnx_model, data, expected)
+
+
 def test_tf_concat(runner):
     def my_func_1(x):
         return tf.concat([x[0], x[1]], 1)
