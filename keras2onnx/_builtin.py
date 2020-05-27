@@ -899,10 +899,9 @@ def convert_tf_logsoftmax(scope, operator, container):
 
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     node = operator.raw_operator
-    if container.target_opset < 12:
-        supported_types = [oopb.double, oopb.float, oopb.float16]
-    else:
-        supported_types = [oopb.double, oopb.float, oopb.float16, oopb.int32, oopb.int64]
+    supported_types = [oopb.double, oopb.float, oopb.float16]
+    if container.target_opset >= 12:
+        supported_types.extend([oopb.int32, oopb.int64])
     output_type = _to_onnx_type(node.outputs[0].dtype)
     need_cast = False
     cast_inputs = []
