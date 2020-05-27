@@ -899,7 +899,12 @@ def convert_tf_logsoftmax(scope, operator, container):
 
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     node = operator.raw_operator
-    supported_types = [oopb.double, oopb.float, oopb.float16]
+    if container.target_opset < 12:
+        supported_types = [oopb.double, oopb.float, oopb.float16]
+        op_version = 8
+    else:
+        supported_types = [oopb.double, oopb.float, oopb.float16, oopb.int32, oopb.int64]
+        op_version = 12
     output_type = _to_onnx_type(node.outputs[0].dtype)
     need_cast = False
     cast_inputs = []
@@ -922,6 +927,7 @@ def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     broadcast_inputs = []
     needs_broadcast_op = []
     if operator.target_opset < 8:
+        op_version = 6
         output_shape = _cal_tensor_shape(node.outputs[0])
         has_correct_shape = []
         for i, input_name in enumerate(node.inputs):
@@ -948,8 +954,10 @@ def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
         broadcast_inputs = cast_inputs
 
     op_postfix = '_max' if apply_func == oopb.apply_max else '_min'
+    attrs = {'op_version': op_version}
     max_node = apply_func(broadcast_inputs,
-                          name=operator.full_name + op_postfix)
+                          name=operator.full_name + op_postfix,
+                          **attrs)
 
     if need_cast:
         oopb.apply_op_with_output("apply_cast",
