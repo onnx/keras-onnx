@@ -4,6 +4,7 @@
 # license information.
 ###############################################################################
 import functools
+import numpy as np
 import onnxconverter_common
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 from onnxconverter_common.onnx_ops import *  # noqa:
