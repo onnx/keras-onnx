@@ -21,7 +21,8 @@ SeparableConv1D = keras.layers.SeparableConv1D if \
 
 def _calc_explicit_padding(input_size, output_shape, is_transpose, output_padding, kernel_shape, stride, dilation,
                            perm):
-    to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
+    def to_nchw(x, perm):
+        return [x[perm[n_]] for n_ in range(len(x))]
     input_size = to_nchw(input_size, perm)[2:]
     output_shape = to_nchw(output_shape, perm)[2:]
 

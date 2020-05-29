@@ -37,7 +37,7 @@ def convert_keras_dense(scope, operator, container):
 
     # Add bias
     biased_tensor_name = scope.get_unique_variable_name('biased_tensor_name')
-    apply_add(scope, transformed_tensor_name + [ bias_name ], biased_tensor_name, container,
+    apply_add(scope, transformed_tensor_name + [bias_name], biased_tensor_name, container,
               axis=-1, broadcast=1)
 
     # Create an activation function node and apply activation function to the intermediate tensor

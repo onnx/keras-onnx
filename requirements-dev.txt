@@ -2,3 +2,4 @@ pillow
 pytest
 onnxruntime
 coverage
+flake8
