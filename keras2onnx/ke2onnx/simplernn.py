@@ -91,6 +91,7 @@ def extract_activations(fields):
         attrs['activation_beta'] = betas
     return attrs
 
+
 def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the RNN layer.
     """
@@ -331,8 +332,6 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
                 apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
                 apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
-
-
     else:
         hidden_size = op.units
         output_seq = op.return_sequences
@@ -395,12 +394,14 @@ def build_output_states(scope, operator, container, output_names, bidirectional=
             output_h = operator.outputs[1].full_name
             apply_squeeze(scope, rnn_h, output_h, container)
 
+
 def is_time_major(op, bidirectional):
     if bidirectional:
         time_major = op.forward_layer.time_major if hasattr(op.forward_layer, "time_major") else False
     else:
         time_major = op.time_major if hasattr(op, "time_major") else False
     return time_major
+
 
 def convert_keras_simple_rnn(scope, operator, container, bidirectional=False):
     op = operator.raw_operator

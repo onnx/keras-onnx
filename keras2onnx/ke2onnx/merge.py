@@ -5,7 +5,7 @@
 ###############################################################################
 import numpy as np
 from ..proto import keras
-from ..common.onnx_ops import apply_add, apply_mul, apply_sub, apply_identity
+from ..common.onnx_ops import apply_add, apply_mul, apply_sub
 from ..common.onnx_ops import apply_mean, apply_max, OnnxOperatorBuilder
 
 _merge_layer_handlers = {keras.layers.Add: apply_add, keras.layers.Multiply: apply_mul,
@@ -26,13 +26,11 @@ def convert_keras_merge_layer(scope, operator, container):
         if i == 0:
             left_tensor_name = operator.inputs[0].full_name
             right_tensor_name = operator.inputs[1].full_name
-            op_name = operator.full_name
         else:
             if intermediate_tensor_name is None:
                 raise RuntimeError('Tensor name cannot be None')
             left_tensor_name = intermediate_tensor_name
             right_tensor_name = operator.inputs[i + 1].full_name
-            op_name = scope.get_unique_operator_name('Merge')
 
         if (len(operator.inputs) == 2 and i == 0) or (len(operator.inputs) > 2 and i == len(operator.inputs) - 2):
             # At the last iteration, we need to put the result to Keras layer's output tensor
