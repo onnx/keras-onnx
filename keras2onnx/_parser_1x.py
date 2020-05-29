@@ -100,7 +100,9 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
     for n_, o_ in enumerate(outputs):
         oname = prefix + o_.name
         k2o_logger().debug('\toutput: ' + oname)
-        o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset, kenode_output_shapes[n_]))
+        o1 = varset.get_local_variable_or_declare_one(oname,
+                                                      infer_variable_type(o_, varset.target_opset,
+                                                                          kenode_output_shapes[n_]))
         operator.add_output(o1)
 
     if hasattr(layer, 'output_mask') and layer.output_mask is not None:
@@ -122,8 +124,6 @@ def on_parsing_keras_layer(graph, node_list, layer, kenode, model, varset, prefi
 
 
 def build_opdict_from_keras(model):
-    # type: (keras.Model) -> {}
-
     output_dict = {}
     for l_ in model.layers:
         if hasattr(l_, 'layers'):

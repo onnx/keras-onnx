@@ -36,14 +36,12 @@ def dump_graph_into_tensorboard(tf_graph):
 if is_tf2:
     tensorflow = _tf.compat.v1
 
-
     def is_subclassed(layer):
         """Returns True if the object is a subclassed layer or subclassed model."""
         return (layer.__module__.find('keras.engine') == -1 and
                 layer.__module__.find('keras.layers') == -1)
 else:
     tensorflow = _tf
-
 
     def is_subclassed(layer):
         return False
