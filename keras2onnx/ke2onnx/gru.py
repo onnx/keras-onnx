@@ -25,6 +25,7 @@ def extract_params(op):
 
     return W, R, B
 
+
 def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the GRU layer.
     """

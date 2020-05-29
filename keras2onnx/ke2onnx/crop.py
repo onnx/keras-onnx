@@ -62,19 +62,19 @@ def convert_keras_crop_v9(scope, operator, container, n_dims):
 
     ori_shape = list(op.input_shape[1:])
     if isinstance(op, keras.layers.Cropping1D):
-        if isinstance(param[0], int): # tuple of ints
+        if isinstance(param[0], int):  # tuple of ints
             start_border = [param[0], 0]
             end_border = [param[1], 0]
-        else: # tuple of typle of ints
+        else:  # tuple of type of ints
             start_border = [param[0][0], 0]
             end_border = [param[0][1], 0]
         axes_v = [0, 1, 2]
     elif isinstance(op, keras.layers.Cropping2D):
         axes_v = [0, 1, 2, 3]
-        if isinstance(param[0], int): # tuple of ints
+        if isinstance(param[0], int):  # tuple of ints
             start_border = [param[0]] * 2
             end_border = start_border
-        else: # tuple of typle of ints
+        else:  # tuple of type of ints
             start_border = [param[0][0], param[1][0]]
             end_border = [param[0][1], param[1][1]]
         if channels_first:
@@ -88,7 +88,7 @@ def convert_keras_crop_v9(scope, operator, container, n_dims):
         if isinstance(param[0], int):  # tuple of ints
             start_border = [param[0]] * 3
             end_border = start_border
-        else:  # tuple of typle of ints
+        else:  # tuple of type of ints
             start_border = [param[0][0], param[1][0], param[2][0]]
             end_border = [param[0][1], param[1][1], param[2][1]]
         if channels_first:
@@ -118,6 +118,7 @@ def convert_keras_crop(scope, operator, container, n_dims):
         convert_keras_crop_v9(scope, operator, container, n_dims)
     else:
         convert_keras_crop_v1(scope, operator, container, n_dims)
+
 
 def convert_keras_crop_1d(scope, operator, container):
     convert_keras_crop(scope, operator, container, n_dims=1)

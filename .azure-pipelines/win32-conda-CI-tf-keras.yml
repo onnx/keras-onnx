@@ -76,6 +76,10 @@ jobs:
       pytest tests --doctest-modules --junitxml=junit/test-results.xml
     displayName: 'pytest'
 
+  - script: |
+      flake8 keras2onnx
+    displayName: 'flake8'
+
   - task: PublishTestResults@2
     inputs:
       testResultsFiles: '**/test-results.xml'
