@@ -1854,6 +1854,30 @@ def test_bidirectional_with_bias(runner, rnn_class):
     onnx_model = keras2onnx.convert_keras(model, model.name)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
+@pytest.mark.skipif((is_tensorflow_older_than('2.3.0') or (not is_tf_keras)),
+                     reason=("keras LSTM does not have time_major attribute. There was a bug in tf.keras bidirectional lstm with time_major true which will be fixed in tf-2.3, See - https://github.com/tensorflow/tensorflow/issues/39635"))
+@pytest.mark.parametrize("rnn_class", RNN_CLASSES)
+def test_bidirectional_time_major_true(runner, rnn_class):
+    feature_dim = 1
+    seq_len = 3
+    x = np.ones((1, seq_len, feature_dim), dtype=np.float32)
+
+    for ret_seq in [True, False]:
+        for merge_mode in ['concat', None]:
+            K.clear_session()
+            input = keras.Input(shape=(seq_len, feature_dim))
+            # Transpose input to be time major
+            input_transposed = tf.transpose(input, perm=[1,0,2])
+            output = Bidirectional(rnn_class(1, return_sequences=ret_seq,
+                                             time_major=True),
+                                   name='bi', merge_mode=merge_mode)(input_transposed)
+            if ret_seq and merge_mode == 'concat':
+                output = tf.transpose(output, perm=[1,0,2])
+            model = keras.Model(inputs=input, outputs=output)
+
+            expected = model.predict(x)
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_bidirectional_with_initial_states(runner, rnn_class):
