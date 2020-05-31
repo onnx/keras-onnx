@@ -5,6 +5,7 @@
 ###############################################################################
 import numpy
 from .activation import activation_map
+from .common import activation_process
 from ..proto import keras
 from ..proto import onnx_proto
 from ..common.utils import count_dynamic_dim
@@ -202,11 +203,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
         apply_mul(scope, [transpose_output_name, transpose_output_name + '_sig'], operator.outputs[0].full_name,
                   container)
     else:
-        apply_activation_function = activation_map[op.activation]
-        if op.activation in [activation_get('softmax'), keras.activations.softmax]:
-            apply_softmax(scope, transpose_output_name, operator.outputs[0].full_name, container, axis=-1)
-        else:
-            apply_activation_function(scope, transpose_output_name, operator.outputs[0].full_name, container)
+        activation_process(scope, operator, container, transpose_output_name)
 
 
 def get_converter_config(dims, is_conv_transpose):

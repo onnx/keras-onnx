@@ -1723,6 +1723,20 @@ def convert_tf_read_variable_op(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.Relu6)
+def convert_tf_relu6(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    relu = oopb.apply_relu(operator.input_full_names,
+                           name=operator.full_name + '_relu')
+    oopb.apply_op_with_output("apply_clip",
+                              relu,
+                              operator.output_full_names,
+                              name=operator.full_name + '_clip',
+                              max=6,
+                              min=0)
+
+
 @converter_func(TYPES.Slice)
 def convert_tf_slice(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
