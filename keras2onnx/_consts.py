@@ -62,6 +62,7 @@ class TYPES:
     Range = 'Range'
     ReadVariableOp = 'ReadVariableOp'
     RealDiv = 'RealDiv'
+    Relu6 = 'Relu6'
     Reshape = 'Reshape'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'

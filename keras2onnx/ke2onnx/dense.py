@@ -4,9 +4,9 @@
 # license information.
 ###############################################################################
 import numpy as np
+from .common import activation_process
 from ..proto import onnx_proto, keras
-from ..common.onnx_ops import apply_softmax, apply_add, OnnxOperatorBuilder
-from .activation import activation_map
+from ..common.onnx_ops import apply_add, OnnxOperatorBuilder
 activation_get = keras.activations.get
 
 
@@ -40,9 +40,4 @@ def convert_keras_dense(scope, operator, container):
     apply_add(scope, transformed_tensor_name + [bias_name], biased_tensor_name, container,
               axis=-1, broadcast=1)
 
-    # Create an activation function node and apply activation function to the intermediate tensor
-    apply_activation_function = activation_map[operator.raw_operator.activation]
-    if operator.raw_operator.activation in [activation_get('softmax'), keras.activations.softmax]:
-        apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
-    else:
-        apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)
+    activation_process(scope, operator, container, biased_tensor_name)
