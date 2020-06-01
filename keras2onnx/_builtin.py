@@ -1727,12 +1727,13 @@ def convert_tf_read_variable_op(scope, operator, container):
 @converter_func(TYPES.Relu6)
 def convert_tf_relu6(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
-    dtype = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type].type
-    oopb.apply_op_with_output("apply_relu6",
+    np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
+    zero_value = np.zeros(shape=(1,), dtype=np_type)
+    oopb.apply_op_with_output("apply_relu_6",
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name + '_clip',
-                              dtype=dtype)
+                              zero_value=zero_value)
 
 
 @converter_func(TYPES.Slice)
