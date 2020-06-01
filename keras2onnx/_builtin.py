@@ -10,6 +10,7 @@ import numpy as np
 
 from keras2onnx._consts import TYPES, NCHW_TO_NHWC, NHWC_TO_NCHW, HWCN_TO_NCHW
 from onnx import numpy_helper
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from .common.utils import count_dynamic_dim
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
@@ -1726,11 +1727,12 @@ def convert_tf_read_variable_op(scope, operator, container):
 @converter_func(TYPES.Relu6)
 def convert_tf_relu6(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
+    dtype = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type].type
     oopb.apply_op_with_output("apply_relu6",
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name + '_clip',
-                              dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+                              dtype=dtype)
 
 
 @converter_func(TYPES.Slice)

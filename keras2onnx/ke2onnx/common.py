@@ -8,6 +8,7 @@ from ..proto import keras
 from ..proto.tfcompat import tensorflow as tf
 from ..common.onnx_ops import apply_relu6, apply_softmax
 from .activation import activation_map
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 activation_get = keras.activations.get
 
 
@@ -23,7 +24,8 @@ def activation_process(scope, operator, container, biased_tensor_name):
     if operator.raw_operator.activation in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     elif operator.raw_operator.activation in [tf.nn.relu6]:
+        dtype = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type].type
         apply_relu6(scope, biased_tensor_name, operator.outputs[0].full_name, container,
-                    dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+                    dtype=dtype)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)
