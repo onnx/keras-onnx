@@ -23,7 +23,9 @@ def activation_process(scope, operator, container, biased_tensor_name):
     if operator.raw_operator.activation in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     elif operator.raw_operator.activation in [tf.nn.relu6]:
+        operator_input = operator.raw_operator.input if hasattr(operator.raw_operator, 'input') else \
+            operator.raw_operator.inputs[0]
         apply_relu6(scope, biased_tensor_name, operator.outputs[0].full_name, container,
-                    dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+                    dtype=operator_input.dtype.as_numpy_dtype)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)

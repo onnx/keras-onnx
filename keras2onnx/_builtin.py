@@ -1726,11 +1726,13 @@ def convert_tf_read_variable_op(scope, operator, container):
 @converter_func(TYPES.Relu6)
 def convert_tf_relu6(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
+    operator_input = operator.raw_operator.input if hasattr(operator.raw_operator, 'input') else \
+        operator.raw_operator.inputs[0]
     oopb.apply_op_with_output("apply_relu6",
                               operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name + '_clip',
-                              dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+                              dtype=operator_input.dtype.as_numpy_dtype)
 
 
 @converter_func(TYPES.Slice)

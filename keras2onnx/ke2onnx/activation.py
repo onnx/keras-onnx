@@ -57,8 +57,10 @@ def convert_keras_activation(scope, operator, container):
         apply_selu(scope, input_name, output_name, container, alpha=1.673263, gamma=1.050701)
     elif activation in [relu6] or activation.__name__ == 'relu6':
         # relu6(x) = min(relu(x), 6)
+        operator_input = operator.raw_operator.input if hasattr(operator.raw_operator, 'input') else \
+            operator.raw_operator.inputs[0]
         apply_relu6(scope, input_name, output_name, container,
-                    dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+                    dtype=operator_input.dtype.as_numpy_dtype)
     elif activation.__name__ in ['swish']:
         apply_sigmoid(scope, input_name, output_name + '_sig', container)
         apply_mul(scope, [input_name, output_name + '_sig'], output_name, container)
