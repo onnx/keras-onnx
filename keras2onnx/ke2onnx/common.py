@@ -28,6 +28,6 @@ def activation_process(scope, operator, container, biased_tensor_name):
         np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
         zero_value = np.zeros(shape=(1,), dtype=np_type)
         apply_relu_6(scope, biased_tensor_name, operator.outputs[0].full_name, container,
-                    zero_value=zero_value)
+                     zero_value=zero_value)
     else:
         apply_activation_function(scope, biased_tensor_name, operator.outputs[0].full_name, container)

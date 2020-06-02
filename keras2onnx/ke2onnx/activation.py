@@ -62,7 +62,7 @@ def convert_keras_activation(scope, operator, container):
         np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
         zero_value = np.zeros(shape=(1,), dtype=np_type)
         apply_relu_6(scope, input_name, output_name, container,
-                    zero_value=zero_value)
+                     zero_value=zero_value)
     elif activation.__name__ in ['swish']:
         apply_sigmoid(scope, input_name, output_name + '_sig', container)
         apply_mul(scope, [input_name, output_name + '_sig'], output_name, container)
