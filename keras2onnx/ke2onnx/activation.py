@@ -3,10 +3,12 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import numpy as np
 import tensorflow as tf
 from ..proto import keras, is_tf_keras
-from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_relu6, apply_sigmoid, apply_tanh, \
+from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_relu_6, apply_sigmoid, apply_tanh, \
     apply_softmax, apply_identity, apply_selu, apply_mul
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 
 activation_get = keras.activations.get
 
@@ -30,7 +32,7 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   tf.nn.sigmoid: apply_sigmoid,
                   tf.nn.softmax: apply_softmax,
                   tf.nn.relu: apply_relu,
-                  tf.nn.relu6: apply_relu6,
+                  tf.nn.relu6: apply_relu_6,
                   tf.nn.elu: apply_elu,
                   tf.nn.tanh: apply_tanh}
 
@@ -57,8 +59,10 @@ def convert_keras_activation(scope, operator, container):
         apply_selu(scope, input_name, output_name, container, alpha=1.673263, gamma=1.050701)
     elif activation in [relu6] or activation.__name__ == 'relu6':
         # relu6(x) = min(relu(x), 6)
-        apply_relu6(scope, input_name, output_name, container,
-                    dtype=operator.raw_operator.input.dtype.as_numpy_dtype)
+        np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
+        zero_value = np.zeros(shape=(1,), dtype=np_type)
+        apply_relu_6(scope, input_name, output_name, container,
+                     zero_value=zero_value)
     elif activation.__name__ in ['swish']:
         apply_sigmoid(scope, input_name, output_name + '_sig', container)
         apply_mul(scope, [input_name, output_name + '_sig'], output_name, container)
