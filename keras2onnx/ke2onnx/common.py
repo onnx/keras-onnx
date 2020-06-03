@@ -21,9 +21,7 @@ def get_permutation_config(n_dims):
 
 def activation_process(scope, operator, container, biased_tensor_name):
     # Create an activation function node and apply activation function to the intermediate tensor
-    apply_activation_function = \
-        activation_map[operator.raw_operator.activation] if operator.raw_operator.activation in activation_map \
-        else activation_map[operator.raw_operator.activation.__name__]
+    apply_activation_function = activation_map[operator.raw_operator.activation]
     if operator.raw_operator.activation in [activation_get('softmax'), keras.activations.softmax]:
         apply_softmax(scope, biased_tensor_name, operator.outputs[0].full_name, container, axis=-1)
     elif operator.raw_operator.activation in [tf.nn.relu6]:
