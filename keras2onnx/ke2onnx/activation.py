@@ -34,7 +34,16 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   tf.nn.relu: apply_relu,
                   tf.nn.relu6: apply_relu_6,
                   tf.nn.elu: apply_elu,
-                  tf.nn.tanh: apply_tanh}
+                  tf.nn.selu: apply_selu,
+                  tf.nn.tanh: apply_tanh,
+                  'sigmoid': apply_sigmoid,
+                  'softmax': apply_softmax,
+                  'linear': apply_identity,
+                  'relu': apply_relu,
+                  'elu': apply_elu,
+                  'selu': apply_selu,
+                  'tanh': apply_tanh,
+                  'hard_sigmoid': apply_hard_sigmoid}
 
 
 def convert_keras_activation(scope, operator, container):
