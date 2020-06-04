@@ -10,6 +10,7 @@ import numpy as np
 
 from keras2onnx._consts import TYPES, NCHW_TO_NHWC, NHWC_TO_NCHW, HWCN_TO_NCHW
 from onnx import numpy_helper
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from .common.utils import count_dynamic_dim
 from .common.onnx_ops import apply_identity, apply_reshape, OnnxOperatorBuilder
 from .funcbook import converter_func, set_converters
@@ -169,7 +170,7 @@ def convert_tf_batch_to_space(scope, operator, container):
                                             name=operator.full_name + '_transpose_0',
                                             perm=[2, 3, 0, 4, 1, 5])
         padded_block_shape = oopb.apply_pad(block_shape,
-                                            name = operator.full_name + '_pad_1',
+                                            name=operator.full_name + '_pad_1',
                                             pads=[1, 1],
                                             value=1)
         new_shape_x_v2 = oopb.apply_mul(new_shape_x + padded_block_shape,
@@ -357,7 +358,8 @@ def convert_tf_cum_sum(scope, operator, container):
 
 def _calc_explicit_padding(input_size, output_shape, output_padding, kernel_shape, stride, dilation,
                            perm):
-    to_nchw = lambda x, perm: [x[perm[n_]] for n_ in range(len(x))]
+    def to_nchw(x, perm):
+        return [x[perm[n_]] for n_ in range(len(x))]
     input_size = to_nchw(input_size, perm)[2:]
 
     spatial = len(kernel_shape)
@@ -644,7 +646,7 @@ def _convert_tf_conv2d(scope, operator, container):
                 input_shape = _spatial_map(input_shape, NHWC_TO_NCHW)
                 output_shape = _spatial_map(output_shape, NHWC_TO_NCHW)
             # calculate pads
-            if any(input_shape[i + 2] == None or output_shape[i + 2] == None for i in range(spatial)):
+            if any(input_shape[i + 2] is None or output_shape[i + 2] is None for i in range(spatial)):
                 attrs["auto_pad"] = "SAME_UPPER"
             else:
                 for i in range(spatial):
@@ -863,7 +865,7 @@ def convert_tf_less_equal(scope, operator, container):
 
 
 @converter_func(TYPES.LogicalAnd)
-def convert_tf_logical_not(scope, operator, container):
+def convert_tf_logical_and(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.add_node_with_output('And',
                               operator.input_full_names,
@@ -900,7 +902,7 @@ def convert_tf_logsoftmax(scope, operator, container):
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     node = operator.raw_operator
     supported_types = [oopb.double, oopb.float, oopb.float16]
-    if container.target_opset >= 12: 
+    if container.target_opset >= 12:
         supported_types.extend([oopb.int32, oopb.int64])
     output_type = _to_onnx_type(node.outputs[0].dtype)
     need_cast = False
@@ -1254,7 +1256,7 @@ def _convert_tf_reduce_op(scope, operator, container, onnx_op):
 
 
 @converter_func(TYPES.Max)
-def convert_tf_min(scope, operator, container):
+def convert_tf_max(scope, operator, container):
     _convert_tf_reduce_op(scope, operator, container, 'ReduceMax')
 
 
@@ -1722,6 +1724,18 @@ def convert_tf_read_variable_op(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.Relu6)
+def convert_tf_relu6(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
+    zero_value = np.zeros(shape=(1,), dtype=np_type)
+    oopb.apply_op_with_output("apply_relu_6",
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name + '_clip',
+                              zero_value=zero_value)
+
+
 @converter_func(TYPES.Slice)
 def convert_tf_slice(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -1824,7 +1838,7 @@ def _prepare_StridedSlice(node, target_opset):
     end = _cal_tensor_value(node.inputs[2])
     if end is None:
         dynamic_end = True
-        end = [max_size] * node.inputs[2].shape[0] # this is dummy and not really used.
+        end = [max_size] * node.inputs[2].shape[0]  # this is dummy and not really used.
     else:
         dynamic_end = False
     strides = _cal_tensor_value(node.inputs[3])
@@ -1922,15 +1936,15 @@ def _prepare_StridedSlice(node, target_opset):
         new_end.append(end_item)
 
     return new_begin, new_end, axes, steps, needs_squeeze, \
-           begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end
+        begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end
 
 
 @converter_func(TYPES.StridedSlice)
 def convert_tf_strided_slice(scope, operator, container):
     node = operator.raw_operator
     new_begin, new_end, axes, steps, needs_squeeze, \
-    begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end = _prepare_StridedSlice(
-        node, operator.target_opset)
+        begin_mask, end_mask, extra_mask, new_axis_axes, end_mask_array, dynamic_end = _prepare_StridedSlice(
+            node, operator.target_opset)
     oopb = OnnxOperatorBuilder(container, scope)
 
     if len(new_axis_axes) > 0:

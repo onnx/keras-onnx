@@ -25,6 +25,7 @@ def extract_params(op):
 
     return W, R, B
 
+
 def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the GRU layer.
     """
@@ -126,8 +127,13 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
         output_seq = op.return_sequences
         reset_after = op.reset_after
 
+    time_major = simplernn.is_time_major(op, bidirectional)
+
     # Inputs
-    gru_x = _name('X')
+    gru_x = operator.inputs[0].full_name
+    if not time_major:
+        gru_x = _name('X')
+        apply_transpose(scope, operator.inputs[0].full_name, gru_x, container, perm=[1, 0, 2])
     tensor_w, tensor_r, tensor_b = build_parameters(scope, operator, container, bidirectional)
     sequence_lengths = simplernn.build_sequence_lengths(scope, operator, container)
     initial_h = simplernn.build_initial_states(scope, operator, container, bidirectional)
@@ -146,10 +152,6 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
 
     # Outputs
     output_names = [_name('Y'), _name('Y_h')]
-
-    # Transpose input values
-    input_name = operator.inputs[0].full_name
-    apply_transpose(scope, input_name, gru_x, container, perm=[1, 0, 2])
 
     oopb = OnnxOperatorBuilder(container, scope)
     oopb.apply_op_with_output('apply_gru',

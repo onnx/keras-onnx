@@ -19,7 +19,7 @@ def convert_keras_upsample(scope, operator, container, n_dims):
     op_size = op.size if isinstance(op.size, collections.abc.Iterable) else [op.size]
     scales_sub = list(d for d in op_size)
     if n_dims == 1:
-        shape_gap =  len(op.input_shape) - len(scales_sub)
+        shape_gap = len(op.input_shape) - len(scales_sub)
         if shape_gap == 1:
             scales = [1] + scales_sub
         elif shape_gap == 2:
@@ -53,8 +53,8 @@ def convert_keras_upsample(scope, operator, container, n_dims):
         input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
         apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container, perm=input_perm_axes)
 
-    # If no_permutation_required is True, we don't need to permute the output of ONNX Upsample. Otherwise, similar to Crop's
-    # conversion, a Transpose would be added.
+    # If no_permutation_required is True, we don't need to permute the output of ONNX Upsample.
+    # Otherwise, similar to Crop's conversion, a Transpose would be added.
     coordinate_transformation_mode = None
     if mode == 'linear':
         if is_tf_keras:

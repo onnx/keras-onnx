@@ -137,7 +137,8 @@ class Topology:
                 # A operator has an output, so we remove the operator from the unused-operator list.
                 unused_operators.discard(operator.full_name)
             for variable in operator.input_masks + operator.output_masks:
-                if variable is None: continue
+                if variable is None:
+                    continue
                 # A variable is used by an operator, so we remove the variable from the unused-variable list.
                 unused_variables.discard(variable.full_name)
                 # A operator has an output, so we remove the operator from the unused-operator list.
@@ -236,7 +237,8 @@ def _remove_unused_nodes(nodes, inputs, outputs):
 def _build_extra_inputs(container):
     # When calling ModelComponentContainer's add_initializer(...), nothing is added into the input list.
     # However, In ONNX, for target opset < 9, initializers should also be model's (GraphProto) inputs.
-    # Thus, we create ValueInfoProto objects from initializers (type: TensorProto) directly and then add them into model's input list.
+    # Thus, we create ValueInfoProto objects from initializers (type: TensorProto) ...
+    # ... directly and then add them into model's input list.
     extra_inputs = []  # ValueInfoProto list of the initializers
     for tensor in container.initializers:
         # Sometimes (especially when creating optional input values such as RNN's initial hidden state), an initializer
@@ -351,7 +353,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
                     '{} nchw_inputs does not make effect. Please set nchw_inputs to empty.'.format(onnx_not_imported))
             k2o_logger().warning('{} so the convertor optimizer is not enabled.'.format(onnx_not_imported))
         except Exception as e:  # noqa
-            # either optimizer issue or converter issue, we just let it go to diagnose the issue from the converted model.
+            # either optimizer issue or converter issue, we just let it go...
+            # ... so that we can diagnose the issue from the converted model.
             k2o_logger().warning(
                 'There is an error({}) happened during optimizing on the converted model!'.format(type(e)))
             k2o_logger().warning(str(e))

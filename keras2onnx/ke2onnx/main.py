@@ -71,7 +71,8 @@ def _apply_not_equal(oopb, target_opset, operator):
     if operator.mask_value is None:
         raise ValueError("Masking value was not properly parsed for layer '{}'".format(operator.full_name))
     if target_opset >= 11:
-        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name, np.array([operator.mask_value], dtype='float32')],
+        equal_out = oopb.add_node('Equal', [operator.inputs[0].full_name,
+                                            np.array([operator.mask_value], dtype='float32')],
                                   operator.full_name + 'mask')
         not_o = oopb.add_node('Not', equal_out,
                               name=operator.full_name + '_not')
