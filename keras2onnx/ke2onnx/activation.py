@@ -35,14 +35,16 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   tf.nn.relu6: apply_relu_6,
                   tf.nn.elu: apply_elu,
                   tf.nn.selu: apply_selu,
-                  tf.nn.tanh: apply_tanh,
-                  tf.compat.v1.nn.sigmoid: apply_sigmoid,
-                  tf.compat.v1.nn.softmax: apply_softmax,
-                  tf.compat.v1.nn.relu: apply_relu,
-                  tf.compat.v1.nn.relu6: apply_relu_6,
-                  tf.compat.v1.nn.elu: apply_elu,
-                  tf.compat.v1.nn.selu: apply_selu,
-                  tf.compat.v1.nn.tanh: apply_tanh}
+                  tf.nn.tanh: apply_tanh}
+
+if hasattr(tf.compat, 'v1'):
+    activation_map.update({tf.compat.v1.nn.sigmoid: apply_sigmoid})
+    activation_map.update({tf.compat.v1.nn.softmax: apply_softmax})
+    activation_map.update({tf.compat.v1.nn.relu: apply_relu})
+    activation_map.update({tf.compat.v1.nn.relu6: apply_relu_6})
+    activation_map.update({tf.compat.v1.nn.elu: apply_elu})
+    activation_map.update({tf.compat.v1.nn.selu: apply_selu})
+    activation_map.update({tf.compat.v1.nn.tanh: apply_tanh})
 
 
 def convert_keras_activation(scope, operator, container):
