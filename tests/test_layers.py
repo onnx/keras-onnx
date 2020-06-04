@@ -1373,13 +1373,19 @@ def test_Softmax(advanced_activation_runner):
     advanced_activation_runner(layer, data)
 
 
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0') and is_tf_keras, reason='old tf version')
 def test_tf_nn_activation(runner):
-    for activation in [tf.nn.relu, 'relu', tf.nn.relu6, tf.nn.softmax]:
+    for activation in ['relu', tf.nn.relu, tf.nn.relu6, tf.nn.softmax, tf.nn.leaky_relu]:
         model = keras.Sequential([
             Dense(64, activation=activation, input_shape=[10]),
             Dense(64, activation=activation),
             Dense(1)
         ])
+        if is_tf_keras:
+            model.add(Activation(tf.keras.layers.LeakyReLU(alpha=0.2)))
+            model.add(Activation(tf.keras.layers.ReLU()))
+            model.add(tf.keras.layers.PReLU())
+            model.add(tf.keras.layers.LeakyReLU(alpha=0.5))
         x = np.random.rand(5, 10).astype(np.float32)
         expected = model.predict(x)
         onnx_model = keras2onnx.convert_keras(model, model.name)
