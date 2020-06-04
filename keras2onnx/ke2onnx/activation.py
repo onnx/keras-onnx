@@ -4,7 +4,7 @@
 # license information.
 ###############################################################################
 import numpy as np
-from keras2onnx.proto.tfcompat import tensorflow as tf
+import tensorflow as tf
 from ..proto import keras, is_tf_keras
 from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_relu, apply_relu_6, apply_sigmoid, apply_tanh, \
     apply_softmax, apply_identity, apply_selu, apply_mul
@@ -35,7 +35,14 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   tf.nn.relu6: apply_relu_6,
                   tf.nn.elu: apply_elu,
                   tf.nn.selu: apply_selu,
-                  tf.nn.tanh: apply_tanh}
+                  tf.nn.tanh: apply_tanh,
+                  tf.compat.v1.nn.sigmoid: apply_sigmoid,
+                  tf.compat.v1.nn.softmax: apply_softmax,
+                  tf.compat.v1.nn.relu: apply_relu,
+                  tf.compat.v1.nn.relu6: apply_relu_6,
+                  tf.compat.v1.nn.elu: apply_elu,
+                  tf.compat.v1.nn.selu: apply_selu,
+                  tf.compat.v1.nn.tanh: apply_tanh}
 
 
 def convert_keras_activation(scope, operator, container):
