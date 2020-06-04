@@ -6,8 +6,8 @@
 import numpy as np
 import tensorflow as tf
 from ..proto import keras, is_tf_keras
-from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_leaky_relu, apply_relu, apply_relu_6, apply_sigmoid, \
-    apply_tanh, apply_softmax, apply_identity, apply_selu, apply_mul, apply_prelu
+from ..common.onnx_ops import apply_elu, apply_hard_sigmoid, apply_leaky_relu, apply_relu, apply_relu_6, \
+    apply_tanh, apply_softmax, apply_identity, apply_selu, apply_mul, apply_prelu, apply_sigmoid
 from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 
 activation_get = keras.activations.get
