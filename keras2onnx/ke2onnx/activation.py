@@ -21,6 +21,11 @@ if not is_tf_keras:
 if not relu6 and hasattr(keras.applications.mobilenet, 'relu6'):
     relu6 = keras.applications.mobilenet.relu6
 
+
+def apply_leaky_relu_keras(scope, input_name, output_name, container, operator_name=None, alpha=0.2):
+    apply_leaky_relu(scope, input_name, output_name, container, operator_name, alpha)
+
+
 activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   activation_get('softmax'): apply_softmax,
                   activation_get('linear'): apply_identity,
@@ -29,7 +34,7 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
                   activation_get('selu'): apply_selu,
                   activation_get('tanh'): apply_tanh,
                   activation_get('hard_sigmoid'): apply_hard_sigmoid,
-                  tf.nn.leaky_relu: apply_leaky_relu,
+                  tf.nn.leaky_relu: apply_leaky_relu_keras,
                   tf.nn.sigmoid: apply_sigmoid,
                   tf.nn.softmax: apply_softmax,
                   tf.nn.relu: apply_relu,
@@ -41,7 +46,7 @@ activation_map = {activation_get('sigmoid'): apply_sigmoid,
 if hasattr(tf.compat, 'v1'):
     activation_map.update({tf.compat.v1.nn.sigmoid: apply_sigmoid})
     activation_map.update({tf.compat.v1.nn.softmax: apply_softmax})
-    activation_map.update({tf.compat.v1.nn.leaky_relu: apply_leaky_relu})
+    activation_map.update({tf.compat.v1.nn.leaky_relu: apply_leaky_relu_keras})
     activation_map.update({tf.compat.v1.nn.relu: apply_relu})
     activation_map.update({tf.compat.v1.nn.relu6: apply_relu_6})
     activation_map.update({tf.compat.v1.nn.elu: apply_elu})
