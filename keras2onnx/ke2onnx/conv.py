@@ -197,7 +197,7 @@ def convert_keras_conv_core(scope, operator, container, is_transpose, n_dims, in
 
     # The construction of convolution is done. Now, we create an activation operator to apply the activation specified
     # in this Keras layer.
-    if op.activation.__name__ == 'swish':
+    if hasattr(op.activation, '__name__') and op.activation.__name__ == 'swish':
         apply_sigmoid(scope, transpose_output_name, transpose_output_name + '_sig', container)
         apply_mul(scope, [transpose_output_name, transpose_output_name + '_sig'], operator.outputs[0].full_name,
                   container)
