@@ -1374,11 +1374,14 @@ def test_Softmax(advanced_activation_runner):
 
 
 def test_tf_nn_activation(runner):
-    for activation in [tf.nn.relu, 'relu', tf.nn.relu6, tf.nn.softmax]:
+    for activation in [tf.nn.relu, 'relu', tf.nn.relu6, tf.nn.softmax, tf.nn.leaky_relu]:
         model = keras.Sequential([
             Dense(64, activation=activation, input_shape=[10]),
             Dense(64, activation=activation),
-            Dense(1)
+            Dense(1),
+            Activation(tf.keras.layers.LeakyReLU(alpha=0.2)),
+            Activation(tf.keras.layers.ReLU()),
+            tf.keras.layers.PReLU()
         ])
         x = np.random.rand(5, 10).astype(np.float32)
         expected = model.predict(x)
