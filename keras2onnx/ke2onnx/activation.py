@@ -64,7 +64,8 @@ def convert_keras_activation(scope, operator, container):
     elif activation in [activation_get('tanh'), keras.activations.tanh]:
         apply_tanh(scope, input_name, output_name, container)
     elif activation in [activation_get('relu'), keras.activations.relu] or \
-            activation_type == keras.layers.advanced_activations.ReLU:
+            (hasattr(keras.layers.advanced_activations, 'ReLU') and
+             activation_type == keras.layers.advanced_activations.ReLU):
         apply_relu(scope, input_name, output_name, container)
     elif activation in [activation_get('softmax'), keras.activations.softmax] or \
             activation_type == keras.layers.advanced_activations.Softmax:
