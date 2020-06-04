@@ -1374,7 +1374,7 @@ def test_Softmax(advanced_activation_runner):
 
 
 def test_tf_nn_activation(runner):
-    for activation in [tf.nn.relu, 'relu', tf.nn.relu6, tf.nn.softmax, tf.nn.leaky_relu]:
+    for activation in ['relu', tf.nn.relu, tf.nn.relu6, tf.nn.softmax, tf.nn.leaky_relu]:
         model = keras.Sequential([
             Dense(64, activation=activation, input_shape=[10]),
             Dense(64, activation=activation),
