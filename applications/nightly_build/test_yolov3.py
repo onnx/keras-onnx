@@ -20,7 +20,7 @@ YOLOV3_TINY_WEIGHTS_PATH = r'https://lotus.blob.core.windows.net/converter-model
 tiny_model_file_name = 'yolov3-tiny.h5'
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../yolov3'))
-from yolov3 import YOLO
+from yolov3 import YOLO, convert_model
 
 from distutils.version import StrictVersion
 
@@ -76,7 +76,7 @@ class TestYoloV3(unittest.TestCase):
 
             my_yolo = YOLO(model_path, anchors_path, yolo3_yolo3_dir)
             my_yolo.load_model(yolo_weights)
-            onnx_model = keras2onnx.convert_keras(my_yolo.final_model, channel_first_inputs=['input_1'])
+            onnx_model = convert_model(my_yolo)
 
             if not os.path.exists(tmp_path):
                 os.mkdir(tmp_path)
