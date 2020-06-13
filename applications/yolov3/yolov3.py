@@ -370,13 +370,32 @@ def convert_NMSLayer(scope, operator, container):
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
 
+yolo_model_graph_tiny = None
+evaluation_model_graph_tiny = None
+nms_model_graph_tiny = None
+
+@Graph.trace(
+    input_types=[_Ty.F(shape=['N', 3, 'M1', 'M2']), _Ty.F(shape=['N', 2])],
+    output_types=[_Ty.F(shape=[1, 'M1', 4]), _Ty.F(shape=[1, 80, 'M2']), _Ty.I32(shape=[1, 'M3', 3])],
+    outputs=["yolonms_layer_1", "yolonms_layer_1_1", "yolonms_layer_1_2"])
+def combine_model_tiny(input_1, image_shape):
+    global yolo_model_graph_tiny
+    global evaluation_model_graph_tiny
+    global nms_model_graph_tiny
+    output_1 = yolo_model_graph_tiny(input_1)
+    input_2 = output_1 + (image_shape,)
+    yolo_evaluation_layer_1, yolo_evaluation_layer_2 = evaluation_model_graph_tiny(*input_2)
+    nms_layer_1_1, nms_layer_1_2, nms_layer_1_3 = nms_model_graph_tiny(yolo_evaluation_layer_1, yolo_evaluation_layer_2)
+    return nms_layer_1_1, nms_layer_1_2, nms_layer_1_3
+
+
 yolo_model_graph = None
 evaluation_model_graph = None
 nms_model_graph = None
 
 @Graph.trace(
-    input_types=[_Ty.F(shape=['N', '3', 'M1', 'M2']), _Ty.F(shape=['N', '2'])],
-    output_types=[_Ty.F(shape=['1', 'M1', '4']), _Ty.F(shape=['1', '80', 'M2']), _Ty.I32(shape=['1', 'M3', '3'])],
+    input_types=[_Ty.F(shape=['N', 3, 'M1', 'M2']), _Ty.F(shape=['N', 2])],
+    output_types=[_Ty.F(shape=[1, 'M1', 4]), _Ty.F(shape=[1, 80, 'M2']), _Ty.I32(shape=[1, 'M3', 3])],
     outputs=["yolonms_layer_1", "yolonms_layer_1_1", "yolonms_layer_1_2"])
 def combine_model(input_1, image_shape):
     global yolo_model_graph
@@ -389,31 +408,44 @@ def combine_model(input_1, image_shape):
     return nms_layer_1_1, nms_layer_1_2, nms_layer_1_3
 
 
-def convert_model(yolo, target_opset=None):
+def convert_model(yolo, is_tiny_yolo, target_opset=None):
     if target_opset is None:
-        onnxmodel_1 = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'])
-        onnxmodel_2 = convert_keras(yolo.evaluation_model)
-        onnxmodel_3 = convert_keras(yolo.nms_model)
         target_opset = get_maximum_opset_supported()
-    else:
-        onnxmodel_1 = convert_keras(yolo.yolo_model, target_opset=target_opset, channel_first_inputs=['input_1'])
-        onnxmodel_2 = convert_keras(yolo.evaluation_model, target_opset=target_opset)
-        onnxmodel_3 = convert_keras(yolo.nms_model, target_opset=target_opset)
 
-    global yolo_model_graph
-    global evaluation_model_graph
-    global nms_model_graph
+    onnxmodel_1 = convert_keras(yolo.yolo_model, target_opset=target_opset, channel_first_inputs=['input_1'])
+    onnxmodel_2 = convert_keras(yolo.evaluation_model, target_opset=target_opset)
+    onnxmodel_3 = convert_keras(yolo.nms_model, target_opset=target_opset)
     Graph.opset = target_opset
-    yolo_model_graph = Graph.load(onnxmodel_1,
-                                  inputs=[input_.name for input_ in onnxmodel_1.graph.input])  # define the order of arguments
-    evaluation_model_graph = Graph.load(onnxmodel_2,
-                                        inputs=[input_.name for input_ in onnxmodel_2.graph.input],
-                                        outputs=[output_.name for output_ in onnxmodel_2.graph.output])
-    nms_model_graph = Graph.load(onnxmodel_3,
-                                 inputs=[input_.name for input_ in onnxmodel_3.graph.input],
-                                 outputs=[output_.name for output_ in onnxmodel_3.graph.output])
 
-    return combine_model.oxml
+    if is_tiny_yolo:
+        global yolo_model_graph_tiny
+        global evaluation_model_graph_tiny
+        global nms_model_graph_tiny
+        yolo_model_graph_tiny = Graph.load(onnxmodel_1,
+                                           inputs=[input_.name for input_ in onnxmodel_1.graph.input])  # define the order of arguments
+        evaluation_model_graph_tiny = Graph.load(onnxmodel_2,
+                                                 inputs=[input_.name for input_ in onnxmodel_2.graph.input],
+                                                 outputs=[output_.name for output_ in onnxmodel_2.graph.output])
+        nms_model_graph_tiny = Graph.load(onnxmodel_3,
+                                          inputs=[input_.name for input_ in onnxmodel_3.graph.input],
+                                          outputs=[output_.name for output_ in onnxmodel_3.graph.output])
+
+        return combine_model_tiny.oxml
+    else:
+        global yolo_model_graph
+        global evaluation_model_graph
+        global nms_model_graph
+        yolo_model_graph = Graph.load(onnxmodel_1,
+                                      inputs=[input_.name for input_ in
+                                              onnxmodel_1.graph.input])  # define the order of arguments
+        evaluation_model_graph = Graph.load(onnxmodel_2,
+                                            inputs=[input_.name for input_ in onnxmodel_2.graph.input],
+                                            outputs=[output_.name for output_ in onnxmodel_2.graph.output])
+        nms_model_graph = Graph.load(onnxmodel_3,
+                                     inputs=[input_.name for input_ in onnxmodel_3.graph.input],
+                                     outputs=[output_.name for output_ in onnxmodel_3.graph.output])
+
+        return combine_model.oxml
 
 
 if __name__ == '__main__':

@@ -76,7 +76,7 @@ class TestYoloV3(unittest.TestCase):
 
             my_yolo = YOLO(model_path, anchors_path, yolo3_yolo3_dir)
             my_yolo.load_model(yolo_weights)
-            onnx_model = convert_model(my_yolo)
+            onnx_model = convert_model(my_yolo, is_tiny_yolo)
 
             if not os.path.exists(tmp_path):
                 os.mkdir(tmp_path)
