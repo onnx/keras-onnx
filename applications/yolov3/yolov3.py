@@ -14,6 +14,7 @@ from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
 from keras2onnx.proto import onnx_proto
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from onnxconverter_common.onnx_fx import Graph
 from onnxconverter_common.onnx_fx import GraphFunctionType as _Ty
 
@@ -393,6 +394,7 @@ def convert_model(yolo, target_opset=None):
         onnxmodel_1 = convert_keras(yolo.yolo_model, channel_first_inputs=['input_1'])
         onnxmodel_2 = convert_keras(yolo.evaluation_model)
         onnxmodel_3 = convert_keras(yolo.nms_model)
+        target_opset = get_maximum_opset_supported()
     else:
         onnxmodel_1 = convert_keras(yolo.yolo_model, target_opset=target_opset, channel_first_inputs=['input_1'])
         onnxmodel_2 = convert_keras(yolo.evaluation_model, target_opset=target_opset)
