@@ -401,6 +401,7 @@ def convert_model(yolo, target_opset=None):
     global yolo_model_graph
     global evaluation_model_graph
     global nms_model_graph
+    Graph.opset = target_opset
     yolo_model_graph = Graph.load(onnxmodel_1,
                                   inputs=[input_.name for input_ in onnxmodel_1.graph.input])  # define the order of arguments
     evaluation_model_graph = Graph.load(onnxmodel_2,
