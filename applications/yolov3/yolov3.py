@@ -14,6 +14,9 @@ from keras2onnx import convert_keras
 from keras2onnx import set_converter
 from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
 from keras2onnx.proto import onnx_proto
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
+from onnxconverter_common.onnx_fx import Graph
+from onnxconverter_common.onnx_fx import GraphFunctionType as _Ty
 
 from os.path import dirname, abspath
 yolo3_dir = os.path.join(os.path.dirname(__file__), '../../keras-yolo3')
@@ -205,15 +208,38 @@ class YOLO(object):
         y = list(self.yolo_model(image_input))
         y.append(input_image_shape)
 
-        boxes, box_scores = \
-            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(inputs=y)
+        if len(y) == 3:
+            evaluation_input = [keras.Input((None, None, 255), dtype='float32', name='conv2d_10'),
+                                keras.Input((None, None, 255), dtype='float32', name='conv2d_13'),
+                                keras.Input(shape=(2,), name='image_shape')
+                                ]
+        elif len(y) == 4:
+            evaluation_input = [keras.Input((None, None, 255), dtype='float32', name='conv2d_59'),
+                                keras.Input((None, None, 255), dtype='float32', name='conv2d_67'),
+                                keras.Input((None, None, 255), dtype='float32', name='conv2d_75'),
+                                keras.Input(shape=(2,), name='image_shape')
+                                ]
 
+        boxes, box_scores = \
+            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(inputs=evaluation_input)
+        self.evaluation_model = keras.Model(inputs=evaluation_input,
+                                            outputs=[boxes, box_scores])
+
+        nms_input = [keras.Input((4,), dtype='float32', name='concat_9'),
+                     keras.Input((80,), dtype='float32', name='concat_10'),]
         out_boxes, out_scores, out_indices = \
             YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
-                inputs=[boxes, box_scores])
-        self.final_model = keras.Model(inputs=[image_input, input_image_shape],
-                                       outputs=[out_boxes, out_scores, out_indices])
+                inputs=nms_input)
+        self.nms_model = keras.Model(inputs=nms_input,
+                                     outputs=[out_boxes, out_scores, out_indices])
 
+        boxes, box_scores = \
+            YOLOEvaluationLayer(anchors=self.anchors, num_classes=len(self.class_names))(inputs=y)
+        out_boxes, out_scores, out_indices = \
+            YOLONMSLayer(anchors=self.anchors, num_classes=len(self.class_names))(
+                         inputs = [boxes, box_scores])
+        self.final_model = keras.Model(inputs=[image_input, input_image_shape],
+                                       outputs = [out_boxes, out_scores, out_indices])
         self.final_model.save('final_model.h5')
         print('{} model, anchors, and classes loaded.'.format(model_path))
 
@@ -344,12 +370,82 @@ def convert_NMSLayer(scope, operator, container):
 
 set_converter(YOLONMSLayer, convert_NMSLayer)
 
+yolo_model_graph_tiny = None
+evaluation_model_graph_tiny = None
+nms_model_graph_tiny = None
 
-def convert_model(yolo, model_file_name, target_opset):
-    yolo.load_model()
-    onnxmodel = convert_keras(yolo.final_model, target_opset=target_opset, channel_first_inputs=['input_1'])
-    onnx.save_model(onnxmodel, model_file_name)
-    return onnxmodel
+@Graph.trace(
+    input_types=[_Ty.F(shape=['N', 3, 'M1', 'M2']), _Ty.F(shape=['N', 2])],
+    output_types=[_Ty.F(shape=[1, 'M1', 4]), _Ty.F(shape=[1, 80, 'M2']), _Ty.I32(shape=[1, 'M3', 3])],
+    outputs=["yolonms_layer_1", "yolonms_layer_1_1", "yolonms_layer_1_2"])
+def combine_model_tiny(input_1, image_shape):
+    global yolo_model_graph_tiny
+    global evaluation_model_graph_tiny
+    global nms_model_graph_tiny
+    output_1 = yolo_model_graph_tiny(input_1)
+    input_2 = output_1 + (image_shape,)
+    yolo_evaluation_layer_1, yolo_evaluation_layer_2 = evaluation_model_graph_tiny(*input_2)
+    nms_layer_1_1, nms_layer_1_2, nms_layer_1_3 = nms_model_graph_tiny(yolo_evaluation_layer_1, yolo_evaluation_layer_2)
+    return nms_layer_1_1, nms_layer_1_2, nms_layer_1_3
+
+
+yolo_model_graph = None
+evaluation_model_graph = None
+nms_model_graph = None
+
+@Graph.trace(
+    input_types=[_Ty.F(shape=['N', 3, 'M1', 'M2']), _Ty.F(shape=['N', 2])],
+    output_types=[_Ty.F(shape=[1, 'M1', 4]), _Ty.F(shape=[1, 80, 'M2']), _Ty.I32(shape=[1, 'M3', 3])],
+    outputs=["yolonms_layer_1", "yolonms_layer_1_1", "yolonms_layer_1_2"])
+def combine_model(input_1, image_shape):
+    global yolo_model_graph
+    global evaluation_model_graph
+    global nms_model_graph
+    output_1 = yolo_model_graph(input_1)
+    input_2 = output_1 + (image_shape,)
+    yolo_evaluation_layer_1, yolo_evaluation_layer_2 = evaluation_model_graph(*input_2)
+    nms_layer_1_1, nms_layer_1_2, nms_layer_1_3 = nms_model_graph(yolo_evaluation_layer_1, yolo_evaluation_layer_2)
+    return nms_layer_1_1, nms_layer_1_2, nms_layer_1_3
+
+
+def convert_model(yolo, is_tiny_yolo, target_opset=None):
+    if target_opset is None:
+        target_opset = get_maximum_opset_supported()
+
+    onnxmodel_1 = convert_keras(yolo.yolo_model, target_opset=target_opset, channel_first_inputs=['input_1'])
+    onnxmodel_2 = convert_keras(yolo.evaluation_model, target_opset=target_opset)
+    onnxmodel_3 = convert_keras(yolo.nms_model, target_opset=target_opset)
+    Graph.opset = target_opset
+
+    if is_tiny_yolo:
+        global yolo_model_graph_tiny
+        global evaluation_model_graph_tiny
+        global nms_model_graph_tiny
+        yolo_model_graph_tiny = Graph.load(onnxmodel_1,
+                                           inputs=[input_.name for input_ in onnxmodel_1.graph.input])  # define the order of arguments
+        evaluation_model_graph_tiny = Graph.load(onnxmodel_2,
+                                                 inputs=[input_.name for input_ in onnxmodel_2.graph.input],
+                                                 outputs=[output_.name for output_ in onnxmodel_2.graph.output])
+        nms_model_graph_tiny = Graph.load(onnxmodel_3,
+                                          inputs=[input_.name for input_ in onnxmodel_3.graph.input],
+                                          outputs=[output_.name for output_ in onnxmodel_3.graph.output])
+
+        return combine_model_tiny.oxml
+    else:
+        global yolo_model_graph
+        global evaluation_model_graph
+        global nms_model_graph
+        yolo_model_graph = Graph.load(onnxmodel_1,
+                                      inputs=[input_.name for input_ in
+                                              onnxmodel_1.graph.input])  # define the order of arguments
+        evaluation_model_graph = Graph.load(onnxmodel_2,
+                                            inputs=[input_.name for input_ in onnxmodel_2.graph.input],
+                                            outputs=[output_.name for output_ in onnxmodel_2.graph.output])
+        nms_model_graph = Graph.load(onnxmodel_3,
+                                     inputs=[input_.name for input_ in onnxmodel_3.graph.input],
+                                     outputs=[output_.name for output_ in onnxmodel_3.graph.output])
+
+        return combine_model.oxml
 
 
 if __name__ == '__main__':
@@ -370,6 +466,9 @@ if __name__ == '__main__':
     '''
 
     if not os.path.exists(model_file_name):
-        onnxmodel = convert_model(YOLO(model_path, anchors_path), model_file_name, target_opset)
+        yolo = YOLO(model_path, anchors_path)
+        yolo.load_model()
+        onnxmodel = convert_model(yolo, target_opset)
+        onnx.save_model(onnxmodel, model_file_name)
 
     detect_img(YOLO(), sys.argv[1], model_file_name)
