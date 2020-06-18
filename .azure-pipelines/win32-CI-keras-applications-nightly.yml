@@ -40,7 +40,7 @@ jobs:
       Python37:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras
+        INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
@@ -51,7 +51,7 @@ jobs:
       Python37-official-ort:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras
+        INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
@@ -90,8 +90,8 @@ jobs:
       echo Test numpy installation... && python -c "import numpy"
       pip install %ONNX_PATH%
       pip install h5py==2.9.0
-      %INSTALL_KERAS%
       %INSTALL_TENSORFLOW%
+      %INSTALL_KERAS%
       git clone https://github.com/microsoft/onnxconverter-common
       cd onnxconverter-common
       pip install -e .
