@@ -200,8 +200,11 @@ keras_layer_to_operator = {
     _layer.SpatialDropout3D: convert_keras_training_only_layer,
 
     _layer.SimpleRNN: convert_keras_simple_rnn,
+    _layer.recurrent.SimpleRNN: convert_keras_simple_rnn,
     _layer.GRU: convert_keras_gru,
+    _layer.recurrent.GRU: convert_keras_gru,
     _layer.LSTM: convert_keras_lstm,
+    _layer.recurrent.LSTM: convert_keras_lstm,
     _layer.Bidirectional: convert_bidirectional
 }
 
