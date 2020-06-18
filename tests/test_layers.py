@@ -1685,9 +1685,9 @@ def test_GRU(runner):
 
 
 def test_GRU_2(runner):
-    model = tf.keras.Sequential(name='TestGRU')
-    model.add(tf.keras.layers.GRU(400, reset_after=True, input_shape=(1, 257)))
-    model.add(tf.keras.layers.Dense(257, activation='sigmoid'))
+    model = keras.Sequential(name='TestGRU')
+    model.add(keras.layers.GRU(400, reset_after=True, input_shape=(1, 257)))
+    model.add(keras.layers.Dense(257, activation='sigmoid'))
     onnx_model = keras2onnx.convert_keras(model, name=model.name)
     data = np.random.rand(3, 257).astype(np.float32).reshape((3, 1, 257))
     expected = model.predict(data)
