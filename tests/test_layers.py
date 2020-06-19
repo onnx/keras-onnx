@@ -1684,6 +1684,16 @@ def test_GRU(runner):
         assert runner(onnx_model.graph.name, onnx_model, [data, init_state_onnx], expected)
 
 
+def test_GRU_2(runner):
+    model = keras.Sequential(name='TestGRU')
+    model.add(keras.layers.GRU(400, reset_after=True, input_shape=(1, 257)))
+    model.add(keras.layers.Dense(257, activation='sigmoid'))
+    onnx_model = keras2onnx.convert_keras(model, name=model.name)
+    data = np.random.rand(3, 257).astype(np.float32).reshape((3, 1, 257))
+    expected = model.predict(data)
+    runner(onnx_model.graph.name, onnx_model, data, expected)
+
+
 def test_LSTM(runner):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
