@@ -602,9 +602,6 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
                            layer_key_ else (nodes[0].name, "Custom_Layer"))
         if isinstance(layer_key_, keras.layers.TimeDistributed):
             _on_parsing_time_distributed_layer(graph, nodes, layer_key_, model_, varset)
-        elif isinstance(layer_key_, keras.layers.Softmax):
-            # tf.keras.layers.Softmax have Transpose ops to swap axis.
-            _on_parsing_tf_nodes(graph, nodes, varset, topology.debug_mode)
         elif layer_key_ is None or get_converter(type(layer_key_)) is None:
             _on_parsing_tf_nodes(graph, nodes, varset, topology.debug_mode)
         else:
@@ -726,10 +723,6 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
                            layer_info.layer else (layer_info.nodelist[0].name, "Custom_Layer"))
         if layer_info.layer and isinstance(layer_info.layer, keras.layers.TimeDistributed):
             _on_parsing_time_distributed_layer(graph, layer_info.nodelist, layer_info.layer, model_, varset)
-        elif layer_info.layer and isinstance(layer_info.layer, keras.layers.Softmax)\
-                and sum([1 if n_.type == 'Transpose' else 0 for n_ in layer_info.nodelist]) > 0:
-            # tf.keras.layers.Softmax have Transpose ops to swap axis.
-            _on_parsing_tf_nodes(graph, layer_info.nodelist, varset, topology.debug_mode)
         elif layer_info.layer and get_converter(type(layer_info.layer)):
             on_parsing_keras_layer_v2(graph, layer_info, varset)
         else:
