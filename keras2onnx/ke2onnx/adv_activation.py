@@ -30,10 +30,9 @@ def convert_keras_advanced_activation(scope, operator, container):
         alpha = op.get_config()['theta']
         apply_thresholded_relu(scope, operator.input_full_names[0], operator.output_full_names[0], container,
                                operator_name=operator.full_name, alpha=[alpha])
-    elif not is_keras_older_than('2.2.0') and \
-                isinstance(op, activations.ReLU):
-            apply_clip(scope, operator.input_full_names[0], operator.output_full_names[0], container,
-                       operator_name=operator.full_name+'_clip', max=op.max_value, min=op.threshold)
+    elif not is_keras_older_than('2.2.0') and isinstance(op, activations.ReLU):
+        apply_clip(scope, operator.input_full_names[0], operator.output_full_names[0], container,
+                   operator_name=operator.full_name+'_clip', max=op.max_value, min=op.threshold)
     else:
         raise RuntimeError('Unsupported advanced layer found %s' % type(op))
 

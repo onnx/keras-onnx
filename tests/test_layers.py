@@ -1375,13 +1375,11 @@ def test_Softmax(advanced_activation_runner):
 
 @pytest.mark.parametrize("axis", [0, 1, -1])
 def test_Softmax_2(runner, axis):
-    keras.backend.set_image_data_format("channels_first")
     model = keras.Sequential()
     model.add(keras.layers.InputLayer((2, 3, 4)))
     model.add(keras.layers.Softmax(axis=axis))
     data = np.random.rand(2, 2, 3, 4).astype(np.float32)
     onnx_model = keras2onnx.convert_keras(model, model.name)
-    keras2onnx.save_model(onnx_model, 'softmax.onnx')
     expected = model.predict(data)
     assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
