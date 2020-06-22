@@ -26,6 +26,7 @@ class TYPES:
     ConcatV2 = 'ConcatV2'
     Conv1D = 'Conv1D'
     Conv2D = 'Conv2D'
+    Conv3D = 'Conv3D'
     Cumsum = 'Cumsum'
     DepthToSpace = 'DepthToSpace'
     DepthwiseConv2dNative = 'DepthwiseConv2dNative'
@@ -99,3 +100,6 @@ NCHW_TO_NHWC = [0, 2, 3, 1]
 NHWC_TO_NCHW = [0, 3, 1, 2]
 HWCN_TO_NCHW = [3, 2, 0, 1]
 NCHW_TO_HWCN = [2, 3, 1, 0]
+NCDHW_TO_NDHWC = [0, 2, 3, 4, 1]
+NDHWC_TO_NCDHW = [0, 4, 1, 2, 3]
+DHWCN_TO_NCDHW = [4, 3, 0, 1, 2]
