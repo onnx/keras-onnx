@@ -66,6 +66,7 @@ class TYPES:
     Reshape = 'Reshape'
     ResizeBilinear = 'ResizeBilinear'
     ResizeNearestNeighbor = 'ResizeNearestNeighbor'
+    ReverseV2 = 'ReverseV2'
     Round = 'Round'
     Rsqrt = 'Rsqrt'
     ScatterNd = 'ScatterNd'
