@@ -148,28 +148,37 @@ def test_tf_conv(runner):
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='SAME', data_format='NHWC'),
                      input_shape=[10, 14, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv2d')
     data = np.random.rand(1, 10, 14, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv2d', onnx_model, data, expected)
 
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='VALID', data_format='NHWC'),
                      input_shape=[10, 14, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv2d')
     data = np.random.rand(1, 10, 14, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv2d', onnx_model, data, expected)
 
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv1d(x, k, stride=2, padding='SAME', data_format='NWC'),
                      input_shape=[10, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv1d')
     data = np.random.rand(1, 10, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv1d', onnx_model, data, expected)
+
+    model = Sequential()
+    k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5, 2)).astype(np.float32))
+    model.add(Lambda(lambda x: tf.nn.conv3d(x, k, strides=[1, 1, 2, 1, 1], padding='SAME', data_format='NDHWC'),
+                     input_shape=[10, 14, 3, 5]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv3d')
+    data = np.random.rand(1, 10, 14, 3, 5).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_tf_conv3d', onnx_model, data, expected)
 
 
 def test_tf_rsqrt(runner):
