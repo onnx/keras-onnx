@@ -147,7 +147,7 @@ def test_tf_argmax_argmin(runner, arg_func):
 @pytest.mark.parametrize("padding_method", ['SAME', 'VALID'])
 def test_tf_pool(runner, arg_func, padding_method):
     model = Sequential()
-    k_size = [2, 2] if is_tensorflow_older_than('1.14.0') else 2
+    k_size = [1, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
     model.add(Lambda(lambda x: arg_func[0](x, k_size, strides=[1, 1, 2, 1], padding=padding_method, data_format='NHWC'),
                      input_shape=[10, 12, 3]))
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
@@ -156,7 +156,7 @@ def test_tf_pool(runner, arg_func, padding_method):
     assert runner('onnx_pool2d', onnx_model, data, expected)
 
     model = Sequential()
-    k_size = [2, 2, 2] if is_tensorflow_older_than('1.14.0') else 2
+    k_size = [1, 2, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
     model.add(Lambda(lambda x: arg_func[1](x, k_size, strides=[1, 1, 2], padding=padding_method, data_format='NDHWC'),
                      input_shape=[10, 12, 3, 4]))
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
