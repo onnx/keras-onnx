@@ -2470,3 +2470,15 @@ def test_sub_model(runner):
     x = np.random.rand(2, 700, 420, 1).astype(np.float32)
     expected = model1.predict(x)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
+
+
+@pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)), reason='old tf version')
+def test_reverseV2(runner):
+    input = Input(shape=(2, 4), name='input')
+    rev = tf.reverse(input, [1])
+    model = tf.keras.models.Model(inputs=input, outputs=rev)
+
+    onnx_model = keras2onnx.convert_keras(model, 'tf_rev_v2')
+    data = np.random.rand(1, 2, 4).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('tf_rev_v2', onnx_model, data, expected)

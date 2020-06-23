@@ -2211,6 +2211,60 @@ def convert_tf_zeros_like(scope, operator, container):
                               name=operator.full_name)
 
 
+@converter_func(TYPES.ReverseV2)
+def convert_tf_reverse(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    ip = node.inputs[0]
+    axes = _cal_tensor_value(node.inputs[1])
+
+    len_axes = len(axes)
+    if len_axes > 1:
+        raise ValueError("Currently no support for more than 1 axis for ReverseV2 op")
+    elif len_axes == 0:
+        # Replace ReverseV2 with an identity block.
+        oopb.apply_op_with_output('apply_identity', [ip], operator.outputs, name=node.name + '_Identity')
+        return
+
+    # Store input and output parameters of the ReverseV2 node.
+    rv2_in_names = [node.inputs[0].name]
+
+    input_shape = _cal_tensor_shape(ip)
+    input_rank = len(input_shape)
+    input_shape_node = oopb.add_node('Shape', ip.name, ip.name + '_shape')
+
+    if input_shape is None:
+        raise ValueError("ReverseV2 op {} requires the shape of input".format(node.name))
+
+    rv2_node_name = node.name
+
+    inputs = rv2_in_names
+
+    # Supports only one axis as of now
+    axis = axes[0]
+    if axis < 0:
+        axis = input_rank + axis
+
+    batch_axis = 1 if axis != 1 else 0
+
+    const_batch = numpy_helper.from_array(np.array([batch_axis], dtype=np.int64), rv2_node_name + '_const_batch')
+    container.add_initializer_from_tensor(const_batch)
+    const_axis = numpy_helper.from_array(np.array([axis], dtype=np.int64), rv2_node_name + '_const_axis')
+    container.add_initializer_from_tensor(const_axis)
+
+    batch_size = oopb.add_node('Gather', [input_shape_node, const_batch.name], rv2_node_name + '_gather_batch')
+    axis_dim = oopb.add_node('Gather', [input_shape_node, const_axis.name], rv2_node_name + '_gather_axis')
+
+    seq_array = oopb.add_node('Expand', [axis_dim, batch_size], rv2_node_name + '_expand')
+    inputs.append(seq_array)
+
+    res_seq_node = oopb.add_node('ReverseSequence', inputs, name=rv2_node_name + '_rev_seq', batch_axis=batch_axis,
+                                 time_axis=axis)
+
+    oopb.apply_op_with_output('apply_identity', [res_seq_node], [operator.outputs[0].full_name],
+                              name=rv2_node_name + '_Identity')
+
+
 direct_ops = {
     "Abs": ("apply_abs",),
     "Acos": 7,
