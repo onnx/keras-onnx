@@ -156,8 +156,8 @@ def test_tf_pool(runner, arg_func, padding_method):
     assert runner('onnx_pool2d', onnx_model, data, expected)
 
     model = Sequential()
-    k_size = [1, 2, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
     strides = [1, 1, 1, 2, 1] if is_tensorflow_older_than('1.14.0') else [1, 1, 2]
+    k_size = [1, 2, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
     model.add(Lambda(lambda x: arg_func[1](x, k_size, strides=strides, padding=padding_method, data_format='NDHWC'),
                      input_shape=[10, 12, 3, 4]))
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
