@@ -143,6 +143,18 @@ def test_tf_argmax_argmin(runner, arg_func):
     assert runner('onnx_arg', onnx_model, data, expected)
 
 
+@pytest.mark.parametrize("arg_func", [tf.nn.avg_pool, tf.nn.max_pool])
+@pytest.mark.parametrize("padding_method", ['SAME', 'VALID'])
+def test_tf_pool(runner, arg_func, padding_method):
+    model = Sequential()
+    model.add(Lambda(lambda x: arg_func(x, 2, strides=[1, 1, 2, 1], padding=padding_method, data_format='NHWC'),
+                     input_shape=[10, 12, 3]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
+    data = np.random.rand(5, 10, 12, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_pool', onnx_model, data, expected)
+
+
 def test_tf_conv(runner):
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
