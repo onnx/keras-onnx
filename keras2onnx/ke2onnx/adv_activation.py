@@ -44,13 +44,15 @@ def convert_keras_softmax(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     axis = op.get_config()['axis']
     input_dim = len(op.input_shape)
-    if axis == -1:
+    if axis == -1 or axis == input_dim - 1:
         oopb.apply_op_with_output('apply_softmax',
                                   operator.input_full_names,
                                   operator.output_full_names,
                                   name=operator.full_name,
                                   axis=-1)
     else:
+        if axis < 0:
+            axis += input_dim
         perm_1 = list(range(0, axis)) + list(range(axis + 1, input_dim)) + [axis]
         inverse_perm = np.arange(len(perm_1))[np.argsort(perm_1)]
         transpose_1 = oopb.apply_transpose(operator.input_full_names,

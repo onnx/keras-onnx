@@ -143,6 +143,29 @@ def test_tf_argmax_argmin(runner, arg_func):
     assert runner('onnx_arg', onnx_model, data, expected)
 
 
+@pytest.mark.parametrize("arg_func", [[tf.nn.avg_pool, tf.nn.avg_pool3d], [tf.nn.max_pool, tf.nn.max_pool3d]])
+@pytest.mark.parametrize("padding_method", ['SAME', 'VALID'])
+def test_tf_pool(runner, arg_func, padding_method):
+    model = Sequential()
+    k_size = [1, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
+    model.add(Lambda(lambda x: arg_func[0](x, k_size, strides=[1, 1, 2, 1], padding=padding_method, data_format='NHWC'),
+                     input_shape=[10, 12, 3]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
+    data = np.random.rand(5, 10, 12, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_pool2d', onnx_model, data, expected)
+
+    model = Sequential()
+    strides = [1, 1, 1, 2, 1] if is_tensorflow_older_than('1.14.0') else [1, 1, 2]
+    k_size = [1, 2, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
+    model.add(Lambda(lambda x: arg_func[1](x, k_size, strides=strides, padding=padding_method, data_format='NDHWC'),
+                     input_shape=[10, 12, 3, 4]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
+    data = np.random.rand(5, 10, 12, 3, 4).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_pool3d', onnx_model, data, expected)
+
+
 def test_tf_conv(runner):
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
