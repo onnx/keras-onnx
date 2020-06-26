@@ -37,6 +37,7 @@ class TYPES:
     ExpandDims = 'ExpandDims'
     Fill = 'Fill'
     FloorDiv = 'FloorDiv'
+    FloorMod = 'FloorMod'
     FusedBatchNorm = 'FusedBatchNorm'
     FusedBatchNormV2 = 'FusedBatchNormV2'
     FusedBatchNormV3 = 'FusedBatchNormV3'
