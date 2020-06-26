@@ -204,6 +204,28 @@ def test_tf_conv(runner):
     assert runner('onnx_tf_conv3d', onnx_model, data, expected)
 
 
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
+                    reason="tf.math has no attribute 'floormod'.")
+def test_tf_floormod(runner):
+    def my_func_1(x):
+        return tf.math.floormod(x[0], x[1])
+
+    def my_func_2(x):
+        return tf.math.floormod(tf.cast(x[0], tf.int32), tf.cast(x[1], tf.int32))
+
+
+    for my_func_ in [my_func_1, my_func_2]:
+        input1 = Input(shape=[2, 2])
+        input2 = Input(shape=[2, 2])
+        added =  Lambda(my_func_)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_floormod')
+        data1 = 100 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        data2 = 10 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        expected = model.predict([data1, data2])
+        assert runner('onnx_tf_floormod', onnx_model, [data1, data2], expected)
+
+
 def test_tf_rsqrt(runner):
     def my_func_1(x):
         beta = tf.constant([0.0, 0.0, 0.0, 0.0])
