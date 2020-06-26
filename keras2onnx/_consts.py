@@ -70,6 +70,7 @@ class TYPES:
     Rsqrt = 'Rsqrt'
     ScatterNd = 'ScatterNd'
     Select = 'Select'
+    SelectV2 = 'SelectV2'
     Shape = 'Shape'
     Size = 'Size'
     Slice = 'Slice'
