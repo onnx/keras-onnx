@@ -881,6 +881,24 @@ def convert_tf_floor_div(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.FloorMod)
+def convert_tf_floor_mod(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    div_node = oopb.apply_div(operator.input_full_names,
+                              name=operator.full_name + '_div')
+    input0_dtype = _to_onnx_type(node.inputs[0].dtype)
+    if input0_dtype in [oopb.float16, oopb.float, oopb.double]:
+        div_floor_node = oopb.apply_floor(div_node, name=operator.full_name + '_floor')
+    else:
+        div_floor_node = div_node
+    mul_node = oopb.apply_mul(div_floor_node + [operator.input_full_names[1]],
+                              name=operator.full_name + '_mul')
+    oopb.apply_op_with_output('apply_sub', [operator.input_full_names[0]] + mul_node,
+                              operator.outputs[0].full_name,
+                              name=operator.full_name + '_sub')
+
+
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
     _convert_tf_fused_batch_norm_core(scope, operator, container)
