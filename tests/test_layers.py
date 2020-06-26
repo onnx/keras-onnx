@@ -55,6 +55,7 @@ MaxPooling2D = keras.layers.MaxPooling2D
 Model = keras.models.Model
 Multiply = keras.layers.Multiply
 Reshape = keras.layers.Reshape
+SelectV2 = keras.layers.SelectV2
 SeparableConv1D = keras.layers.SeparableConv1D
 SeparableConv2D = keras.layers.SeparableConv2D
 Sequential = keras.models.Sequential
