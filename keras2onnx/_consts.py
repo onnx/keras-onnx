@@ -82,6 +82,7 @@ class TYPES:
     Squeeze = 'Squeeze'
     StridedSlice = 'StridedSlice'
     Sum = 'Sum'
+    TensorScatterUpdate = "TensorScatterUpdate"
     Tile = 'Tile'
     TopKV2 = 'TopKV2'
     Transpose = 'Transpose'
