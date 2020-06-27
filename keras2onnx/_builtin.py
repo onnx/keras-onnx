@@ -945,6 +945,15 @@ def convert_tf_gather_nd(scope, operator, container):
                               name=operator.full_name)
 
 
+@converter_func(TYPES.IdentityN)
+def convert_tf_identity_n(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    for idx_ in range(len(operator.input_full_names)):
+        oopb.apply_op_with_output('apply_identity', operator.input_full_names[idx_],
+                                  operator.output_full_names[idx_],
+                                  name=operator.full_name + '_' + str(idx_))
+
+
 @converter_func(TYPES.GreaterEqual)
 def convert_tf_greater_equal(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
