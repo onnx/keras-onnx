@@ -1451,6 +1451,8 @@ def test_tf_nn_activation(runner):
             model.add(Activation(tf.keras.layers.ReLU()))
             model.add(tf.keras.layers.PReLU())
             model.add(tf.keras.layers.LeakyReLU(alpha=0.5))
+            model.add(Lambda(lambda x: tf.keras.activations.swish(x)))
+            model.add(Lambda(lambda x: tf.nn.swish(x)))
         x = np.random.rand(5, 10).astype(np.float32)
         expected = model.predict(x)
         onnx_model = keras2onnx.convert_keras(model, model.name)
