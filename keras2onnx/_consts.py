@@ -44,6 +44,7 @@ class TYPES:
     GatherNd = 'GatherNd'
     GatherV2 = 'GatherV2'
     GreaterEqual = 'GreaterEqual'
+    IdentityN = 'IdentityN'
     LessEqual = 'LessEqual'
     LogicalAnd = 'LogicalAnd'
     LogicalNot = 'LogicalNot'
