@@ -143,33 +143,87 @@ def test_tf_argmax_argmin(runner, arg_func):
     assert runner('onnx_arg', onnx_model, data, expected)
 
 
+@pytest.mark.parametrize("arg_func", [[tf.nn.avg_pool, tf.nn.avg_pool3d], [tf.nn.max_pool, tf.nn.max_pool3d]])
+@pytest.mark.parametrize("padding_method", ['SAME', 'VALID'])
+def test_tf_pool(runner, arg_func, padding_method):
+    model = Sequential()
+    k_size = [1, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
+    model.add(Lambda(lambda x: arg_func[0](x, k_size, strides=[1, 1, 2, 1], padding=padding_method, data_format='NHWC'),
+                     input_shape=[10, 12, 3]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
+    data = np.random.rand(5, 10, 12, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_pool2d', onnx_model, data, expected)
+
+    model = Sequential()
+    strides = [1, 1, 1, 2, 1] if is_tensorflow_older_than('1.14.0') else [1, 1, 2]
+    k_size = [1, 2, 2, 2, 1] if is_tensorflow_older_than('1.14.0') else 2
+    model.add(Lambda(lambda x: arg_func[1](x, k_size, strides=strides, padding=padding_method, data_format='NDHWC'),
+                     input_shape=[10, 12, 3, 4]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_pool')
+    data = np.random.rand(5, 10, 12, 3, 4).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_pool3d', onnx_model, data, expected)
+
+
 def test_tf_conv(runner):
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='SAME', data_format='NHWC'),
                      input_shape=[10, 14, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv2d')
     data = np.random.rand(1, 10, 14, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv2d', onnx_model, data, expected)
 
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv2d(x, k, strides=[1, 1, 2, 1], padding='VALID', data_format='NHWC'),
                      input_shape=[10, 14, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv2d')
     data = np.random.rand(1, 10, 14, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv2d', onnx_model, data, expected)
 
     model = Sequential()
     k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 3, 5)).astype(np.float32))
     model.add(Lambda(lambda x: tf.nn.conv1d(x, k, stride=2, padding='SAME', data_format='NWC'),
                      input_shape=[10, 3]))
-    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv')
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv1d')
     data = np.random.rand(1, 10, 3).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_tf_conv', onnx_model, data, expected)
+    assert runner('onnx_tf_conv1d', onnx_model, data, expected)
+
+    model = Sequential()
+    k = tf.constant(np.random.normal(loc=0.0, scale=1.0, size=(1, 2, 3, 5, 2)).astype(np.float32))
+    model.add(Lambda(lambda x: tf.nn.conv3d(x, k, strides=[1, 1, 2, 1, 1], padding='SAME', data_format='NDHWC'),
+                     input_shape=[10, 14, 3, 5]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_conv3d')
+    data = np.random.rand(1, 10, 14, 3, 5).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_tf_conv3d', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
+                    reason="tf.math has no attribute 'floormod'.")
+def test_tf_floormod(runner):
+    def my_func_1(x):
+        return tf.math.floormod(x[0], x[1])
+
+    def my_func_2(x):
+        return tf.math.floormod(tf.cast(x[0], tf.int32), tf.cast(x[1], tf.int32))
+
+
+    for my_func_ in [my_func_1, my_func_2]:
+        input1 = Input(shape=[2, 2])
+        input2 = Input(shape=[2, 2])
+        added =  Lambda(my_func_)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_floormod')
+        data1 = 100 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        data2 = 10 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        expected = model.predict([data1, data2])
+        assert runner('onnx_tf_floormod', onnx_model, [data1, data2], expected)
 
 
 def test_tf_rsqrt(runner):
@@ -1397,6 +1451,10 @@ def test_tf_nn_activation(runner):
             model.add(Activation(tf.keras.layers.ReLU()))
             model.add(tf.keras.layers.PReLU())
             model.add(tf.keras.layers.LeakyReLU(alpha=0.5))
+            if is_tf2:
+                model.add(Lambda(lambda x: tf.keras.activations.swish(x)))
+            if not is_tensorflow_older_than('1.15.0'):
+                model.add(Lambda(lambda x: tf.nn.swish(x)))
         x = np.random.rand(5, 10).astype(np.float32)
         expected = model.predict(x)
         onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -2438,3 +2496,15 @@ def test_sub_model(runner):
     x = np.random.rand(2, 700, 420, 1).astype(np.float32)
     expected = model1.predict(x)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
+
+
+@pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)), reason='old tf version')
+def test_reverseV2(runner):
+    input = Input(shape=(2, 4), name='input')
+    rev = tf.reverse(input, [1])
+    model = tf.keras.models.Model(inputs=input, outputs=rev)
+
+    onnx_model = keras2onnx.convert_keras(model, 'tf_rev_v2')
+    data = np.random.rand(1, 2, 4).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('tf_rev_v2', onnx_model, data, expected)

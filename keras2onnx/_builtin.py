@@ -8,7 +8,8 @@ import numbers
 import tensorflow
 import numpy as np
 
-from keras2onnx._consts import TYPES, NCHW_TO_NHWC, NHWC_TO_NCHW, HWCN_TO_NCHW
+from keras2onnx._consts import TYPES, NCHW_TO_NHWC, NHWC_TO_NCHW, HWCN_TO_NCHW, \
+    NCDHW_TO_NDHWC, NDHWC_TO_NCDHW, DHWCN_TO_NCDHW
 from onnx import numpy_helper
 from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
 from .common.utils import count_dynamic_dim
@@ -74,6 +75,162 @@ def convert_tf_argmax(scope, operator, container):
 @converter_func(TYPES.ArgMin)
 def convert_tf_argmin(scope, operator, container):
     _convert_tf_argmax_argmin_helper(scope, operator, container, 'argmin')
+
+
+def _spatial_map(shape, perm):
+    new_shape = shape[:]
+    for i in perm:
+        new_shape[i] = shape[perm[i]]
+    return new_shape
+
+
+def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_kernel_shape=None,
+                         output_indices=None, input_perm=NHWC_TO_NCHW, kernel_perm=HWCN_TO_NCHW,
+                         output_perm=NCHW_TO_NHWC, op_type='Conv'):
+    if output_indices is None:
+        output_indices = [0]
+
+    if _is_nhwc(node):
+        # transpose input if needed, no need to record shapes on input
+        transpose_node_1 = oopb.apply_transpose(node.inputs[0].name,
+                                                name=operator.full_name + '_transpose_1',
+                                                perm=input_perm)
+    else:
+        transpose_node_1 = [node.inputs[0].name]
+
+    if op_type == 'Conv':
+        # kernel must to be transposed
+        if with_kernel:
+            val = _cal_tensor_value(node.inputs[1])
+            if val is not None:
+                val = val.transpose(kernel_perm)
+                onnx_type = _to_onnx_type(node.inputs[1].dtype)
+                transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
+                                                            name=operator.full_name + '_transpose_kernel')
+            else:
+                transpose_node_kernel = oopb.apply_transpose(node.inputs[1].name,
+                                                             name=operator.full_name + '_transpose_kernel',
+                                                             perm=kernel_perm)
+            # TODO, some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
+        else:
+            transpose_node_kernel = [node.inputs[1].name]
+
+        conv_node = oopb.apply_conv(transpose_node_1 + transpose_node_kernel,
+                                    name=operator.full_name + '_conv',
+                                    **attrs)
+    else:
+        conv_node = oopb.add_node(op_type,
+                                  transpose_node_1,
+                                  name=operator.full_name + '_conv',
+                                  **attrs)
+
+    # transpose outputs if needed
+    if _is_nhwc(node):
+        for idx in output_indices:
+            oopb.add_node_with_output("Transpose",
+                                      conv_node,
+                                      operator.outputs[idx].full_name,
+                                      name=operator.full_name + '_transpose_2_' + str(idx),
+                                      perm=output_perm)
+    else:
+        for idx in output_indices:
+            oopb.apply_op_with_output("apply_identity",
+                                      conv_node,
+                                      operator.outputs[idx].full_name,
+                                      name=operator.full_name + '_identity_' + str(idx))
+
+
+def _conv_dims_attr(node, dims):
+    if _is_nhwc(node):
+        if len(dims) == 2:
+            return dims
+        else:
+            return dims[1:-1]
+    else:
+        return dims[2:]
+
+
+def _add_padding(node, padding, dilations, spatial, pad_perm, strides, kernel_shape):
+    attrs_pad = {}
+    if padding:
+        if dilations is None:
+            dilations = [1] * spatial * 2
+        if padding == b'SAME':
+            pads = [0] * spatial * 2
+            input_shape = _cal_tensor_shape(node.inputs[0])
+            output_shape = _cal_tensor_shape(node.outputs[0])
+            # transpose shape to nchw
+            if _is_nhwc(node):
+                input_shape = _spatial_map(input_shape, pad_perm)
+                output_shape = _spatial_map(output_shape, pad_perm)
+            # calculate pads
+            if any(input_shape[i + 2] is None or output_shape[i + 2] is None for i in range(spatial)):
+                attrs_pad["auto_pad"] = "SAME_UPPER"
+            else:
+                for i in range(spatial):
+                    pad = (output_shape[i + 2] - 1) * strides[i] + dilations[i] * kernel_shape[i] - input_shape[i + 2]
+                    pad = max(pad, 0)
+                    pads[i] = pad // 2
+                    pads[i + spatial] = pad - pad // 2
+                attrs_pad["pads"] = pads
+    return attrs_pad
+
+
+def _convert_tf_pool(scope, operator, container, arg_str):
+    oopb = OnnxOperatorBuilder(container, scope)
+    node = operator.raw_operator
+    spatial = len(node.inputs[0].shape) - 2
+    pad_perm = NHWC_TO_NCHW if spatial < 3 else NDHWC_TO_NCDHW
+    if len(node.inputs) < 3:
+        kernel_shape_tf = node.get_attr('ksize')
+        strides_tf = node.get_attr('strides')
+    else:
+        kernel_shape_tf = _cal_tensor_value(node.inputs[1])
+        strides_tf = _cal_tensor_value(node.inputs[2])
+
+    if _is_nhwc(node):
+        kernel_shape_hw = kernel_shape_tf[1:-1]
+        strides_hw = strides_tf[1:-1]
+    else:
+        kernel_shape_hw = kernel_shape_tf[2:]
+        strides_hw = strides_tf[2:]
+
+    dilations = None
+    attrs = {"kernel_shape": kernel_shape_hw, "strides": strides_hw}
+    padding = node.get_attr('padding')
+    attrs_pads = _add_padding(node, padding, dilations, spatial, pad_perm, strides_hw, kernel_shape_hw)
+    attrs.update(attrs_pads)
+    if spatial < 3:
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, input_perm=NHWC_TO_NCHW,
+                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC, op_type=arg_str)
+    else:
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, input_perm=NDHWC_TO_NCDHW,
+                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC, op_type=arg_str)
+
+
+@converter_func(TYPES.AvgPool)
+def convert_tf_avgpool(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'AveragePool')
+
+
+@converter_func(TYPES.AvgPool3D)
+def convert_tf_avgpool3d(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'AveragePool')
+
+
+@converter_func(TYPES.MaxPool)
+def convert_tf_maxpool(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'MaxPool')
+
+
+@converter_func(TYPES.MaxPoolV2)
+def convert_tf_maxpoolv2(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'MaxPool')
+
+
+@converter_func(TYPES.MaxPool3D)
+def convert_tf_maxpool3d(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'MaxPool')
 
 
 @converter_func(TYPES.BatchToSpaceND)
@@ -557,116 +714,38 @@ def convert_tf_const(scope, operator, container):
     container.add_initializer_from_tensor(onnx_tensor)
 
 
-def _spatial_map(shape, perm):
-    new_shape = shape[:]
-    for i in perm:
-        new_shape[i] = shape[perm[i]]
-    return new_shape
-
-
-def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_kernel_shape=None,
-                         output_indices=None):
-    if output_indices is None:
-        output_indices = [0]
-
-    if _is_nhwc(node):
-        # transpose input if needed, no need to record shapes on input
-        transpose_node_1 = oopb.apply_transpose(node.inputs[0].name,
-                                                name=operator.full_name + '_transpose_1',
-                                                perm=NHWC_TO_NCHW)
-    else:
-        transpose_node_1 = [node.inputs[0].name]
-
-    # kernel must to be transposed
-    if with_kernel:
-        val = _cal_tensor_value(node.inputs[1])
-        if val is not None:
-            val = val.transpose(HWCN_TO_NCHW)
-            onnx_type = _to_onnx_type(node.inputs[1].dtype)
-            transpose_node_kernel = oopb.apply_identity([('_start', onnx_type, val)],
-                                                        name=operator.full_name + '_transpose_kernel')
-        else:
-            transpose_node_kernel = oopb.apply_transpose(node.inputs[1].name,
-                                                         name=operator.full_name + '_transpose_kernel',
-                                                         perm=HWCN_TO_NCHW)
-        # TODO, some onnx conv ops require the reshape the kernel (ie. depthwise_conv2d)
-    else:
-        transpose_node_kernel = [node.inputs[1].name]
-
-    conv_node = oopb.apply_conv(transpose_node_1 + transpose_node_kernel,
-                                name=operator.full_name + '_conv',
-                                **attrs)
-
-    # transpose outputs if needed
-    if _is_nhwc(node):
-        for idx in output_indices:
-            oopb.add_node_with_output("Transpose",
-                                      conv_node,
-                                      operator.outputs[idx].full_name,
-                                      name=operator.full_name + '_transpose_2_' + str(idx),
-                                      perm=NCHW_TO_NHWC)
-    else:
-        for idx in output_indices:
-            oopb.apply_op_with_output("apply_identity",
-                                      conv_node,
-                                      operator.outputs[idx].full_name,
-                                      name=operator.full_name + '_identity_' + str(idx))
-
-
-def _conv_dims_attr(node, dims):
-    if _is_nhwc(node):
-        if len(dims) == 2:
-            h, w = dims
-        else:
-            n, h, w, c = dims
-    else:
-        n, c, h, w = dims
-    dims = [h, w]
-    return dims
-
-
-def _convert_tf_conv2d(scope, operator, container):
+def _convert_tf_conv(scope, operator, container, spatial, pad_perm):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
-    kernel_shape = _cal_tensor_shape(node.inputs[1])[0:2]
+    kernel_shape = _cal_tensor_shape(node.inputs[1])[0:-2]
     strides = _conv_dims_attr(node, node.get_attr('strides'))
     dilations = _conv_dims_attr(node, node.get_attr('dilations'))
     padding = node.get_attr('padding')
-    spatial = 2
     attrs = {'strides': strides, 'dilations': dilations, 'kernel_shape': kernel_shape}
-    if padding:
-        if dilations is None:
-            dilations = [1] * spatial * 2
-        if padding == b'SAME':
-            pads = [0] * spatial * 2
-            input_shape = _cal_tensor_shape(node.inputs[0])
-            output_shape = _cal_tensor_shape(node.outputs[0])
-            # transpose shape to nchw
-            if _is_nhwc(node):
-                input_shape = _spatial_map(input_shape, NHWC_TO_NCHW)
-                output_shape = _spatial_map(output_shape, NHWC_TO_NCHW)
-            # calculate pads
-            if any(input_shape[i + 2] is None or output_shape[i + 2] is None for i in range(spatial)):
-                attrs["auto_pad"] = "SAME_UPPER"
-            else:
-                for i in range(spatial):
-                    pad = (output_shape[i + 2] - 1) * strides[i] + dilations[i] * kernel_shape[i] - input_shape[i + 2]
-                    pad = max(pad, 0)
-                    pads[i] = pad // 2
-                    pads[i + spatial] = pad - pad // 2
-                attrs["pads"] = pads
+    attrs_pad = _add_padding(node, padding, dilations, spatial, pad_perm, strides, kernel_shape)
+    attrs.update(attrs_pad)
 
-    _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=True)
+    if spatial < 3:
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=True, input_perm=NHWC_TO_NCHW,
+                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC)
+    else:
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=True, input_perm=NDHWC_TO_NCDHW,
+                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC)
 
 
 @converter_func(TYPES.Conv1D)
 def convert_tf_conv1d(scope, operator, container):
-    _convert_tf_conv2d(scope, operator, container)
+    _convert_tf_conv(scope, operator, container, 2, NHWC_TO_NCHW)
 
 
 @converter_func(TYPES.Conv2D)
 def convert_tf_conv2d(scope, operator, container):
-    _convert_tf_conv2d(scope, operator, container)
+    _convert_tf_conv(scope, operator, container, 2, NHWC_TO_NCHW)
+
+
+@converter_func(TYPES.Conv3D)
+def convert_tf_conv3d(scope, operator, container):
+    _convert_tf_conv(scope, operator, container, 3, NDHWC_TO_NCDHW)
 
 
 @converter_func(TYPES.Einsum)
@@ -802,6 +881,24 @@ def convert_tf_floor_div(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.FloorMod)
+def convert_tf_floor_mod(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    div_node = oopb.apply_div(operator.input_full_names,
+                              name=operator.full_name + '_div')
+    input0_dtype = _to_onnx_type(node.inputs[0].dtype)
+    if input0_dtype in [oopb.float16, oopb.float, oopb.double]:
+        div_floor_node = oopb.apply_floor(div_node, name=operator.full_name + '_floor')
+    else:
+        div_floor_node = div_node
+    mul_node = oopb.apply_mul(div_floor_node + [operator.input_full_names[1]],
+                              name=operator.full_name + '_mul')
+    oopb.apply_op_with_output('apply_sub', [operator.input_full_names[0]] + mul_node,
+                              operator.outputs[0].full_name,
+                              name=operator.full_name + '_sub')
+
+
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
     _convert_tf_fused_batch_norm_core(scope, operator, container)
@@ -846,6 +943,15 @@ def convert_tf_gather_nd(scope, operator, container):
                               [operator.inputs[0].full_name, cast_node],
                               operator.outputs[0].full_name,
                               name=operator.full_name)
+
+
+@converter_func(TYPES.IdentityN)
+def convert_tf_identity_n(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    for idx_ in range(len(operator.input_full_names)):
+        oopb.apply_op_with_output('apply_identity', operator.input_full_names[idx_],
+                                  operator.output_full_names[idx_],
+                                  name=operator.full_name + '_' + str(idx_))
 
 
 @converter_func(TYPES.GreaterEqual)
@@ -2158,6 +2264,60 @@ def convert_tf_zeros_like(scope, operator, container):
                                ('_zero', dtype, np.zeros((), dtype=np.int64))],
                               operator.outputs[0].full_name,
                               name=operator.full_name)
+
+
+@converter_func(TYPES.ReverseV2)
+def convert_tf_reverse(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    ip = node.inputs[0]
+    axes = _cal_tensor_value(node.inputs[1])
+
+    len_axes = len(axes)
+    if len_axes > 1:
+        raise ValueError("Currently no support for more than 1 axis for ReverseV2 op")
+    elif len_axes == 0:
+        # Replace ReverseV2 with an identity block.
+        oopb.apply_op_with_output('apply_identity', [ip], operator.outputs, name=node.name + '_Identity')
+        return
+
+    # Store input and output parameters of the ReverseV2 node.
+    rv2_in_names = [node.inputs[0].name]
+
+    input_shape = _cal_tensor_shape(ip)
+    input_rank = len(input_shape)
+    input_shape_node = oopb.add_node('Shape', ip.name, ip.name + '_shape')
+
+    if input_shape is None:
+        raise ValueError("ReverseV2 op {} requires the shape of input".format(node.name))
+
+    rv2_node_name = node.name
+
+    inputs = rv2_in_names
+
+    # Supports only one axis as of now
+    axis = axes[0]
+    if axis < 0:
+        axis = input_rank + axis
+
+    batch_axis = 1 if axis != 1 else 0
+
+    const_batch = numpy_helper.from_array(np.array([batch_axis], dtype=np.int64), rv2_node_name + '_const_batch')
+    container.add_initializer_from_tensor(const_batch)
+    const_axis = numpy_helper.from_array(np.array([axis], dtype=np.int64), rv2_node_name + '_const_axis')
+    container.add_initializer_from_tensor(const_axis)
+
+    batch_size = oopb.add_node('Gather', [input_shape_node, const_batch.name], rv2_node_name + '_gather_batch')
+    axis_dim = oopb.add_node('Gather', [input_shape_node, const_axis.name], rv2_node_name + '_gather_axis')
+
+    seq_array = oopb.add_node('Expand', [axis_dim, batch_size], rv2_node_name + '_expand')
+    inputs.append(seq_array)
+
+    res_seq_node = oopb.add_node('ReverseSequence', inputs, name=rv2_node_name + '_rev_seq', batch_axis=batch_axis,
+                                 time_axis=axis)
+
+    oopb.apply_op_with_output('apply_identity', [res_seq_node], [operator.outputs[0].full_name],
+                              name=rv2_node_name + '_Identity')
 
 
 direct_ops = {

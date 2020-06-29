@@ -18,7 +18,7 @@ def tsname_to_node(name):
 
 
 def is_nhwc(node):
-    return node.get_attr('data_format') == b'NHWC'
+    return node.get_attr('data_format') == b'NHWC' or node.get_attr('data_format') == b'NDHWC'
 
 
 _MAX_FOLDING_NODE_NUMBER = 15
