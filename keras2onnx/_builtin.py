@@ -1367,6 +1367,36 @@ def convert_tf_select(scope, operator, container):
                                   op_version=9)
 
 
+@converter_func(TYPES.SelectV2)
+def convert_tf_selectv2(scope, operator, container):
+    if operator.target_opset < 9:
+        raise ValueError("SelectV2 op is not supported for opset = " + str(operator.target_opset))
+    else:
+        oopb = OnnxOperatorBuilder(container, scope)
+        node = operator.raw_operator
+        cond_shape = _cal_tensor_shape(node.inputs[0])
+        input_shape = _cal_tensor_shape(node.inputs[1])
+        if input_shape is None:
+            input_shape = _cal_tensor_shape(node.inputs[2])
+        input_rank = len(input_shape)
+        if len(cond_shape) == 1 and input_rank > 1:
+            broadcast_shape = [cond_shape[0]] + [1] * (input_rank - 1)
+            reshape_node = oopb.apply_reshape(operator.inputs[0].full_name,
+                                              name=operator.full_name + '_reshape',
+                                              desired_shape=broadcast_shape)
+            input_nodes = reshape_node + operator.input_full_names[1:]
+        elif len(cond_shape) == input_rank:
+            input_nodes = operator.input_full_names
+        else:
+            raise ValueError("The rank of Condition must be 1 or equal to the rank of Input")
+
+        oopb.add_node_with_output('Where',
+                                  input_nodes,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_where',
+                                  op_version=9)
+
+
 @converter_func(TYPES.Size)
 def convert_tf_size(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
