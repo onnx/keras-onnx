@@ -38,6 +38,7 @@ def convert_keras_reshape(scope, operator, container):
     if target_shape[0] == -1:
         target_shape[0] = 0
 
+    print('reshape op name ='+operator.raw_operator.name)
     apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
                   operator_name=operator.raw_operator.name, desired_shape=target_shape)
 

@@ -1684,6 +1684,20 @@ def test_batch_normalization_2(runner):
         assert runner('test_batch_normalization_2_4d', onnx_model, [data], expected)
 
 
+def test_effdet(runner):
+    from model import efficientdet
+    m_train, model = efficientdet(phi=0,
+                                  weighted_bifpn=True,
+                                  num_classes=90,
+                                  score_threshold=0.3)
+    # load weights from (downloaded) coco weights
+    model_path = "efficientdet-d0.h5"
+    m_train.load_weights(model_path, by_name=True)
+
+    output_model_path = "keras_efficientDet0.onnx"
+    onnx_model = keras2onnx.convert_keras(m_train, m_train.name)
+    keras2onnx.save_model(onnx_model, output_model_path)
+
 def test_simpleRNN(runner):
     K.clear_session()
     inputs1 = keras.Input(shape=(3, 1))

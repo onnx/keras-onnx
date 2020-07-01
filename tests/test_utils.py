@@ -186,6 +186,7 @@ def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1
     except RuntimeError:
         msg = 'keras prediction throws an exception for model ' + model.name + ', skip comparison.'
 
-    onnx_model = keras2onnx.convert_keras(model, model.name)
+    onnx_model = keras2onnx.convert_keras(model, model.name, debug_mode=True)
+    keras2onnx.save_model(onnx_model, 'keras_efficientDet0.onnx')
     res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol)
     return res, msg

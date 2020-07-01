@@ -80,6 +80,23 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path)
         self.assertTrue(*res)
 
+    def test_effdet(self):
+        from model import efficientdet
+        m_train, model = efficientdet(phi=0,
+                                      weighted_bifpn=True,
+                                      num_classes=90,
+                                      score_threshold=0.3)
+        # load weights from (downloaded) coco weights
+        model_path = "efficientdet-d0.h5"
+        m_train.load_weights(model_path, by_name=True)
+
+        output_model_path = "keras_efficientDet0.onnx"
+        res = run_image(m_train, self.model_files, img_path, target_size=512, tf_v2=True)
+        self.assertTrue(*res)
+
+        #onnx_model = keras2onnx.convert_keras(m_train, m_train.name)
+        #keras2onnx.save_model(onnx_model, output_model_path)
+
     def test_Xception(self):
         from keras.applications.xception import Xception
         model = Xception(include_top=True, weights='imagenet')

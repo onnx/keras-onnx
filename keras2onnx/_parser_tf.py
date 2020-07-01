@@ -311,6 +311,7 @@ def on_parsing_keras_layer_v2(graph, layer_info, varset, prefix=None):
     layer = layer_info.layer
     node_list = layer_info.nodelist
     operator = varset.declare_local_operator(type(layer), raw_model=layer, op_name=layer.name)
+    print('keras layer op name='+layer.name)
     operator.nodelist = node_list
 
     if prefix is None:  # prefix is designed for the distinguish among the shared model instances.
