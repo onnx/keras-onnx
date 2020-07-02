@@ -150,7 +150,7 @@ def _check_layer_converter_availability(sub_model):
         else:
             layer_type = type(l_)
             exist = get_converter(layer_type) or \
-                layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
+                    layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
 
         if not exist:
             k2o_logger().info("The layer {} doesn't have a specific converter, fall back.".format(str(l_)))
@@ -742,8 +742,14 @@ def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, k
     input_tensors = [graph.get_tensor_by_name(n_) for n_ in input_names]
     output_tensors = [graph.get_tensor_by_name(n_) for n_ in output_names]
 
+    c_ = 0
     for ts_i_ in input_tensors:
         var_type = _adjust_input_batch_size(infer_variable_type(ts_i_, target_opset))
+        if topo.initial_types is not None:
+            if isinstance(topo.initial_types[c_], str):
+                c_ += 1
+            var_type = topo.initial_types[c_]
+            c_ += 1
         if ts_i_.name.endswith(':0'):
             str_value = ts_i_.name[:-2]
             op = top_level.declare_local_operator(TYPES.Identity)
@@ -758,6 +764,9 @@ def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, k
 
     for ts_o_ in output_tensors:
         var_type = _adjust_input_batch_size(infer_variable_type(ts_o_, target_opset))
+        # if the input types was overridden, the output shape has to be undefined.
+        if topo.initial_types is not None:
+            var_type.shape = []
         str_value = ts_o_.name
         top_level.get_local_variable_or_declare_one(str_value, var_type)
         topo.raw_model.add_output_name(str_value)

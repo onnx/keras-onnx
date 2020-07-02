@@ -250,12 +250,12 @@ def build_layer_outputs(model, graph, outputs):
     return output_dict
 
 
-def extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names):
+def extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names, input_sigature):
     from tensorflow.python.keras.saving import saving_utils as _saving_utils
     from tensorflow.python.util import object_identity
     from ._graph_cvt import convert_variables_to_constants_v2 as _convert_to_constants
 
-    function = _saving_utils.trace_model_call(model)
+    function = _saving_utils.trace_model_call(model, input_sigature)
     concrete_func = function.get_concrete_function()
     for k_, v_ in concrete_func.structured_outputs.items():
         output_names.extend([ts_.name for ts_ in v_.op.outputs])
@@ -296,10 +296,10 @@ def extract_outputs_from_inbound_nodes(model):
     return output_dict
 
 
-def build_layer_output_from_model(model, output_dict, input_names, output_names):
+def build_layer_output_from_model(model, output_dict, input_names, output_names, input_specs):
     if is_subclassing(model):
         tf.compat.v1.enable_tensor_equality()  # re-enable tensor tensor equality for subclassing model.
-        return extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names)
+        return extract_outputs_from_subclassing_model(model, output_dict, input_names, output_names, input_specs)
     else:
         graph = model.outputs[0].graph
         output_names.extend([n.name for n in model.outputs])

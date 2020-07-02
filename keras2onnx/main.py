@@ -15,20 +15,40 @@ from .parser import parse_graph, parse_graph_modeless
 from .topology import Topology
 from .common.utils import set_logger_level, k2o_logger
 from .funcbook import set_converter
-from ._tf_utils import tsname_to_node
+from ._tf_utils import tsname_to_node, to_tf_tensor_spec
 from ._builtin import register_direct_tf_ops
 from ._parser_1x import build_opdict_from_keras
 from ._parser_tf import build_layer_output_from_model
 
 
-def convert_keras(model, name=None, doc_string='', target_opset=None,
+def _process_initial_types(initial_types):
+    if initial_types is None:
+        return None
+
+    input_specs = []
+    c_ = 0
+    while c_ < len(initial_types):
+        name = None
+        type_idx = c_
+        if isinstance(initial_types[c_], str):
+            name = initial_types[c_]
+            type_idx = c_ + 1
+        ts_spec = to_tf_tensor_spec(initial_types[type_idx], name)
+        input_specs.append(ts_spec)
+        c_ += 1 if name is None else 2
+
+    return input_specs
+
+
+def convert_keras(model, name=None, doc_string='', target_opset=None, initial_types=None,
                   channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
-    # type: (keras.Model, str, str, int, [], bool, {}) -> onnx.ModelProto
+    # type: (keras.Model, str, str, int, [], [], bool, {}) -> onnx.ModelProto
     """
     :param model: keras model
     :param name: the converted onnx model internal name
     :param doc_string: doc string
     :param target_opset: the targeted onnx model opset
+    :param initial_types: the overridden input type for the target ONNX model.
     :param channel_first_inputs: A list of channel first input
     :param debug_mode: will enable the log and try to convert as much as possible on conversion
     :param custom_op_conversions: the handler for custom operator conversion
@@ -59,7 +79,8 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     output_names = []
     output_dict = {}
     if is_tf2 and is_tf_keras:
-        tf_graph = build_layer_output_from_model(model, output_dict, input_names, output_names)
+        tf_graph = build_layer_output_from_model(model, output_dict, input_names,
+                                                 output_names, _process_initial_types(initial_types))
     else:
         tf_graph = model.outputs[0].graph if is_tf2 else keras.backend.get_session().graph
         output_dict = build_opdict_from_keras(model)
@@ -70,6 +91,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None,
     dump_graph_into_tensorboard(tf_graph)
     topology = Topology(model, tf_graph,
                         target_opset=target_opset,
+                        initial_types=initial_types,
                         custom_op_dict=custom_op_conversions)
     topology.debug_mode = debug_mode
     if (not model.inputs) or (not model.outputs):
