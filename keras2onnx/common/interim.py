@@ -127,8 +127,7 @@ class OnnxObjectContainer(object):
                 cur_count = self.node_names[attrs['name']] + 1
                 self.node_names.update({attrs['name']: cur_count})
                 attrs['name'] = attrs['name'] + "_" + str(cur_count)
-            else:
-                self.node_names.update({attrs['name']: 0})
+            self.node_names.update({attrs['name']: 0})
 
         node = helper.make_node(op_type, inputs, outputs, **attrs)
         node.domain = op_domain
@@ -258,7 +257,6 @@ class InterimContext:
         This function is used to declare new local operator.
         """
         onnx_name = self.get_unique_operator_name(str(type) if op_name is None else op_name)
-        print("onnx name now="+onnx_name)
         operator = Operator(onnx_name, self.name, type, raw_model, self.target_opset)
         self.operators[onnx_name] = operator
         operator.update_attrs(**attrs)
