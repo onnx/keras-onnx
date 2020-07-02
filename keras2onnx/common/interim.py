@@ -127,8 +127,7 @@ class OnnxObjectContainer(object):
                 cur_count = self.node_names[attrs['name']] + 1
                 self.node_names.update({attrs['name']: cur_count})
                 attrs['name'] = attrs['name'] + "_" + str(cur_count)
-            else:
-                self.node_names.update({attrs['name']: 0})
+            self.node_names.update({attrs['name']: 0})
 
         node = helper.make_node(op_type, inputs, outputs, **attrs)
         node.domain = op_domain
