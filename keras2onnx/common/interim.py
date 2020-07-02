@@ -258,7 +258,6 @@ class InterimContext:
         This function is used to declare new local operator.
         """
         onnx_name = self.get_unique_operator_name(str(type) if op_name is None else op_name)
-        print("onnx name now="+onnx_name)
         operator = Operator(onnx_name, self.name, type, raw_model, self.target_opset)
         self.operators[onnx_name] = operator
         operator.update_attrs(**attrs)
