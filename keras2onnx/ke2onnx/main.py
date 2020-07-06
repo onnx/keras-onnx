@@ -242,10 +242,13 @@ if is_tf_keras and is_tf2:
         _layer.recurrent.GRU: convert_keras_gru,
         _layer.recurrent.LSTM: convert_keras_lstm,
         _layer.recurrent.SimpleRNN: convert_keras_simple_rnn,
-        _layer.recurrent_v2.GRU: convert_keras_gru,
-        _layer.recurrent_v2.LSTM: convert_keras_lstm,
-        _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
+    if hasattr(_layer, 'recurrent_v2'):
+        keras_layer_to_operator.update({
+            _layer.recurrent_v2.GRU: convert_keras_gru,
+            _layer.recurrent_v2.LSTM: convert_keras_lstm,
+            _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
+        })
 
 
 @with_variable('loaded')
