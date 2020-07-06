@@ -111,7 +111,7 @@ def print_mismatches(case_name, list_idx, expected_list, actual_list, rtol=1.e-3
           file=sys.stderr)
 
 
-def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6):
+def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6, compare_perf=False):
     if not os.path.exists(tmp_path):
         os.mkdir(tmp_path)
     temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
@@ -133,6 +133,14 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
         feed = zip(sorted(i_.name for i_ in input_names), data)
         feed_input = dict(feed)
     actual = sess.run(None, feed_input)
+    if compare_perf:
+        import time
+        count = 10
+        time_start = time.time()
+        for i in range(count):
+            sess.run(None, feed_input)
+        time_end = time.time()
+        print('avg ort time=' + str((time_end - time_start)/count))
 
     if expected is None:
         return
@@ -157,7 +165,7 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
 
 
 def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb",
-              target_size=224, tf_v2=False):
+              target_size=224, tf_v2=False, compare_perf=False):
     if tf_v2:
         preprocess_input = keras.applications.imagenet_utils.preprocess_input
     else:
@@ -183,9 +191,17 @@ def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1
     preds = None
     try:
         preds = model.predict(x)
+        if compare_perf:
+            import time
+            count = 10
+            time_start = time.time()
+            for i in range(count):
+                model.predict(x)
+            time_end = time.time()
+            print('avg keras time=' + str((time_end - time_start) / count))
     except RuntimeError:
         msg = 'keras prediction throws an exception for model ' + model.name + ', skip comparison.'
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
-    res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol)
+    res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol, compare_perf=compare_perf)
     return res, msg
