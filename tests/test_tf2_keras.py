@@ -7,7 +7,6 @@ import pytest
 import keras2onnx
 import numpy as np
 import tensorflow as tf
-from keras2onnx.proto import is_tensorflow_older_than
 
 if (not keras2onnx.proto.is_tf_keras) or (not keras2onnx.proto.tfcompat.is_tf2):
     pytest.skip("Tensorflow 2.0 only tests.", allow_module_level=True)
@@ -184,7 +183,7 @@ def test_auto_encoder(runner):
     expected = vae.predict(x)
     oxml = keras2onnx.convert_keras(vae)
     # assert runner('variational_auto_encoder', oxml, [x.numpy()], expected)
-    # The random generator is not same between different engiens.
+    # The random generator is not same between different engines.
     import onnx
     onnx.checker.check_model(oxml)
 
@@ -202,3 +201,35 @@ def test_tf_where(runner):
     swm._set_inputs(const_in)
     oxml = keras2onnx.convert_keras(swm)
     assert runner('where_test', oxml, const_in, expected)
+
+
+class OptionalInputs(tf.keras.Model):
+    def __init__(self, *args, **kwargs):
+        super(OptionalInputs, self).__init__(*args, **kwargs)
+
+    def call(self, inputs, type_ids=None, **kwargs):
+        input_id = inputs
+        if isinstance(inputs, (tuple, list)):
+            input_id = inputs[0]
+            type_ids = inputs[1] if len(inputs) > 1 else type_ids
+
+        static = input_id.shape.as_list()
+        dynamic = tf.shape(input_id)
+        input_shape = [dynamic[i] if s is None else s for i, s in enumerate(static)]
+        if type_ids is None:
+            type_ids = tf.fill(input_shape, 0)
+
+        return input_id + type_ids
+
+
+def test_optional_inputs(runner):
+    input_ids = np.array([1, 2]).astype(np.int32)
+    test_model = OptionalInputs()
+    exp0 = test_model(input_ids)
+    exp1 = test_model(input_ids, np.array([1, 2]).astype(np.int32))
+    oxml = keras2onnx.convert_keras(test_model)
+    assert runner('opt_inputs_0', oxml, [input_ids], exp0)
+
+    from onnxconverter_common.onnx_fx import GraphFunctionType as _Ty
+    oxml1 = keras2onnx.convert_keras(test_model, initial_types=(_Ty.I32(['N']), _Ty.I32(['N'])))
+    assert runner('opt_inputs_1', oxml1, [input_ids, np.array([1, 2]).astype(np.int32)], exp1)
