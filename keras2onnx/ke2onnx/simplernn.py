@@ -63,6 +63,8 @@ def extract_recurrent_activation(activation):
     elif activation == activations.linear:
         onnx_op_type = 'Affine'
         alpha = 1.0
+    elif activation == activations.softsign:
+        onnx_op_type = 'Softsign'
     else:
         raise NotImplementedError('The activation %s not supported' % activation)
 
