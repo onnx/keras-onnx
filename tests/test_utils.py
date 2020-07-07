@@ -140,7 +140,7 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
         for i in range(count):
             sess.run(None, feed_input)
         time_end = time.time()
-        print('avg ort time=' + str((time_end - time_start)/count))
+        print('avg ort time =' + str((time_end - time_start)/count))
 
     if expected is None:
         return
@@ -197,7 +197,7 @@ def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1
             for i in range(count):
                 model.predict(x)
             time_end = time.time()
-            print('avg keras time=' + str((time_end - time_start) / count))
+            print('avg keras time =' + str((time_end - time_start) / count))
     except RuntimeError:
         msg = 'keras prediction throws an exception for model ' + model.name + ', skip comparison.'
 
