@@ -14,10 +14,10 @@ Most of the common Keras layers have been supported for conversion. Please refer
 
 Windows Machine Learning (WinML) users can use [WinMLTools](https://docs.microsoft.com/en-us/windows/ai/windows-ml/convert-model-winmltools) which wrap its call on keras2onnx to convert the Keras models. If you want to use the keras2onnx converter, please refer to the [WinML Release Notes](https://docs.microsoft.com/en-us/windows/ai/windows-ml/release-notes) to identify the corresponding ONNX opset number for your WinML version.
 
-keras2onnx has been tested on **Python 3.5, 3.6, and 3.7**, with **tensorflow 1.x/2.0/2.1**  (CI build). It does not support **Python 2.x**.
+keras2onnx has been tested on **Python 3.5 - 3.8**, with **tensorflow 1.x/2.0 - 2.2**  (CI build). It does not support **Python 2.x**.
 
 # Install
-You can install latest release of Keras2ONNX from PyPi: **Due to some reason, the package release paused, please install it from the source, and the support of keras or tf.keras over tensorflow 2.x is only available in the source.**
+You can install latest release of Keras2ONNX from PyPi.
 
 ```
 pip install keras2onnx
