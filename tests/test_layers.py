@@ -1125,6 +1125,20 @@ def test_conv2d_transpose(conv2trans_runner):
     conv2trans_runner(3, 5, (2, 2), (1, 1), (5, 5))
 
 
+@pytest.mark.parametrize("padding", ["same", "valid"])
+def test_conv2d_transpose_2(runner, padding):
+    size = 512
+    input_img = Input((size, size, 3))
+    x = Conv2DTranspose(256, (4, 4), strides=2, use_bias=False, padding=padding,
+                        kernel_initializer='he_normal')(input_img)
+    y = BatchNormalization()(x)
+    model = Model(inputs=input_img, outputs=y)
+    data = np.random.rand(1, size, size, 3).astype(np.float32)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    expected = model.predict(data)
+    assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
+
 def test_conv2d_padding_same(conv2_runner):
     conv2_runner(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
     conv2_runner(8, 16, (1, 1), (2, 2), (60, 60), padding='same')
