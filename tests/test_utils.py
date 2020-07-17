@@ -202,5 +202,6 @@ def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1
         msg = 'keras prediction throws an exception for model ' + model.name + ', skip comparison.'
 
     onnx_model = keras2onnx.convert_keras(model, model.name)
+    keras2onnx.save_model(onnx_model, 'deeplab.onnx')
     res = run_onnx_runtime(model_name, onnx_model, x, preds, model_files, rtol=rtol, atol=atol, compare_perf=compare_perf)
     return res, msg

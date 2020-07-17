@@ -16,7 +16,7 @@ from test_utils import run_image
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 
-@unittest.skipIf(not is_tf2, "Tensorflow 2.x only tests")
+#@unittest.skipIf(not is_tf2, "Tensorflow 2.x only tests")
 class TestKerasApplications(unittest.TestCase):
 
     def setUp(self):
@@ -69,6 +69,13 @@ class TestKerasApplications(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299, tf_v2=True)
         self.assertTrue(*res)
 
+    def test_deeplab(self):
+        keras.backend.set_learning_phase(0)
+        from model import Deeplabv3
+        deeplab_model = Deeplabv3(input_shape=(384, 384, 3), classes=4)
+        deeplab_model.save('deeplab.h5')
+        res = run_image(deeplab_model, self.model_files, img_path, atol=1e-2, target_size=384, tf_v2=True, compare_perf=True)
+        self.assertTrue(*res)
 
 if __name__ == "__main__":
     unittest.main()

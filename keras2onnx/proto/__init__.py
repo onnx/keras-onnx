@@ -41,6 +41,7 @@ if str_tk_keras is None:
 else:
     is_tf_keras = str_tk_keras != '0'
 
+is_tf_keras = True
 if is_tf_keras:
     from tensorflow.python import keras
 else:
