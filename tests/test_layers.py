@@ -624,6 +624,19 @@ def test_tf_resize(runner):
                 assert runner('onnx_resize', onnx_model, data, expected)
 
 
+def test_tf_resize_2(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: tf.compat.v1.image.resize(x,
+                                                         [3, 4],
+                                                         method='bilinear', align_corners=True),
+                     input_shape=[5, 7, 3]))
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_resize_2')
+    data = np.random.rand(2, 5, 7, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_resize_2', onnx_model, data, expected)
+
+
 def test_tf_size(runner):
     model = Sequential()
     model.add(Lambda(lambda x: x + tf.cast(tf.size(x), tf.float32), input_shape=[2, 3, 5]))

@@ -1539,7 +1539,12 @@ def _convert_tf_resize(scope, operator, container, mode):
                                operator.inputs[0].full_name + '_transpose',
                                perm=[0, 3, 1, 2])
     attrs = {"mode": mode}
-    attrs['coordinate_transformation_mode'] = 'asymmetric'
+    if operator.target_opset >= 11:
+        if node.get_attr('align_corners'):
+            attrs['coordinate_transformation_mode'] = 'align_corners'
+        else:
+            attrs['coordinate_transformation_mode'] = 'asymmetric'
+
     if attrs['mode'] == 'nearest':
         attrs['nearest_mode'] = 'floor'
     if operator.target_opset < 10:
