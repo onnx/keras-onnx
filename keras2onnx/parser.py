@@ -486,7 +486,13 @@ def _filter_out_input(node_name):
     # tf.keras BN layer sometimes create a placeholder node 'scale' in tf 2.x.
     # It creates 'cond/input' since tf 2.2.
     # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
-    filter_patterns = [r"batch_normalization_\d+\/scale$", r"batch_normalization_\d+\/cond/input"]
+    filter_patterns = [
+        r"batch_normalization_\d+\/scale$",
+        r"batch_normalization_\d+\/cond/input",
+        # inception_resnet_v2 has a name "conv_7b_bn" for a BN layer, just fixes by filtering.
+        # see: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/applications/inception_resnet_v2.py#L203
+        r"conv_7b_bn/cond/input"
+    ]
     filter_out = False
     for pattern_ in filter_patterns:
         filter_out = filter_out or re.match(pattern_, node_name)
