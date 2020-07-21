@@ -490,7 +490,6 @@ def _filter_out_input(node_name):
         r"batch_normalization_\d+\/scale$",
         r"batch_normalization_\d+\/cond/input",
         # inception_resnet_v2 has a name "conv_7b_bn" for a BN layer, just fixes by filtering.
-        # see: https://github.com/tensorflow/tensorflow/blob/master/tensorflow/python/keras/applications/inception_resnet_v2.py#L203
         r"conv_7b_bn/cond/input"
     ]
     filter_out = False
