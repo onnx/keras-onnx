@@ -490,7 +490,7 @@ def _filter_out_input(node_name):
         r"batch_normalization_\d+\/scale$",
         r"batch_normalization_\d+\/cond/input",
         # inception_resnet_v2 has a name "conv_7b_bn" for a BN layer, just fixes by filtering.
-        r"conv_7b_bn/cond/input"
+        r"conv_\d+b_bn/cond/input"
     ]
     filter_out = False
     for pattern_ in filter_patterns:
