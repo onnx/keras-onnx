@@ -180,6 +180,7 @@ keras_layer_to_operator = {
     _layer.Subtract: convert_keras_merge_layer,
     _layer.Average: convert_keras_merge_layer,
     _layer.Maximum: convert_keras_merge_layer,
+    _layer.Minimum: convert_keras_merge_layer,
     _layer.Concatenate: convert_keras_concat,
 
     _layer.Dense: convert_keras_dense,

@@ -6,11 +6,11 @@
 import numpy as np
 from ..proto import keras
 from ..common.onnx_ops import apply_add, apply_mul, apply_sub
-from ..common.onnx_ops import apply_mean, apply_max, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_mean, apply_max, apply_min, OnnxOperatorBuilder
 
 _merge_layer_handlers = {keras.layers.Add: apply_add, keras.layers.Multiply: apply_mul,
                          keras.layers.Subtract: apply_sub, keras.layers.Average: apply_mean,
-                         keras.layers.Maximum: apply_max}
+                         keras.layers.Maximum: apply_max, keras.layers.Minimum: apply_min}
 
 
 def convert_keras_merge_layer(scope, operator, container):
@@ -22,23 +22,26 @@ def convert_keras_merge_layer(scope, operator, container):
     apply_merge_operation = _merge_layer_handlers[type(op)]
 
     intermediate_tensor_name = None
-    for i in range(len(operator.inputs) - 1):
-        if i == 0:
-            left_tensor_name = operator.inputs[0].full_name
-            right_tensor_name = operator.inputs[1].full_name
-        else:
-            if intermediate_tensor_name is None:
-                raise RuntimeError('Tensor name cannot be None')
-            left_tensor_name = intermediate_tensor_name
-            right_tensor_name = operator.inputs[i + 1].full_name
+    if type(op) in [keras.layers.Average, keras.layers.Maximum, keras.layers.Minimum]:
+        apply_merge_operation(scope, operator.input_full_names, operator.outputs[0].full_name, container)
+    else:
+        for i in range(len(operator.inputs) - 1):
+            if i == 0:
+                left_tensor_name = operator.inputs[0].full_name
+                right_tensor_name = operator.inputs[1].full_name
+            else:
+                if intermediate_tensor_name is None:
+                    raise RuntimeError('Tensor name cannot be None')
+                left_tensor_name = intermediate_tensor_name
+                right_tensor_name = operator.inputs[i + 1].full_name
 
-        if (len(operator.inputs) == 2 and i == 0) or (len(operator.inputs) > 2 and i == len(operator.inputs) - 2):
-            # At the last iteration, we need to put the result to Keras layer's output tensor
-            intermediate_tensor_name = operator.outputs[0].full_name
-        else:
-            # Keep accumulate changes through iterations using buffer tensors
-            intermediate_tensor_name = scope.get_unique_variable_name('intermediate_tensor')
-        apply_merge_operation(scope, [left_tensor_name, right_tensor_name], intermediate_tensor_name, container)
+            if (len(operator.inputs) == 2 and i == 0) or (len(operator.inputs) > 2 and i == len(operator.inputs) - 2):
+                # At the last iteration, we need to put the result to Keras layer's output tensor
+                intermediate_tensor_name = operator.outputs[0].full_name
+            else:
+                # Keep accumulate changes through iterations using buffer tensors
+                intermediate_tensor_name = scope.get_unique_variable_name('intermediate_tensor')
+            apply_merge_operation(scope, [left_tensor_name, right_tensor_name], intermediate_tensor_name, container)
 
     if operator.output_masks:
         # Keras merge layer compute mask
