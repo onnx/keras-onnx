@@ -56,6 +56,12 @@ class TestKerasApplications(unittest.TestCase):
         model = InceptionV3(include_top=True)
         res = run_image(model, self.model_files, img_path, target_size=299, tf_v2=True)
         self.assertTrue(*res)
+    
+    def test_InceptionResNetV2(self):
+        InceptionResNetV2 = keras.applications.inception_resnet_v2.InceptionResNetV2
+        model = InceptionResNetV2(include_top=True)
+        res = run_image(model, self.model_files, img_path, target_size=299, tf_v2=True)
+        self.assertTrue(*res)
 
     def test_ResNet50(self):
         ResNet50 = keras.applications.resnet_v2.ResNet50V2
