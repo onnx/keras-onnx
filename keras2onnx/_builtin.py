@@ -998,7 +998,8 @@ def convert_tf_linspace(scope, operator, container):
     oopb.add_node_with_output('Range',
                               [operator.input_full_names[0]] + add_delta_value + div_value,
                               operator.output_full_names,
-                              name=operator.full_name)
+                              name=operator.full_name,
+                              op_version=11)
 
 
 @converter_func(TYPES.LogicalAnd)
