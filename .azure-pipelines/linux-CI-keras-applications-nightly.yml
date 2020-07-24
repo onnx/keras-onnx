@@ -110,6 +110,7 @@ jobs:
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
       $(UNINSTALL_KERAS)
+      pip install keras-ocr
       pip install git+https://github.com/qubvel/efficientnet
       $(INSTALL_TRANSFORMERS)
     displayName: 'Install dependencies'

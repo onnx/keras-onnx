@@ -46,6 +46,7 @@ class TYPES:
     GreaterEqual = 'GreaterEqual'
     IdentityN = 'IdentityN'
     LessEqual = 'LessEqual'
+    LinSpace = 'LinSpace'
     LogicalAnd = 'LogicalAnd'
     LogicalNot = 'LogicalNot'
     LogSoftmax = 'LogSoftmax'

@@ -6,12 +6,14 @@
 import os
 import sys
 import unittest
+import numpy as np
+import keras2onnx
 from keras2onnx.proto import keras
 from keras2onnx.proto.tfcompat import is_tf2
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_image
+from test_utils import run_image, run_onnx_runtime
 
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
@@ -74,6 +76,17 @@ class TestKerasApplications(unittest.TestCase):
         model = Xception(include_top=True, weights=None)
         res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=299, tf_v2=True)
         self.assertTrue(*res)
+
+    def test_keras_ocr(self):
+        import keras_ocr
+        build_params = keras_ocr.recognition.DEFAULT_BUILD_PARAMS
+        backbone, model, training_model, prediction_model = keras_ocr.recognition.build_model(
+            alphabet=keras_ocr.recognition.DEFAULT_ALPHABET, **build_params)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(2, 31, 200, 1).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files, rtol=1e-2, atol=5e-3))
+
 
 
 if __name__ == "__main__":
