@@ -705,7 +705,7 @@ def test_tf_sqrt(runner):
     onnx_model = keras2onnx.convert_keras(model, 'test_tf_sqrt')
     data = np.random.rand(3, 2, 5).astype(np.float32)
     expected = model.predict(data)
-    assert runner('onnx_sqrt', onnx_model, data, expected)
+    assert runner('onnx_tf_sqrt', onnx_model, data, expected)
 
 
 @pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
