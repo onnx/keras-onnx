@@ -1850,6 +1850,17 @@ def convert_tf_pow(scope, operator, container):
         if dtype not in supported_types:
             raise ValueError("The output type of Pow is not supported for opset < 12.")
 
+    if operator.raw_operator.inputs[1].op.type == 'Const':
+        val_tensor = operator.raw_operator.inputs[1].op.get_attr('value')
+        float_delta = 1e-6
+        if ((len(val_tensor.float_val) > 0 and abs(val_tensor.float_val[0] - 1.0) < float_delta)
+            or (len(val_tensor.int_val) > 0 and val_tensor.int_val == 1)):
+            oopb.apply_op_with_output("apply_identity",
+                                      operator.input_full_names[0],
+                                      operator.output_full_names,
+                                      name=operator.full_name)
+            return
+
     oopb.apply_op_with_output("apply_pow",
                               operator.input_full_names,
                               operator.output_full_names,
