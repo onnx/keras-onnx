@@ -59,6 +59,17 @@ jobs:
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
+      Python37-official-ort-tf2:
+        python.version: '3.7'
+        ONNX_PATH: onnx
+        INSTALL_KERAS: pip install keras
+        UNINSTALL_KERAS:
+        INSTALL_TENSORFLOW: pip install tensorflow
+        INSTALL_ORT: pip install onnxruntime
+        INSTALL_KERAS_RESNET: pip install keras-resnet
+        INSTALL_TRANSFORMERS: pip install transformers
+        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py test_transformers.py test_efn.py --doctest-modules --junitxml=junit/test-results-v2.xml
+
       Python38-tf2:
         python.version: '3.8'
         ONNX_PATH: onnx==1.7.0
