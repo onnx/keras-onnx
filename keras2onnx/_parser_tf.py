@@ -118,8 +118,11 @@ class LayerInfo(object):
             if layer_info_[0] == layer and fx_layer_name(fstr_list, nn_) == layer_name:
                 op_node = graph.get_operation_by_name(tsname_to_node(nn_))
                 next_itr.add(op_node)
-                layer_info.outputs.extend(op_node.outputs)
-
+                # layer_info.outputs.extend(op_node.outputs)
+        if isinstance(layer.output, list):
+            layer_info.outputs.extend(layer.output)
+        else:
+            layer_info.outputs.append(layer.output)
         visited = set()
         while next_itr:
             visited |= next_itr

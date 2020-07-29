@@ -22,7 +22,7 @@ def _default_layer_name_extractor(fstr_list, node_name):
 
 
 def _simple_layer_name_extractor(fstr_list, node_name):
-    ri = node_name.rindex('/')
+    ri = node_name.find('/')
     return node_name[:ri]
 
 
@@ -71,13 +71,6 @@ def _relu_like_spec_outputs(layer, node):
 
 _keras_layer_spec = {
     # layer-type: ([pattern-list], [extract-layer-name, output-name-generator(optional)]
-    _layer.AveragePooling1D: (["{}/AvgPool"], [_default_layer_name_extractor]),
-    _layer.AveragePooling2D: (["{}/AvgPool"], [_default_layer_name_extractor]),
-    _layer.AveragePooling3D: (["{}/AvgPool"], [_default_layer_name_extractor]),
-    _layer.MaxPooling1D: (["{}/MaxPool"], [_default_layer_name_extractor]),
-    _layer.MaxPooling2D: (["{}/MaxPool"], [_default_layer_name_extractor]),
-    _layer.MaxPooling3D: (["{}/MaxPool"], [_default_layer_name_extractor]),
-
     _layer.Conv1D: (["{}/conv1d"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
     _layer.Conv2D: (["{}/Conv2D"], [_simple_layer_name_extractor, _conv_layer_spec_outputs]),
 
@@ -94,6 +87,26 @@ if not is_keras_older_than('2.2.0'):
     _keras_layer_spec.update({
         _adv_activations.ReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs]),
     })
+
+if not is_keras_older_than('2.3.0'):
+    _keras_layer_spec.update({
+        _layer.AveragePooling1D: (["{}/AvgPool"], [_simple_layer_name_extractor]),
+        _layer.AveragePooling2D: (["{}/AvgPool"], [_simple_layer_name_extractor]),
+        _layer.AveragePooling3D: (["{}/AvgPool"], [_simple_layer_name_extractor]),
+        _layer.MaxPooling1D: (["{}/MaxPool"], [_simple_layer_name_extractor]),
+        _layer.MaxPooling2D: (["{}/MaxPool"], [_simple_layer_name_extractor]),
+        _layer.MaxPooling3D: (["{}/MaxPool"], [_simple_layer_name_extractor]),
+    })
+else:
+    _keras_layer_spec.update({
+        _layer.AveragePooling1D: (["{}/AvgPool"], [_default_layer_name_extractor]),
+        _layer.AveragePooling2D: (["{}/AvgPool"], [_default_layer_name_extractor]),
+        _layer.AveragePooling3D: (["{}/AvgPool"], [_default_layer_name_extractor]),
+        _layer.MaxPooling1D: (["{}/MaxPool"], [_default_layer_name_extractor]),
+        _layer.MaxPooling2D: (["{}/MaxPool"], [_default_layer_name_extractor]),
+        _layer.MaxPooling3D: (["{}/MaxPool"], [_default_layer_name_extractor]),
+    })
+
 
 if is_tf_keras and is_tf2 and hasattr(_layer, 'normalization_v2'):
     _keras_layer_spec.update({

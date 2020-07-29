@@ -579,7 +579,12 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
 
     model_outputs = []
     for name in output_names:
-        var_ts = graph.get_operation_by_name(tsname_to_node(name)).outputs[0]
+        var_ts = None
+        for o_ in graph.get_operation_by_name(tsname_to_node(name)).outputs:
+            if o_.name == name:
+                var_ts = o_
+                break
+        assert var_ts is not None
         _create_link_node(var_ts, top_scope, varset, adjust_batch_size=True)
         model_outputs.append(var_ts.op)
 
@@ -700,7 +705,12 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
 
     model_outputs = []
     for name in output_names:
-        var_ts = graph.get_operation_by_name(tsname_to_node(name)).outputs[0]
+        var_ts = None
+        for o_ in graph.get_operation_by_name(tsname_to_node(name)).outputs:
+            if o_.name == name:
+                var_ts = o_
+                break
+        assert var_ts is not None
         _create_link_node(var_ts, top_scope, varset, adjust_batch_size=True)
         model_outputs.append(var_ts.op)
 
