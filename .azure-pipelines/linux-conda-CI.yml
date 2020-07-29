@@ -33,12 +33,13 @@ jobs:
         ONNX_PATH: onnx==1.6.0
         KERAS: keras==2.3.1
         TENSORFLOW_PATH: tensorflow==2.0.0
-        INSTALL_ORT:
+        INSTALL_ORT: pip install onnxruntime==1.4.0
 
+      # ORT hasn't support Python 3.8 yet.
       Python38-tf220:
         python.version: '3.8'
         ONNX_PATH: onnx==1.7.0
-        KERAS: keras
+        KERAS: keras==2.4.3
         TENSORFLOW_PATH: tensorflow==2.2.0
         INSTALL_ORT:
 
@@ -61,10 +62,7 @@ jobs:
       pip install h5py==2.9.0
       pip install $(TENSORFLOW_PATH)
       pip install $(KERAS)
-      git clone https://github.com/microsoft/onnxconverter-common
-      cd onnxconverter-common
-      pip install -e .
-      cd ..
+      pip install git+https://github.com/microsoft/onnxconverter-common
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
       $(INSTALL_ORT)
