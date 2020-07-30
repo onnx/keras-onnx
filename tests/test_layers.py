@@ -1482,7 +1482,7 @@ def test_tf_nn_activation(runner):
             model.add(Activation(tf.keras.layers.ReLU()))
             model.add(tf.keras.layers.PReLU())
             model.add(tf.keras.layers.LeakyReLU(alpha=0.5))
-            if is_tf2:
+            if is_tf2 and not is_tensorflow_older_than('2.2.0'):
                 model.add(Lambda(lambda x: tf.keras.activations.swish(x)))
             if not is_tensorflow_older_than('1.15.0'):
                 model.add(Lambda(lambda x: tf.nn.swish(x)))
