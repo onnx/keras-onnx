@@ -97,8 +97,8 @@ def test_keras_lambda(runner):
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
 @pytest.mark.parametrize("input_shape", [(4, 6, 8), (None, None, 8)])
 def test_keras_lambda_depth_to_space(runner, data_format, input_shape):
-    if data_format == "NCHW" and is_tensorflow_older_than("2.1.0"):
-        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.1.0")
+    if data_format == "NCHW" and is_tensorflow_older_than("2.2.0"):
+        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.2.0")
     model = Sequential()
     model.add(Lambda(
         lambda x: tf.nn.depth_to_space(x, block_size=2, data_format=data_format),
@@ -213,11 +213,10 @@ def test_tf_floormod(runner):
     def my_func_2(x):
         return tf.math.floormod(tf.cast(x[0], tf.int32), tf.cast(x[1], tf.int32))
 
-
     for my_func_ in [my_func_1, my_func_2]:
         input1 = Input(shape=[2, 2])
         input2 = Input(shape=[2, 2])
-        added =  Lambda(my_func_)([input1, input2])
+        added = Lambda(my_func_)([input1, input2])
         model = keras.models.Model(inputs=[input1, input2], outputs=added)
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_floormod')
         data1 = 100 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
@@ -1970,8 +1969,10 @@ def test_bidirectional_with_bias(runner, rnn_class):
     onnx_model = keras2onnx.convert_keras(model, model.name)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
+
 @pytest.mark.skipif((is_tensorflow_older_than('2.3.0') or (not is_tf_keras)),
-                     reason=("keras LSTM does not have time_major attribute. There was a bug in tf.keras bidirectional lstm with time_major true which will be fixed in tf-2.3, See - https://github.com/tensorflow/tensorflow/issues/39635"))
+                    reason=(
+                    "keras LSTM does not have time_major attribute. There was a bug in tf.keras bidirectional lstm with time_major true which will be fixed in tf-2.3, See - https://github.com/tensorflow/tensorflow/issues/39635"))
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_bidirectional_time_major_true(runner, rnn_class):
     feature_dim = 1
@@ -1983,17 +1984,18 @@ def test_bidirectional_time_major_true(runner, rnn_class):
             K.clear_session()
             input = keras.Input(shape=(seq_len, feature_dim))
             # Transpose input to be time major
-            input_transposed = tf.transpose(input, perm=[1,0,2])
+            input_transposed = tf.transpose(input, perm=[1, 0, 2])
             output = Bidirectional(rnn_class(1, return_sequences=ret_seq,
                                              time_major=True),
                                    name='bi', merge_mode=merge_mode)(input_transposed)
             if ret_seq and merge_mode == 'concat':
-                output = tf.transpose(output, perm=[1,0,2])
+                output = tf.transpose(output, perm=[1, 0, 2])
             model = keras.Model(inputs=input, outputs=output)
 
             expected = model.predict(x)
             onnx_model = keras2onnx.convert_keras(model, model.name)
             assert runner(onnx_model.graph.name, onnx_model, x, expected)
+
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_bidirectional_with_initial_states(runner, rnn_class):
