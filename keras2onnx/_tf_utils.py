@@ -81,7 +81,7 @@ def tf_attrs_to_onnx(node):
         if s_.startswith('T'):  # all T starts attr is TF internal.
             continue
         v = node.get_attr(s_)
-        if isinstance(v, tensorflow.dtypes.DType):
+        if hasattr(tensorflow.dtypes, 'DType') and isinstance(v, tensorflow.dtypes.DType):
             v = to_onnx_type(v)
         attrs[s_] = v
     return attrs
