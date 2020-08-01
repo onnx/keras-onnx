@@ -59,6 +59,7 @@ class TYPES:
     Mean = 'Mean'
     Min = 'Min'
     Minimum = 'Minimum'
+    MirrorPad = 'MirrorPad'
     NonMaxSuppressionV2 = 'NonMaxSuppressionV2'
     NonMaxSuppressionV3 = 'NonMaxSuppressionV3'
     NotEqual = 'NotEqual'
