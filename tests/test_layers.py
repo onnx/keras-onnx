@@ -478,13 +478,17 @@ def test_tf_pad(runner):
         paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
         return tf.pad(x, paddings, mode='CONSTANT', constant_values=1)
 
-    for my_func in [my_func_1, my_func_2]:
+    def my_func_3(x):
+        paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
+        return tf.pad(x, paddings, mode='REFLECT')
+
+    for my_func in [my_func_1, my_func_2, my_func_3]:
         model = Sequential()
-        model.add(Lambda(lambda x: my_func(x), input_shape=[2, 2]))
+        model.add(Lambda(lambda x: my_func(x), input_shape=[5, 5]))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_pad')
-        data = np.random.rand(3, 2, 2).astype(np.float32)
+        data = np.random.rand(2, 5, 5).astype(np.float32)
         expected = model.predict(data)
-        assert runner('onnx_pad', onnx_model, data, expected)
+        assert runner('onnx_tf_pad', onnx_model, data, expected)
 
 
 def test_tf_range(runner):

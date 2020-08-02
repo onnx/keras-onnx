@@ -1311,11 +1311,11 @@ def _convert_tf_pad(scope, operator, container):
     else:
         paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
     attrs = _to_onnx_attrs(node)
-    mode = attrs["mode"] if hasattr(attrs, 'mode') else None
+    mode = attrs["mode"] if "mode" in attrs else None
 
     if mode:
-        mode = mode.s.decode("utf-8").lower()
-    if mode not in [None, "constant"]:
+        mode = mode.decode("utf-8").lower()
+    if mode not in [None, "constant", "reflect"]:
         raise ValueError(mode + " pad mode is not supported")
 
     origin_dtype = _to_onnx_type(node.outputs[0].dtype)
@@ -1367,6 +1367,11 @@ def convert_tf_pad(scope, operator, container):
 
 @converter_func(TYPES.PadV2)
 def convert_tf_pad_v2(scope, operator, container):
+    _convert_tf_pad(scope, operator, container)
+
+
+@converter_func(TYPES.MirrorPad)
+def convert_tf_mirror_pad(scope, operator, container):
     _convert_tf_pad(scope, operator, container)
 
 
