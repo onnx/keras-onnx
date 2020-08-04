@@ -1818,6 +1818,7 @@ def test_LSTM(runner):
             expected = model.predict(data)
             assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
+@pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)), reason='old tf version')
 def test_LSTM_rev(runner):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
