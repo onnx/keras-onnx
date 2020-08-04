@@ -486,7 +486,12 @@ def _filter_out_input(node_name):
     # tf.keras BN layer sometimes create a placeholder node 'scale' in tf 2.x.
     # It creates 'cond/input' since tf 2.2.
     # Given bn layer will be converted in a whole layer, it's fine to just filter this node out.
-    filter_patterns = [r"batch_normalization_\d+\/scale$", r"batch_normalization_\d+\/cond/input"]
+    filter_patterns = [
+        r"batch_normalization_\d+\/scale$",
+        r"batch_normalization_\d+\/cond/input",
+        # inception_resnet_v2 has a name "conv_7b_bn" for a BN layer, just fixes by filtering.
+        r"conv_\d+b_bn/cond/input"
+    ]
     filter_out = False
     for pattern_ in filter_patterns:
         filter_out = filter_out or re.match(pattern_, node_name)
@@ -742,8 +747,14 @@ def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, k
     input_tensors = [graph.get_tensor_by_name(n_) for n_ in input_names]
     output_tensors = [graph.get_tensor_by_name(n_) for n_ in output_names]
 
+    c_ = 0
     for ts_i_ in input_tensors:
         var_type = _adjust_input_batch_size(infer_variable_type(ts_i_, target_opset))
+        if topo.initial_types is not None:
+            if isinstance(topo.initial_types[c_], str):
+                c_ += 1
+            var_type = topo.initial_types[c_]
+            c_ += 1
         if ts_i_.name.endswith(':0'):
             str_value = ts_i_.name[:-2]
             op = top_level.declare_local_operator(TYPES.Identity)
@@ -758,6 +769,9 @@ def parse_graph_modeless(topo, graph, target_opset, input_names, output_names, k
 
     for ts_o_ in output_tensors:
         var_type = _adjust_input_batch_size(infer_variable_type(ts_o_, target_opset))
+        # if the input types was overridden, the output shape has to be undefined.
+        if topo.initial_types is not None:
+            var_type.shape = []
         str_value = ts_o_.name
         top_level.get_local_variable_or_declare_one(str_value, var_type)
         topo.raw_model.add_output_name(str_value)

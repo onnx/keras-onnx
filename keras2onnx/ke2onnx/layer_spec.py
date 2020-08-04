@@ -95,7 +95,7 @@ if not is_keras_older_than('2.2.0'):
         _adv_activations.ReLU: (["{}/Relu"], [_simple_layer_name_extractor, _relu_like_spec_outputs]),
     })
 
-if is_tf_keras and is_tf2:
+if is_tf_keras and is_tf2 and hasattr(_layer, 'normalization_v2'):
     _keras_layer_spec.update({
         _layer.normalization_v2.BatchNormalization: (
             ["{}/FusedBatchNormV3", "{}/batchnorm/add_1"], [_default_layer_name_extractor])

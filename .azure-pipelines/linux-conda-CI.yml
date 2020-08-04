@@ -13,7 +13,6 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   strategy:
     matrix:
-      # No python 2.x since tf2onnx does not support it
       Python35-tf1110:
         python.version: '3.5'
         ONNX_PATH: onnx==1.2.3
@@ -28,12 +27,20 @@ jobs:
         TENSORFLOW_PATH: tensorflow==1.15.0
         INSTALL_ORT: pip install onnxruntime==1.1.1
 
-      # UT for standalone keras need tensorflow <= 2.0.0 (python <= 3.7)
+      # UT for keras 2.3 need tensorflow <= 2.0.0 
       Python37-tf200:
         python.version: '3.7'
         ONNX_PATH: onnx==1.6.0
         KERAS: keras==2.3.1
         TENSORFLOW_PATH: tensorflow==2.0.0
+        INSTALL_ORT: pip install onnxruntime==1.4.0
+
+      # ORT hasn't support Python 3.8 yet.
+      Python38-tf220:
+        python.version: '3.8'
+        ONNX_PATH: onnx==1.7.0
+        KERAS: keras==2.4.3
+        TENSORFLOW_PATH: tensorflow==2.2.0
         INSTALL_ORT:
 
     maxParallel: 3
@@ -55,10 +62,7 @@ jobs:
       pip install h5py==2.9.0
       pip install $(TENSORFLOW_PATH)
       pip install $(KERAS)
-      git clone https://github.com/microsoft/onnxconverter-common
-      cd onnxconverter-common
-      pip install -e .
-      cd ..
+      pip install git+https://github.com/microsoft/onnxconverter-common
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
       $(INSTALL_ORT)

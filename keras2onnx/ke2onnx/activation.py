@@ -92,6 +92,8 @@ def convert_keras_activation(scope, operator, container):
     elif hasattr(activation, '__name__') and activation.__name__ == 'swish':
         apply_sigmoid(scope, input_name, output_name + '_sig', container)
         apply_mul(scope, [input_name, output_name + '_sig'], output_name, container)
+    elif activation in activation_map:
+        activation_map[activation](scope, input_name, output_name, container)
     else:
         if activation in [activation_get('softsign'), keras.activations.softsign]:
             op_type = 'Softsign'

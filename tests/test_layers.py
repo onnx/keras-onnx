@@ -97,8 +97,8 @@ def test_keras_lambda(runner):
 @pytest.mark.parametrize("data_format", ["NCHW", "NHWC"])
 @pytest.mark.parametrize("input_shape", [(4, 6, 8), (None, None, 8)])
 def test_keras_lambda_depth_to_space(runner, data_format, input_shape):
-    if data_format == "NCHW" and is_tensorflow_older_than("2.1.0"):
-        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.1.0")
+    if data_format == "NCHW" and is_tensorflow_older_than("2.2.0"):
+        pytest.skip("tf.nn.depth_to_space with NCHW not supported for Tensorflow older than 2.2.0")
     model = Sequential()
     model.add(Lambda(
         lambda x: tf.nn.depth_to_space(x, block_size=2, data_format=data_format),
@@ -202,6 +202,27 @@ def test_tf_conv(runner):
     data = np.random.rand(1, 10, 14, 3, 5).astype(np.float32)
     expected = model.predict(data)
     assert runner('onnx_tf_conv3d', onnx_model, data, expected)
+
+
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
+                    reason="tf.math has no attribute 'floormod'.")
+def test_tf_floormod(runner):
+    def my_func_1(x):
+        return tf.math.floormod(x[0], x[1])
+
+    def my_func_2(x):
+        return tf.math.floormod(tf.cast(x[0], tf.int32), tf.cast(x[1], tf.int32))
+
+    for my_func_ in [my_func_1, my_func_2]:
+        input1 = Input(shape=[2, 2])
+        input2 = Input(shape=[2, 2])
+        added = Lambda(my_func_)([input1, input2])
+        model = keras.models.Model(inputs=[input1, input2], outputs=added)
+        onnx_model = keras2onnx.convert_keras(model, 'test_tf_floormod')
+        data1 = 100 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        data2 = 10 * np.random.rand(2, 2, 2).astype(np.float32) + 1.0
+        expected = model.predict([data1, data2])
+        assert runner('onnx_tf_floormod', onnx_model, [data1, data2], expected)
 
 
 def test_tf_rsqrt(runner):
@@ -457,13 +478,17 @@ def test_tf_pad(runner):
         paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
         return tf.pad(x, paddings, mode='CONSTANT', constant_values=1)
 
-    for my_func in [my_func_1, my_func_2]:
+    def my_func_3(x):
+        paddings = tf.constant([[0, 0], [1, 3], [2, 4]])
+        return tf.pad(x, paddings, mode='REFLECT')
+
+    for my_func in [my_func_1, my_func_2, my_func_3]:
         model = Sequential()
-        model.add(Lambda(lambda x: my_func(x), input_shape=[2, 2]))
+        model.add(Lambda(lambda x: my_func(x), input_shape=[5, 5]))
         onnx_model = keras2onnx.convert_keras(model, 'test_tf_pad')
-        data = np.random.rand(3, 2, 2).astype(np.float32)
+        data = np.random.rand(2, 5, 5).astype(np.float32)
         expected = model.predict(data)
-        assert runner('onnx_pad', onnx_model, data, expected)
+        assert runner('onnx_tf_pad', onnx_model, data, expected)
 
 
 def test_tf_range(runner):
@@ -602,6 +627,23 @@ def test_tf_resize(runner):
                 assert runner('onnx_resize', onnx_model, data, expected)
 
 
+@pytest.mark.skipif(get_maximum_opset_supported() < 11,
+                    reason="Resize coordinate_transformation_mode need opset >= 11.")
+@pytest.mark.skipif(is_tensorflow_older_than('1.14.0') or (is_tf2 and is_tensorflow_older_than('2.2.0')),
+                    reason="module 'tensorflow.compat' has no attribute 'v1'.")
+def test_tf_resize_2(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: tf.compat.v1.image.resize(x,
+                                                         [3, 4],
+                                                         method='bilinear', align_corners=True),
+                     input_shape=[5, 7, 3]))
+
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_resize_2')
+    data = np.random.rand(2, 5, 7, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_resize_2', onnx_model, data, expected)
+
+
 def test_tf_size(runner):
     model = Sequential()
     model.add(Lambda(lambda x: x + tf.cast(tf.size(x), tf.float32), input_shape=[2, 3, 5]))
@@ -658,6 +700,15 @@ def test_tf_softmax(runner):
         data = np.random.rand(3, 2, 3, 5).astype(np.float32)
         expected = model.predict(data)
         assert runner('onnx_tf_softmax', onnx_model, data, expected)
+
+
+def test_tf_sqrt(runner):
+    model = Sequential()
+    model.add(Lambda(lambda x: tf.sqrt(x + 1.0), input_shape=[2, 5]))
+    onnx_model = keras2onnx.convert_keras(model, 'test_tf_sqrt')
+    data = np.random.rand(3, 2, 5).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('onnx_tf_sqrt', onnx_model, data, expected)
 
 
 @pytest.mark.skipif(is_tensorflow_older_than('1.14.0'),
@@ -1103,6 +1154,20 @@ def test_conv2d_transpose(conv2trans_runner):
     conv2trans_runner(3, 5, (2, 2), (1, 1), (5, 5))
 
 
+@pytest.mark.parametrize("padding", ["same", "valid"])
+def test_conv2d_transpose_2(runner, padding):
+    size = 128
+    input_img = Input((size, size, 3))
+    x = Conv2DTranspose(256, (4, 4), strides=2, use_bias=False, padding=padding,
+                        kernel_initializer='he_normal')(input_img)
+    y = BatchNormalization()(x)
+    model = Model(inputs=input_img, outputs=y)
+    data = np.random.rand(1, size, size, 3).astype(np.float32)
+    onnx_model = keras2onnx.convert_keras(model, model.name)
+    expected = model.predict(data)
+    assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
+
 def test_conv2d_padding_same(conv2_runner):
     conv2_runner(3, 5, (2, 2), (1, 1), (5, 5), padding='same')
     conv2_runner(8, 16, (1, 1), (2, 2), (60, 60), padding='same')
@@ -1429,6 +1494,10 @@ def test_tf_nn_activation(runner):
             model.add(Activation(tf.keras.layers.ReLU()))
             model.add(tf.keras.layers.PReLU())
             model.add(tf.keras.layers.LeakyReLU(alpha=0.5))
+            if is_tf2 and not is_tensorflow_older_than('2.2.0'):
+                model.add(Lambda(lambda x: tf.keras.activations.swish(x)))
+            if not is_tensorflow_older_than('1.15.0'):
+                model.add(Lambda(lambda x: tf.nn.swish(x)))
         x = np.random.rand(5, 10).astype(np.float32)
         expected = model.predict(x)
         onnx_model = keras2onnx.convert_keras(model, model.name)
@@ -1913,8 +1982,10 @@ def test_bidirectional_with_bias(runner, rnn_class):
     onnx_model = keras2onnx.convert_keras(model, model.name)
     assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
+
 @pytest.mark.skipif((is_tensorflow_older_than('2.3.0') or (not is_tf_keras)),
-                     reason=("keras LSTM does not have time_major attribute. There was a bug in tf.keras bidirectional lstm with time_major true which will be fixed in tf-2.3, See - https://github.com/tensorflow/tensorflow/issues/39635"))
+                    reason=(
+                    "keras LSTM does not have time_major attribute. There was a bug in tf.keras bidirectional lstm with time_major true which will be fixed in tf-2.3, See - https://github.com/tensorflow/tensorflow/issues/39635"))
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_bidirectional_time_major_true(runner, rnn_class):
     feature_dim = 1
@@ -1926,17 +1997,18 @@ def test_bidirectional_time_major_true(runner, rnn_class):
             K.clear_session()
             input = keras.Input(shape=(seq_len, feature_dim))
             # Transpose input to be time major
-            input_transposed = tf.transpose(input, perm=[1,0,2])
+            input_transposed = tf.transpose(input, perm=[1, 0, 2])
             output = Bidirectional(rnn_class(1, return_sequences=ret_seq,
                                              time_major=True),
                                    name='bi', merge_mode=merge_mode)(input_transposed)
             if ret_seq and merge_mode == 'concat':
-                output = tf.transpose(output, perm=[1,0,2])
+                output = tf.transpose(output, perm=[1, 0, 2])
             model = keras.Model(inputs=input, outputs=output)
 
             expected = model.predict(x)
             onnx_model = keras2onnx.convert_keras(model, model.name)
             assert runner(onnx_model.graph.name, onnx_model, x, expected)
+
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_bidirectional_with_initial_states(runner, rnn_class):

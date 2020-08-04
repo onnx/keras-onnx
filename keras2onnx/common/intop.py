@@ -31,7 +31,6 @@ class Operator:
         self.is_evaluated = None
         self.target_opset = target_opset
         self.shape_infer = None
-        self.tf2onnx_graph = None
         self.attrs = {}
 
     @property

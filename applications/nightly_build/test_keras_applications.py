@@ -19,10 +19,12 @@ from test_utils import run_image, run_onnx_runtime
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
+Average = keras.layers.Average
 AveragePooling2D = keras.layers.AveragePooling2D
 BatchNormalization = keras.layers.BatchNormalization
 Bidirectional = keras.layers.Bidirectional
 Concatenate = keras.layers.Concatenate
+Convolution2D = keras.layers.Convolution2D
 Conv2D = keras.layers.Conv2D
 Dense = keras.layers.Dense
 Dropout = keras.layers.Dropout
@@ -122,6 +124,19 @@ class TestKerasApplications(unittest.TestCase):
         data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+
+    # model from https://github.com/titu1994/Image-Super-Resolution
+    def test_ExpantionSuperResolution(self):
+        init = Input(shape=(32, 32, 3))
+        x = Convolution2D(64, (9, 9), activation='relu', padding='same', name='level1')(init)
+        x1 = Convolution2D(32, (1, 1), activation='relu', padding='same', name='lavel1_1')(x)
+        x2 = Convolution2D(32, (3, 3), activation='relu', padding='same', name='lavel1_2')(x)
+        x3 = Convolution2D(32, (5, 5), activation='relu', padding='same', name='lavel1_3')(x)
+        x = Average()([x1, x2, x3])
+        out = Convolution2D(3, (5, 5), activation='relu', padding='same', name='output')(x)
+        model = keras.models.Model(init, out)
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=32)
+        self.assertTrue(*res)
 
     def test_tcn(self):
         from tcn import TCN

@@ -43,25 +43,15 @@ class KerasTfModelContainer(object):
 
 class Topology:
 
-    def __init__(self, model, graph, target_opset=None, custom_op_dict=None,
-                 reserved_variable_names=None, reserved_operator_names=None):
-        """
-        Initialize a Topology object, which is an intermediate representation of a computational graph.
-
-        :param model: RawModelContainer object or one of its derived classes. It contains the original model.
-        :param default_batch_size: batch_size prepend to scalar and array types
-        :param initial_types: A list providing some types for some root variables. Each element is a tuple of a variable
-        name and a type defined in data_types.py.
-        :param target_opset: the onnx model targeted opset number.
-        :param reserved_variable_names: A set of strings which are not allowed to be used as a variable name
-        :param reserved_operator_names: A set of strings which are not allowed to be used as a operator name
-        """
+    def __init__(self, model, graph, target_opset=None, initial_types=None,
+                 custom_op_dict=None, reserved_variable_names=None, reserved_operator_names=None):
         self.scopes = []
         self.raw_model = KerasTfModelContainer(model, graph)
         self.scope_names = set()
         self.variable_name_set = reserved_variable_names if reserved_variable_names is not None else set()
         self.operator_name_set = reserved_operator_names if reserved_operator_names is not None else set()
         self.target_opset = target_opset
+        self.initial_types = initial_types
         self.debug_mode = False
         self.custom_op_dict = {} if custom_op_dict is None else custom_op_dict
 

@@ -58,7 +58,10 @@ class TestTransformers(unittest.TestCase):
         if not hasattr(tokenizer, 'model_max_length'):
             tokenizer.model_max_length = 1024
         inputs_raw = tokenizer.encode_plus(text, add_special_tokens=True)
-        inputs_onnx = {k_: np.repeat(np.expand_dims(v_, axis=0), batch_size, axis=0) for k_, v_ in inputs_raw.items()}
+        idx_not_None = [i_ for i_, v_ in enumerate(inputs_raw.data['input_ids']) if v_ is not None]
+        input_raw_not_None = inputs_raw if len(idx_not_None) == len(inputs_raw.data['input_ids']) else \
+            {k_: [v_[i_] for i_ in idx_not_None] for k_, v_ in inputs_raw.items()}
+        inputs_onnx = {k_: np.repeat(np.expand_dims(v_, axis=0), batch_size, axis=0) for k_, v_ in input_raw_not_None.items()}
         inputs = {k_: tf.constant(v_) for k_, v_ in inputs_onnx.items()}
         return text, inputs, inputs_onnx
 

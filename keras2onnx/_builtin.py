@@ -36,10 +36,10 @@ def convert_tf_identity(scope, operator, container):
 @converter_func(TYPES.AddN)
 def convert_tf_addn(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
-    oopb.apply_op_with_output("apply_add",
+    oopb.apply_op_with_output("apply_sum",
                               operator.input_full_names,
                               operator.output_full_names,
-                              name=operator.full_name + '_add')
+                              name=operator.full_name + '_sum')
 
 
 def _convert_tf_argmax_argmin_helper(scope, operator, container, arg_str):
@@ -881,6 +881,24 @@ def convert_tf_floor_div(scope, operator, container):
                                   name=operator.full_name)
 
 
+@converter_func(TYPES.FloorMod)
+def convert_tf_floor_mod(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    div_node = oopb.apply_div(operator.input_full_names,
+                              name=operator.full_name + '_div')
+    input0_dtype = _to_onnx_type(node.inputs[0].dtype)
+    if input0_dtype in [oopb.float16, oopb.float, oopb.double]:
+        div_floor_node = oopb.apply_floor(div_node, name=operator.full_name + '_floor')
+    else:
+        div_floor_node = div_node
+    mul_node = oopb.apply_mul(div_floor_node + [operator.input_full_names[1]],
+                              name=operator.full_name + '_mul')
+    oopb.apply_op_with_output('apply_sub', [operator.input_full_names[0]] + mul_node,
+                              operator.outputs[0].full_name,
+                              name=operator.full_name + '_sub')
+
+
 @converter_func(TYPES.FusedBatchNorm)
 def convert_tf_fused_batch_norm(scope, operator, container):
     _convert_tf_fused_batch_norm_core(scope, operator, container)
@@ -927,6 +945,15 @@ def convert_tf_gather_nd(scope, operator, container):
                               name=operator.full_name)
 
 
+@converter_func(TYPES.IdentityN)
+def convert_tf_identity_n(scope, operator, container):
+    oopb = OnnxOperatorBuilder(container, scope)
+    for idx_ in range(len(operator.input_full_names)):
+        oopb.apply_op_with_output('apply_identity', operator.input_full_names[idx_],
+                                  operator.output_full_names[idx_],
+                                  name=operator.full_name + '_' + str(idx_))
+
+
 @converter_func(TYPES.GreaterEqual)
 def convert_tf_greater_equal(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
@@ -941,6 +968,38 @@ def convert_tf_less_equal(scope, operator, container):
     oopb.apply_op_with_output('apply_less_or_equal', operator.input_full_names,
                               operator.output_full_names,
                               name=operator.full_name)
+
+
+@converter_func(TYPES.LinSpace)
+def convert_tf_linspace(scope, operator, container):
+    node = operator.raw_operator
+    oopb = OnnxOperatorBuilder(container, scope)
+    sub_value = oopb.apply_sub([operator.input_full_names[1], operator.input_full_names[0]],
+                               name=operator.full_name + '_sub')
+    sub_1_value = oopb.apply_sub([operator.input_full_names[2],
+                                  ('_minus_one', _to_onnx_type(node.inputs[2].dtype),
+                                   np.array(1, dtype=node.inputs[2].dtype.name))],
+                                 name=operator.full_name + '_sub_1')
+    cast_sub_1 = oopb.apply_cast(sub_1_value,
+                                 to=_to_onnx_type(node.inputs[0].dtype),
+                                 name=operator.full_name + '_sub_1_cast')
+    div_value = oopb.apply_div(sub_value + cast_sub_1,
+                               name=operator.full_name + '_div')
+
+    if _to_onnx_type(node.inputs[1].dtype) in [oopb.float, oopb.double, oopb.float16]:
+        delta_value = 0.0000001
+    else:
+        delta_value = 1
+    add_delta_value = oopb.apply_add([operator.input_full_names[1],
+                                      ('_add_delta', _to_onnx_type(node.inputs[1].dtype),
+                                       np.array(delta_value, dtype=node.inputs[1].dtype.name))],
+                                     name=operator.full_name + '_add_delta')
+
+    oopb.add_node_with_output('Range',
+                              [operator.input_full_names[0]] + add_delta_value + div_value,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              op_version=11)
 
 
 @converter_func(TYPES.LogicalAnd)
@@ -1252,11 +1311,11 @@ def _convert_tf_pad(scope, operator, container):
     else:
         paddings = np.array(_cal_tensor_value(node.inputs[1])).transpose().flatten()
     attrs = _to_onnx_attrs(node)
-    mode = attrs["mode"] if hasattr(attrs, 'mode') else None
+    mode = attrs["mode"] if "mode" in attrs else None
 
     if mode:
-        mode = mode.s.decode("utf-8").lower()
-    if mode not in [None, "constant"]:
+        mode = mode.decode("utf-8").lower()
+    if mode not in [None, "constant", "reflect"]:
         raise ValueError(mode + " pad mode is not supported")
 
     origin_dtype = _to_onnx_type(node.outputs[0].dtype)
@@ -1308,6 +1367,11 @@ def convert_tf_pad(scope, operator, container):
 
 @converter_func(TYPES.PadV2)
 def convert_tf_pad_v2(scope, operator, container):
+    _convert_tf_pad(scope, operator, container)
+
+
+@converter_func(TYPES.MirrorPad)
+def convert_tf_mirror_pad(scope, operator, container):
     _convert_tf_pad(scope, operator, container)
 
 
@@ -1512,7 +1576,12 @@ def _convert_tf_resize(scope, operator, container, mode):
                                operator.inputs[0].full_name + '_transpose',
                                perm=[0, 3, 1, 2])
     attrs = {"mode": mode}
-    attrs['coordinate_transformation_mode'] = 'asymmetric'
+    if operator.target_opset >= 11:
+        if node.get_attr('align_corners'):
+            attrs['coordinate_transformation_mode'] = 'align_corners'
+        else:
+            attrs['coordinate_transformation_mode'] = 'asymmetric'
+
     if attrs['mode'] == 'nearest':
         attrs['nearest_mode'] = 'floor'
     if operator.target_opset < 10:
@@ -1785,6 +1854,17 @@ def convert_tf_pow(scope, operator, container):
         dtype = _to_onnx_type(node.outputs[0].dtype)
         if dtype not in supported_types:
             raise ValueError("The output type of Pow is not supported for opset < 12.")
+
+    if operator.raw_operator.inputs[1].op.type == 'Const':
+        val_tensor = operator.raw_operator.inputs[1].op.get_attr('value')
+        float_delta = 1e-6
+        if ((len(val_tensor.float_val) > 0 and abs(val_tensor.float_val[0] - 1.0) < float_delta) or
+           (len(val_tensor.int_val) > 0 and val_tensor.int_val == 1)):
+            oopb.apply_op_with_output("apply_identity",
+                                      operator.input_full_names[0],
+                                      operator.output_full_names,
+                                      name=operator.full_name)
+            return
 
     oopb.apply_op_with_output("apply_pow",
                               operator.input_full_names,

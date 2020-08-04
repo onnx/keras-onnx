@@ -7,8 +7,8 @@ import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
 from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_identity, apply_tile
-from ..common.onnx_ops import apply_reshape, apply_concat, apply_transpose, apply_flatten, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_tile
+from ..common.onnx_ops import apply_reshape, OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation, convert_keras_softmax
@@ -38,33 +38,46 @@ def convert_keras_reshape(scope, operator, container):
     if target_shape[0] == -1:
         target_shape[0] = 0
 
-    apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                  operator_name=operator.raw_operator.name, desired_shape=target_shape)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_reshape',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              desired_shape=target_shape)
 
 
 def convert_keras_concat(scope, operator, container):
     axis = operator.raw_operator.axis
     if axis < 0:
         axis += len(operator.raw_operator.output.shape)
-    apply_concat(scope, operator.input_full_names, operator.output_full_names, container,
-                 operator_name=operator.full_name, axis=axis)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_concat',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              axis=axis)
 
 
 def convert_keras_flatten(scope, operator, container):
     iop = operator.raw_operator
     shape_len = len(operator.get_input_shape())
+    oopb = OnnxOperatorBuilder(container, scope)
 
     if iop.data_format == 'channels_last' or shape_len < 3:
-        apply_flatten(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                      operator_name=operator.raw_operator.name)
+        oopb.apply_op_with_output('apply_flatten',
+                                  operator.input_full_names,
+                                  operator.output_full_names,
+                                  name=operator.full_name)
     else:
         perm = list(range(2, shape_len))
         perm = [0] + perm + [1]
-        input_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_permuted')
-        apply_transpose(scope, operator.inputs[0].full_name, input_tensor_name, container,
-                        operator_name=operator.raw_operator.name + "_transpose", perm=perm)
-        apply_flatten(scope, input_tensor_name, operator.outputs[0].full_name, container,
-                      operator_name=operator.raw_operator.name)
+        input_tensor_name = oopb.apply_transpose(operator.inputs[0].full_name,
+                                                 name=operator.full_name + '_transpose',
+                                                 perm=perm)
+        oopb.apply_op_with_output('apply_flatten',
+                                  input_tensor_name,
+                                  operator.output_full_names,
+                                  name=operator.full_name)
 
 
 def _apply_not_equal(oopb, target_opset, operator):
@@ -110,7 +123,12 @@ def convert_keras_masking(scope, operator, container):
 
 def convert_keras_permute(scope, operator, container):
     axes = [0] + list(operator.raw_operator.dims)
-    apply_transpose(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container, perm=axes)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_transpose',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              perm=axes)
 
 
 def convert_keras_repeat_vector(scope, operator, container):
@@ -125,7 +143,11 @@ def convert_keras_repeat_vector(scope, operator, container):
 
 
 def convert_keras_training_only_layer(scope, operator, container):
-    apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.apply_op_with_output('apply_identity',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name)
 
 
 _layer = keras.layers
@@ -158,6 +180,7 @@ keras_layer_to_operator = {
     _layer.Subtract: convert_keras_merge_layer,
     _layer.Average: convert_keras_merge_layer,
     _layer.Maximum: convert_keras_merge_layer,
+    _layer.Minimum: convert_keras_merge_layer,
     _layer.Concatenate: convert_keras_concat,
 
     _layer.Dense: convert_keras_dense,
@@ -220,10 +243,13 @@ if is_tf_keras and is_tf2:
         _layer.recurrent.GRU: convert_keras_gru,
         _layer.recurrent.LSTM: convert_keras_lstm,
         _layer.recurrent.SimpleRNN: convert_keras_simple_rnn,
-        _layer.recurrent_v2.GRU: convert_keras_gru,
-        _layer.recurrent_v2.LSTM: convert_keras_lstm,
-        _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
     })
+    if hasattr(_layer, 'recurrent_v2'):
+        keras_layer_to_operator.update({
+            _layer.recurrent_v2.GRU: convert_keras_gru,
+            _layer.recurrent_v2.LSTM: convert_keras_lstm,
+            _layer.normalization_v2.BatchNormalization: convert_keras_batch_normalization,
+        })
 
 
 @with_variable('loaded')
