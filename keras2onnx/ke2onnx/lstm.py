@@ -9,7 +9,9 @@ from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_concat,
+    apply_gather,
     apply_reshape,
+    apply_shape,
     apply_split,
     apply_squeeze,
     apply_unsqueeze,
@@ -232,15 +234,11 @@ def build_output(scope, operator, container, output_names, direction='forward'):
 def reverse_sequence(scope, container, input_name, output_name, name, axes):
     oopb = OnnxOperatorBuilder(container, scope)
     rv2_in_names = [input_name]
-
-    input_shape_node = oopb.add_node('Shape', input_name, input_name + '_shape')
-
+    apply_shape(scope, input_name, input_name + '_shape', container)
     rv2_node_name = name
-
     inputs = rv2_in_names
 
     axis = axes[0]
-
     batch_axis = 1 if axis != 1 else 0
 
     const_batch = numpy_helper.from_array(np.array([batch_axis], dtype=np.int64), rv2_node_name + '_const_batch')
@@ -248,14 +246,14 @@ def reverse_sequence(scope, container, input_name, output_name, name, axes):
     const_axis = numpy_helper.from_array(np.array([axis], dtype=np.int64), rv2_node_name + '_const_axis')
     container.add_initializer_from_tensor(const_axis)
 
-    batch_size = oopb.add_node('Gather', [input_shape_node, const_batch.name], rv2_node_name + '_gather_batch')
-    axis_dim = oopb.add_node('Gather', [input_shape_node, const_axis.name], rv2_node_name + '_gather_axis')
-
-    seq_array = oopb.add_node('Expand', [axis_dim, batch_size], rv2_node_name + '_expand')
+    apply_gather(scope, [input_name + '_shape', const_batch.name], rv2_node_name + '_gather_batch', container)
+    apply_gather(scope, [input_name + '_shape', const_axis.name], rv2_node_name + '_gather_axis', container)
+    seq_array = oopb.add_node('Expand', [rv2_node_name + '_gather_axis', rv2_node_name + '_gather_batch'],
+                              rv2_node_name + '_expand')
     inputs.append(seq_array)
 
     res_seq_node = oopb.add_node('ReverseSequence', inputs, name=rv2_node_name + '_rev_seq', batch_axis=batch_axis,
-                                 time_axis=axis)
+                                 time_axis=axis, op_version=10)
 
     oopb.apply_op_with_output('apply_identity', [res_seq_node], [output_name],
                               name=rv2_node_name + '_Identity')
