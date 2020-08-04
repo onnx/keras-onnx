@@ -228,6 +228,7 @@ def build_output(scope, operator, container, output_names, direction='forward'):
     else:
         apply_squeeze(scope, lstm_h, output_name, container, axes=[0])
 
+
 def reverse_sequence(scope, container, input_name, output_name, name, axes):
     oopb = OnnxOperatorBuilder(container, scope)
     rv2_in_names = [input_name]
@@ -258,6 +259,7 @@ def reverse_sequence(scope, container, input_name, output_name, name, axes):
 
     oopb.apply_op_with_output('apply_identity', [res_seq_node], [output_name],
                               name=rv2_node_name + '_Identity')
+
 
 def build_output_states(scope, operator, container, output_names, bidirectional=False):
     """Builds the output hidden states for the LSTM layer.
