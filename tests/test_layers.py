@@ -1818,6 +1818,18 @@ def test_LSTM(runner):
             expected = model.predict(data)
             assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
+def test_LSTM_rev(runner):
+    inputs1 = keras.Input(shape=(3, 5))
+    data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
+    for use_bias in [True, False]:
+        for return_sequences in [True, False]:
+            cls = LSTM(units=2, return_state=True, go_backwards=True, return_sequences=return_sequences, use_bias=use_bias)
+            lstm1, state_h, state_c = cls(inputs1)
+            model = keras.Model(inputs=inputs1, outputs=[lstm1, state_h, state_c])
+            onnx_model = keras2onnx.convert_keras(model, model.name)
+            expected = model.predict(data)
+            assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
 
 @pytest.mark.skipif((is_tensorflow_older_than('1.14.0') or (not is_tf_keras)),
                     reason="keras LSTM does not have time_major attribute")
