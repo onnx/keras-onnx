@@ -11,9 +11,12 @@ import keras2onnx
 from keras2onnx.proto import keras, is_keras_older_than
 from keras2onnx.common.onnx_ops import apply_identity, OnnxOperatorBuilder
 import time
+from datetime import date
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
+today = date.today()
+is_weekend = today.isoweekday() == 6 or today.isoweekday() == 7
 
 
 def convert_tf_crop_and_resize(scope, operator, container):
