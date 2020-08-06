@@ -213,7 +213,7 @@ class TestKerasApplications(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(5, 10).astype(np.float32).reshape(5, 10)
         expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files, compare_perf=True))
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":

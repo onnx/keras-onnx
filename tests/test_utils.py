@@ -17,6 +17,7 @@ working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
 today = date.today()
 is_weekend = today.isoweekday() == 6 or today.isoweekday() == 7
+is_weekend = True
 
 
 def convert_tf_crop_and_resize(scope, operator, container):
