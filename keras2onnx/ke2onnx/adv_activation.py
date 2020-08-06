@@ -4,10 +4,11 @@
 # license information.
 ###############################################################################
 from ..proto import keras, is_keras_older_than
-from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu, apply_clip,\
+from ..common.onnx_ops import apply_elu, apply_leaky_relu, apply_prelu, apply_thresholded_relu, \
     OnnxOperatorBuilder
 import numpy as np
-
+from onnx.mapping import TENSOR_TYPE_TO_NP_TYPE
+from .._tf_utils import to_onnx_type as _to_onnx_type
 
 activations = keras.layers.advanced_activations
 
@@ -31,8 +32,26 @@ def convert_keras_advanced_activation(scope, operator, container):
         apply_thresholded_relu(scope, operator.input_full_names[0], operator.output_full_names[0], container,
                                operator_name=operator.full_name, alpha=[alpha])
     elif not is_keras_older_than('2.2.0') and isinstance(op, activations.ReLU):
-        apply_clip(scope, operator.input_full_names[0], operator.output_full_names[0], container,
-                   operator_name=operator.full_name+'_clip', max=op.max_value, min=op.threshold)
+        oopb = OnnxOperatorBuilder(container, scope)
+        if abs(op.threshold) > 1e-6:
+            raise ValueError("Non-zero ReLU threshold is not supported.")
+        else:
+            sub_value = operator.input_full_names
+        lrelu_value = oopb.apply_leaky_relu(sub_value, name=operator.full_name + '_leaky_relu',
+                                            alpha=op.negative_slope.tolist())
+        if op.max_value is None:
+            oopb.apply_op_with_output("apply_identity",
+                                      lrelu_value,
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_identity')
+        else:
+            np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[0].type.to_onnx_type().tensor_type.elem_type]
+            oopb.apply_op_with_output("apply_min",
+                                      lrelu_value +
+                                      [('_min', _to_onnx_type(op.input[0].dtype),
+                                        np.array(op.max_value, dtype=np_type))],
+                                      operator.output_full_names,
+                                      name=operator.full_name + '_min')
     else:
         raise RuntimeError('Unsupported advanced layer found %s' % type(op))
 
