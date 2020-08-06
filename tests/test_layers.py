@@ -66,7 +66,7 @@ UpSampling1D = keras.layers.UpSampling1D
 UpSampling2D = keras.layers.UpSampling2D
 UpSampling3D = keras.layers.UpSampling3D
 ZeroPadding2D = keras.layers.ZeroPadding2D
-if not (is_keras_older_than("2.2.4") or is_tf_keras):
+if not is_keras_older_than("2.2.4"):
     ReLU = keras.layers.ReLU
 
 RNN_CLASSES = [SimpleRNN, GRU, LSTM]
@@ -1461,6 +1461,18 @@ def test_PReLU(advanced_activation_runner):
     layer = advanced_activations.PReLU(alpha_initializer='ones', input_shape=(data.size,))
     advanced_activation_runner(layer, data)
     layer = advanced_activations.PReLU(alpha_initializer='RandomNormal', input_shape=(data.size,))
+    advanced_activation_runner(layer, data)
+
+
+@pytest.mark.skipif(is_keras_older_than("2.2.4"),
+                    reason="ReLU needs keras 2.2.4+")
+def test_ReLU(advanced_activation_runner):
+    data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
+    layer = ReLU(input_shape=(data.size,))
+    advanced_activation_runner(layer, data)
+    layer = ReLU(max_value=1.5, input_shape=(data.size,))
+    advanced_activation_runner(layer, data)
+    layer = ReLU(max_value=1.5, negative_slope=0.1, input_shape=(data.size,))
     advanced_activation_runner(layer, data)
 
 

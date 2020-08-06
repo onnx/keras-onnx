@@ -1765,7 +1765,7 @@ def convert_tf_topkv2(scope, operator, container):
     else:
         k_value = k.item(0)
     oopb.apply_op_with_output('apply_topk',
-                              cast_0,
+                              [cast_0],
                               operator.output_full_names,
                               operator.inputs[0].full_name + '_topk',
                               k=k_value)
