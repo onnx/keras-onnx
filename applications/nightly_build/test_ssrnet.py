@@ -42,13 +42,8 @@ K = keras.backend
 class SSR_net_MT:
     def __init__(self, image_size, num_classes, stage_num, lambda_d):
 
-        if K.image_dim_ordering() == "th":
-            self._channel_axis = 1
-            self._input_shape = (3, image_size, image_size)
-        else:
-            self._channel_axis = -1
-            self._input_shape = (image_size, image_size, 3)
-
+        self._channel_axis = -1
+        self._input_shape = (image_size, image_size, 3)
         self.num_classes = num_classes
         self.stage_num = stage_num
         self.lambda_d = lambda_d

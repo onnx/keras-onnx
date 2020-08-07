@@ -5,13 +5,10 @@
 ###############################################################################
 import os
 import sys
-import onnx
 import unittest
 import keras2onnx
-import keras_segmentation
 import numpy as np
 from keras2onnx.proto import keras, is_keras_older_than
-from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
