@@ -32,7 +32,7 @@ class OnnxOperatorBuilder:
 
     def _process_inputs(self, inputs, name):
         if not isinstance(inputs, (list, tuple)):
-            inputs = [inputs]
+            return inputs
         ox_inputs = []
         for i_ in inputs:
             ox_n = i_
