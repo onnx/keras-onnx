@@ -2154,12 +2154,12 @@ def test_shared_embed(runner):
     # embedding word
     WordEmbedding = Embedding(word_dict_len, word_dim, trainable=False,
                               name="word_embedding_" + h_word_mat)
-    xw_cont = Dropout(0.)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
-    xw_ques = Dropout(0.)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
+    xw_cont = Dropout(0.2)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
+    xw_ques = Dropout(0.2)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
 
     keras_model = keras.models.Model(inputs=[contw_input_, quesw_input_],
                                      outputs=[xw_cont, xw_ques])
-    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
     batch_size = 3
     x = np.random.rand(batch_size, max_cont_length).astype(np.float32)
     y = np.random.rand(batch_size, max_ques_length).astype(np.float32)

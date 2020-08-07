@@ -684,6 +684,8 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
                 _advance_by_input(ts_.op, [ts_.op], list(), set(), graph_inputs, q_overall)
             return None, model_
         else:
+            current_layer_inputs.extend(list_input_mask(layer_key))
+            current_layer_outputs.extend(list_output_mask(layer_key))
             layer_info = LayerInfo.create(graph, node, layer_key, keras_node_dict,
                                           current_layer_inputs, current_layer_outputs, inference_nodeset)
 

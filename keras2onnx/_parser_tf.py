@@ -108,10 +108,7 @@ class LayerInfo(object):
             fstr_list, fx_list = (None, None)
             layer_info.outputs = layer_outputs
             layer_name = layer.name
-            for nn_, layer_pair_ in outputs_map.items():
-                if layer_pair_[0] == layer:  # and nn_.find(layer_name) > -1:
-                    op_node = graph.get_operation_by_name(nn_)
-                    next_itr.add(op_node)
+            next_itr.update(ts_.op for ts_ in layer_outputs)
         else:
             fstr_list, fx_list = keras_layer_spec(type(layer))
             fx_layer_name = _get_layer_name
