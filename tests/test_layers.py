@@ -1818,7 +1818,8 @@ def test_GRU_2(runner):
     runner(onnx_model.graph.name, onnx_model, data, expected)
 
 
-def test_LSTM(runner):
+@pytest.mark.parametrize('return_sequences', [False, True])
+def test_LSTM(runner, return_sequences):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
     for use_bias in [True, False]:

@@ -76,7 +76,7 @@ def test_mlf(runner):
     np_input = tf.random.normal((2, 20))
     expected = mlf.predict(np_input)
     oxml = keras2onnx.convert_keras(mlf)
-    assert runner('lenet', oxml, np_input.numpy(), expected)
+    assert runner('mlf', oxml, np_input.numpy(), expected)
 
 
 def test_tf_ops(runner):
