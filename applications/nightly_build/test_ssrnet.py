@@ -215,6 +215,7 @@ class TestSSRNet(unittest.TestCase):
     @unittest.skipIf(not is_weekend,
                      "Run this test on weekends only.")
     def test_SSR_Net_MT(self):
+        K.clear_session()
         _IMAGE_SIZE = 64
         stage_num = [3, 3, 3]
         num_classes = 3

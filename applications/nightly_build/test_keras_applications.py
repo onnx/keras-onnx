@@ -201,6 +201,7 @@ class TestKerasApplications(unittest.TestCase):
                      "Run this test on weekends only.")
     def test_keras_self_attention(self):
         from keras_self_attention import SeqSelfAttention
+        keras.backend.clear_session()
 
         model = keras.models.Sequential()
         model.add(keras.layers.Embedding(input_dim=10000,
