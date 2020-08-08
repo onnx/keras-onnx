@@ -2159,7 +2159,7 @@ def test_shared_embed(runner):
 
     keras_model = keras.models.Model(inputs=[contw_input_, quesw_input_],
                                      outputs=[xw_cont, xw_ques])
-    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name, debug_mode=True)
+    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
     batch_size = 3
     x = np.random.rand(batch_size, max_cont_length).astype(np.float32)
     y = np.random.rand(batch_size, max_ques_length).astype(np.float32)

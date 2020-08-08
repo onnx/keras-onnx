@@ -150,7 +150,7 @@ def _check_layer_converter_availability(sub_model):
         else:
             layer_type = type(l_)
             exist = get_converter(layer_type) or \
-                layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
+                    layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
 
         if not exist:
             k2o_logger().info("The layer {} doesn't have a specific converter, fall back.".format(str(l_)))
@@ -692,9 +692,13 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
                                    q_overall, visited)
-    sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
-    for input_ in sorted_inputs:
-        layer_info.inputs.extend(input_.outputs)
+
+    if len(current_layer_inputs) > 0:
+        layer_info.inputs = current_layer_inputs
+    else:
+        sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
+        for input_ in sorted_inputs:
+            layer_info.inputs.extend(input_.outputs)
 
     layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
     return layer_info, model_
