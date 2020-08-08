@@ -8,6 +8,7 @@ import sys
 import unittest
 import keras2onnx
 import numpy as np
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto import keras, is_keras_older_than
 from os.path import dirname, abspath
 
@@ -194,7 +195,7 @@ class TestKerasApplications(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/CyberZHG/keras-self-attention
-    @unittest.skipIf(not is_weekend,
+    @unittest.skipIf(not is_weekend and get_maximum_opset_supported() < 11,
                      "Run this test on weekends only.")
     def test_keras_self_attention(self):
         from keras_self_attention import SeqSelfAttention
