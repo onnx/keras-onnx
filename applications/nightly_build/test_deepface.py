@@ -11,7 +11,7 @@ import numpy as np
 from keras2onnx.proto import keras
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, is_weekend
+from test_utils import run_onnx_runtime, test_level_0
 
 Activation = keras.layers.Activation
 add = keras.layers.add
@@ -63,8 +63,8 @@ class TestDeepFace(unittest.TestCase):
         self.assertTrue(
             run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
-    @unittest.skipIf(not is_weekend,
-                     "Run this test on weekends only.")
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
     def test_DeepID(self):
         myInput = Input(shape=(55, 47, 3))
 

@@ -13,7 +13,7 @@ from keras2onnx.proto import keras
 from keras.applications import VGG19
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, is_weekend
+from test_utils import run_onnx_runtime, test_level_0
 
 Activation = keras.layers.Activation
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -207,8 +207,8 @@ class TestSSRNet(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(not is_weekend,
-                     "Run this test on weekends only.")
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
     def test_SSR_Net_MT(self):
         K.clear_session()
         _IMAGE_SIZE = 64

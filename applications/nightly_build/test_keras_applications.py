@@ -13,7 +13,7 @@ from keras2onnx.proto import keras, is_keras_older_than
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_image, run_onnx_runtime, is_weekend
+from test_utils import run_image, run_onnx_runtime, test_level_0
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
@@ -157,8 +157,8 @@ class TestKerasApplications(unittest.TestCase):
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/titu1994/LSTM-FCN
-    @unittest.skipIf(not is_weekend,
-                     "Run this test on weekends only.")
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
     def test_lstm_fcn(self):
         MAX_SEQUENCE_LENGTH = 176
         NUM_CELLS = 8
@@ -195,8 +195,8 @@ class TestKerasApplications(unittest.TestCase):
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/CyberZHG/keras-self-attention
-    @unittest.skipIf(not is_weekend and get_maximum_opset_supported() < 11,
-                     "Run this test on weekends only.")
+    @unittest.skipIf(test_level_0 or get_maximum_opset_supported() < 11,
+                     "Test level 0 only.")
     def test_keras_self_attention(self):
         from keras_self_attention import SeqSelfAttention
         keras.backend.clear_session()
