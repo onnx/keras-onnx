@@ -150,7 +150,7 @@ def _check_layer_converter_availability(sub_model):
         else:
             layer_type = type(l_)
             exist = get_converter(layer_type) or \
-                    layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
+                layer_type in [keras.layers.InputLayer, keras.layers.wrappers.TimeDistributed]
 
         if not exist:
             k2o_logger().info("The layer {} doesn't have a specific converter, fall back.".format(str(l_)))
