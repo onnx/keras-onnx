@@ -12,7 +12,6 @@ from .funcbook import get_converter
 from .proto import keras
 from .proto.tfcompat import normalize_tensor_shape, is_subclassed
 from .ke2onnx import keras_layer_spec
-from ._consts import TYPES
 from ._tf_utils import is_placeholder_node, tsname_to_node
 
 
@@ -101,26 +100,31 @@ class LayerInfo(object):
         return info
 
     @staticmethod
-    def create(node, layer, outputs_map, inference_nodeset):
-        graph = node.graph
+    def create(graph, node, layer, outputs_map, layer_inputs, layer_outputs, inference_nodeset):
         layer_info = LayerInfo(layer)
         # find the output
         next_itr = set()
-        if node.type == TYPES.Identity:  # the case on not subclassing model
+        if len(layer_outputs) > 0:  # the case of non-subclassing layer
             fstr_list, fx_list = (None, None)
+            layer_info.outputs = layer_outputs
+            layer_name = layer.name
+            next_itr.update(ts_.op for ts_ in layer_outputs)
         else:
             fstr_list, fx_list = keras_layer_spec(type(layer))
-        fx_layer_name = _get_layer_name
-        if fstr_list is not None:
-            fx_layer_name = fx_list[0]
-        layer_name = fx_layer_name(fstr_list, node.name)
-        for nn_, layer_info_ in outputs_map.items():
-            if layer_info_[0] == layer and fx_layer_name(fstr_list, nn_) == layer_name:
-                op_node = graph.get_operation_by_name(tsname_to_node(nn_))
-                next_itr.add(op_node)
-                layer_info.outputs.extend(op_node.outputs)
+            fx_layer_name = _get_layer_name
+            if fstr_list is not None:
+                fx_layer_name = fx_list[0]
+            layer_name = fx_layer_name(fstr_list, node.name)
+            for nn_, layer_pair_ in outputs_map.items():
+                if layer_pair_[0] == layer and fx_layer_name(fstr_list, nn_) == layer_name:
+                    op_node = graph.get_operation_by_name(nn_)
+                    next_itr.add(op_node)
+                    if len(layer_outputs) == 0:
+                        layer_info.outputs.extend(op_node.outputs)
 
         visited = set()
+        stop_ops = set(n_ for n_ in outputs_map)
+        stop_ops.update(i_.op.name for i_ in layer_inputs)
         while next_itr:
             visited |= next_itr
             next_itr.clear()
@@ -131,7 +135,7 @@ class LayerInfo(object):
                         continue
                     if i_.op in visited or i_.op not in inference_nodeset:
                         continue
-                    if (not is_placeholder_node(i_.op)) and i_.op.name in outputs_map:
+                    if (not is_placeholder_node(i_.op)) and i_.op.name in stop_ops:
                         continue
                     next_itr.add(i_.op)
 
