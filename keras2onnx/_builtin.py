@@ -25,7 +25,8 @@ from ._tf_utils import (is_nhwc as _is_nhwc,
 
 
 def default_convert(scope, operator, container):
-    apply_identity(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container)
+    apply_identity(scope, operator.inputs[0].full_name,
+                   operator.outputs[0].full_name, container, operator_name=operator.full_name)
 
 
 @converter_func(TYPES.Identity)
