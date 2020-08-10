@@ -109,6 +109,7 @@ jobs:
       $(UNINSTALL_KERAS)
       pip install git+https://github.com/qubvel/efficientnet
       $(INSTALL_TRANSFORMERS)
+      pip install keras-self-attention
     displayName: 'Install dependencies'
 
   - script: |

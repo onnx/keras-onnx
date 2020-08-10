@@ -23,8 +23,8 @@ def convert_keras_embed(scope, operator, container):
                                name=operator.full_name + 'mask_not')
         else:
             equal_input_0 = oopb.add_node('Cast', [operator.inputs[0].full_name],
-                                          operator.full_name + '_input_cast', to=6)
-            equal_out = oopb.add_node('Equal', [equal_input_0, np.array([0], dtype='int32')],
+                                          operator.full_name + '_input_cast', to=9)
+            equal_out = oopb.add_node('Equal', [equal_input_0, np.array([False], dtype='bool')],
                                       operator.full_name + 'mask')
             container.add_node('Not', equal_out, operator.output_masks[0].full_name,
                                name=operator.full_name + 'mask_not')
