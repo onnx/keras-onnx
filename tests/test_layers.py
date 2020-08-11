@@ -1818,7 +1818,8 @@ def test_GRU_2(runner):
     runner(onnx_model.graph.name, onnx_model, data, expected)
 
 
-def test_LSTM(runner):
+@pytest.mark.parametrize('return_sequences', [False, True])
+def test_LSTM(runner, return_sequences):
     inputs1 = keras.Input(shape=(3, 5))
     data = np.random.rand(3, 5).astype(np.float32).reshape((1, 3, 5))
     for use_bias in [True, False]:
@@ -2166,8 +2167,8 @@ def test_shared_embed(runner):
     # embedding word
     WordEmbedding = Embedding(word_dict_len, word_dim, trainable=False,
                               name="word_embedding_" + h_word_mat)
-    xw_cont = Dropout(0.)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
-    xw_ques = Dropout(0.)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
+    xw_cont = Dropout(0.2)(WordEmbedding(contw_input_))  # [bs, c_len, word_dim]
+    xw_ques = Dropout(0.2)(WordEmbedding(quesw_input_))  # [bs, c_len, word_dim]
 
     keras_model = keras.models.Model(inputs=[contw_input_, quesw_input_],
                                      outputs=[xw_cont, xw_ques])

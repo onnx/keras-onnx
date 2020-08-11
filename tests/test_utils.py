@@ -14,6 +14,7 @@ import time
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
+test_level_0 = True
 
 
 def convert_tf_crop_and_resize(scope, operator, container):

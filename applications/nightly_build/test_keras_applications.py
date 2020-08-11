@@ -5,17 +5,15 @@
 ###############################################################################
 import os
 import sys
-import onnx
 import unittest
 import keras2onnx
-import keras_segmentation
 import numpy as np
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto import keras, is_keras_older_than
-from distutils.version import StrictVersion
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_image, run_onnx_runtime
+from test_utils import run_image, run_onnx_runtime, test_level_0
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
@@ -24,21 +22,26 @@ AveragePooling2D = keras.layers.AveragePooling2D
 BatchNormalization = keras.layers.BatchNormalization
 Bidirectional = keras.layers.Bidirectional
 Concatenate = keras.layers.Concatenate
+concatenate = keras.layers.concatenate
 Convolution2D = keras.layers.Convolution2D
+Conv1D = keras.layers.Conv1D
 Conv2D = keras.layers.Conv2D
 Dense = keras.layers.Dense
 Dropout = keras.layers.Dropout
 Embedding = keras.layers.Embedding
 Flatten = keras.layers.Flatten
+GlobalAveragePooling1D = keras.layers.GlobalAveragePooling1D
 Input = keras.layers.Input
 LeakyReLU = keras.layers.LeakyReLU
 LSTM = keras.layers.LSTM
 MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
+Permute = keras.layers.Permute
 Reshape = keras.layers.Reshape
 UpSampling2D = keras.layers.UpSampling2D
 ZeroPadding2D = keras.layers.ZeroPadding2D
 
+Model = keras.models.Model
 Sequential = keras.models.Sequential
 
 class TestKerasApplications(unittest.TestCase):
@@ -152,6 +155,64 @@ class TestKerasApplications(unittest.TestCase):
             data = np.random.rand(actual_batch_size, timesteps, input_dim).astype(np.float32).reshape((actual_batch_size, timesteps, input_dim))
             expected = model.predict(data)
             self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+
+    # model from https://github.com/titu1994/LSTM-FCN
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_lstm_fcn(self):
+        MAX_SEQUENCE_LENGTH = 176
+        NUM_CELLS = 8
+        NB_CLASS = 37
+        ip = Input(shape=(1, MAX_SEQUENCE_LENGTH))
+
+        x = LSTM(NUM_CELLS)(ip)
+        x = Dropout(0.8)(x)
+
+        y = Permute((2, 1))(ip)
+        y = Conv1D(128, 8, padding='same', kernel_initializer='he_uniform')(y)
+        y = BatchNormalization()(y)
+        y = Activation('relu')(y)
+
+        y = Conv1D(256, 5, padding='same', kernel_initializer='he_uniform')(y)
+        y = BatchNormalization()(y)
+        y = Activation('relu')(y)
+
+        y = Conv1D(128, 3, padding='same', kernel_initializer='he_uniform')(y)
+        y = BatchNormalization()(y)
+        y = Activation('relu')(y)
+
+        y = GlobalAveragePooling1D()(y)
+
+        x = concatenate([x, y])
+
+        out = Dense(NB_CLASS, activation='softmax')(x)
+
+        model = Model(ip, out)
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        batch_size = 2
+        data = np.random.rand(batch_size, 1, MAX_SEQUENCE_LENGTH).astype(np.float32).reshape(batch_size, 1, MAX_SEQUENCE_LENGTH)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+
+    # model from https://github.com/CyberZHG/keras-self-attention
+    @unittest.skipIf(test_level_0 or get_maximum_opset_supported() < 11,
+                     "Test level 0 only.")
+    def test_keras_self_attention(self):
+        from keras_self_attention import SeqSelfAttention
+        keras.backend.clear_session()
+
+        model = keras.models.Sequential()
+        model.add(keras.layers.Embedding(input_dim=10000,
+                                         output_dim=300,
+                                         mask_zero=True))
+        model.add(keras.layers.Bidirectional(keras.layers.LSTM(units=128,
+                                                               return_sequences=True)))
+        model.add(SeqSelfAttention(attention_activation='sigmoid'))
+        model.add(keras.layers.Dense(units=5))
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(5, 10).astype(np.float32).reshape(5, 10)
+        expected = model.predict(data)
+        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":

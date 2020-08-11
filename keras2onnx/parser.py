@@ -644,18 +644,33 @@ def _sorted_inputs(nodelist, outputs, inputs_set):
     return inputs
 
 
+def _is_ts_op_in(op, kenode):
+    names = {ts_.name for ts_ in op.outputs}
+    for ts_ in list_output_tensors(kenode):
+        if ts_.name in names:
+            return True
+
+    return False
+
+
 def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, node, varset, visited, q_overall):
     layer_key, model_ = (None, None)
-    current_layer_outputs = {}
+    current_layer_inputs = []
+    current_layer_outputs = []
     if node.name in keras_node_dict:
         layer_key, model_ = keras_node_dict[node.name]
+        for kenode in extract_inbound_nodes(layer_key):
+            if _is_ts_op_in(node, kenode):
+                current_layer_inputs.extend(list_input_tensors(kenode))
+                current_layer_outputs.extend(list_output_tensors(kenode))
     else:
-        ts_out = node.outputs[0]
-        kh_ = getattr(ts_out, '_keras_history', None)
-        if kh_ is not None:
-            layer_key = kh_.layer
-            kenode = extract_inbound_nodes(layer_key)[kh_.node_index]
-            current_layer_outputs.update({ts_.op.name: (layer_key, None) for ts_ in list_output_tensors(kenode)})
+        for ts_out in node.outputs:
+            kh_ = getattr(ts_out, '_keras_history', None)
+            if kh_ is not None:
+                layer_key = kh_.layer
+                kenode = extract_inbound_nodes(layer_key)[kh_.node_index]
+                current_layer_inputs.extend(list_input_tensors(kenode))
+                current_layer_outputs.extend(list_output_tensors(kenode))
 
     if layer_key is None:
         layer_info = LayerInfo.create_single_node(node, visited)
@@ -669,15 +684,21 @@ def _parse_nodes_v2(graph, inference_nodeset, graph_inputs, keras_node_dict, nod
                 _advance_by_input(ts_.op, [ts_.op], list(), set(), graph_inputs, q_overall)
             return None, model_
         else:
-            layer_info = LayerInfo.create(node, layer_key,
-                                          {**keras_node_dict, **current_layer_outputs}, inference_nodeset)
+            current_layer_inputs.extend(list_input_mask(layer_key))
+            current_layer_outputs.extend(list_output_mask(layer_key))
+            layer_info = LayerInfo.create(graph, node, layer_key, keras_node_dict,
+                                          current_layer_inputs, current_layer_outputs, inference_nodeset)
 
     nodelist = []
     layer_inputs = _visit_nodelist(layer_info.nodelist, graph_inputs, None, keras_node_dict, node, nodelist,
                                    q_overall, visited)
-    sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
-    for input_ in sorted_inputs:
-        layer_info.inputs.extend(input_.outputs)
+
+    if len(current_layer_inputs) > 0:
+        layer_info.inputs = current_layer_inputs
+    else:
+        sorted_inputs = _sorted_inputs(layer_info.nodelist, layer_info.outputs, layer_inputs)
+        for input_ in sorted_inputs:
+            layer_info.inputs.extend(input_.outputs)
 
     layer_info.nodelist = [n_ for n_ in layer_info.nodelist if not is_placeholder_node(n_)]
     return layer_info, model_
@@ -700,7 +721,7 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
 
     model_outputs = []
     for name in output_names:
-        var_ts = graph.get_operation_by_name(tsname_to_node(name)).outputs[0]
+        var_ts = graph.get_tensor_by_name(name)
         _create_link_node(var_ts, top_scope, varset, adjust_batch_size=True)
         model_outputs.append(var_ts.op)
 
