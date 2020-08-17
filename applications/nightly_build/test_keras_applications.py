@@ -214,6 +214,51 @@ class TestKerasApplications(unittest.TestCase):
         expected = model.predict(data)
         self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
+    # Model from https://github.com/chandrikadeb7/Face-Mask-Detection
+    @unittest.skipIf(test_level_0 or is_keras_older_than("2.2.3"),
+                     "There is no mobilenet_v2 module before keras 2.2.3.")
+    def test_FaceMaskDetection(self):
+        mobilenet_v2 = keras.applications.mobilenet_v2
+        baseModel = mobilenet_v2.MobileNetV2(weights=None, include_top=False,
+            input_tensor=Input(shape=(224, 224, 3)))
+        headModel = baseModel.output
+        headModel = AveragePooling2D(pool_size=(7, 7))(headModel)
+        headModel = Flatten(name="flatten")(headModel)
+        headModel = Dense(128, activation="relu")(headModel)
+        headModel = Dropout(0.5)(headModel)
+        headModel = Dense(2, activation="softmax")(headModel)
+
+        model = Model(inputs=baseModel.input, outputs=headModel)
+        res = run_image(model, self.model_files, img_path)
+        self.assertTrue(*res)
+
+    # Model from https://github.com/abhishekrana/DeepFashion
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_DeepFashion(self):
+        base_model = keras.applications.VGG16(weights=None, include_top=False, input_shape=(224, 224, 3))
+        model_inputs = base_model.input
+        common_inputs = base_model.output
+        dropout_rate = 0.5
+        output_classes = 20
+        x = Flatten()(common_inputs)
+        x = Dense(256, activation='tanh')(x)
+        x = Dropout(dropout_rate)(x)
+        predictions_class = Dense(output_classes, activation='softmax', name='predictions_class')(x)
+
+        ## Model (Regression) IOU score
+        x = Flatten()(common_inputs)
+        x = Dense(256, activation='tanh')(x)
+        x = Dropout(dropout_rate)(x)
+        x = Dense(256, activation='tanh')(x)
+        x = Dropout(dropout_rate)(x)
+        predictions_iou = Dense(1, activation='sigmoid', name='predictions_iou')(x)
+
+        ## Create Model
+        keras_model = Model(inputs=model_inputs, outputs=[predictions_class, predictions_iou])
+        res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=224, compare_perf=True)
+        self.assertTrue(*res)
+
 
 if __name__ == "__main__":
     unittest.main()

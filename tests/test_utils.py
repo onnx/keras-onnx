@@ -165,6 +165,18 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     return res
 
 
+def run_keras_and_ort(case_name, onnx_model, keras_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6, compare_perf=False):
+    if compare_perf:
+        count = 10
+        time_start = time.time()
+        for i in range(count):
+            keras_model.predict(data)
+        time_end = time.time()
+        print('avg keras time =' + str((time_end - time_start) / count))
+    return run_onnx_runtime(case_name, onnx_model, data, expected, model_files,
+                            rtol=rtol, atol=atol, compare_perf=compare_perf)
+
+
 def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb",
               target_size=224, tf_v2=False, compare_perf=False):
     if tf_v2:
