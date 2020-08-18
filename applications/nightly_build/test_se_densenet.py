@@ -17,7 +17,6 @@ from keras_applications.imagenet_utils import _obtain_input_shape
 K = keras.backend
 from keras.regularizers import l2
 is_keras_tensor = K.is_keras_tensor
-from keras.utils import get_source_inputs
 
 Activation = keras.layers.Activation
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -99,12 +98,7 @@ def SEDenseNet(input_shape=None,
                            growth_rate, nb_filter, nb_layers_per_block, bottleneck, reduction,
                            dropout_rate, weight_decay, subsample_initial_block, activation)
 
-    # Ensure that the model takes into account
-    # any potential predecessors of `input_tensor`.
-    if input_tensor is not None:
-        inputs = get_source_inputs(input_tensor)
-    else:
-        inputs = img_input
+    inputs = img_input
     # Create model.
     model = Model(inputs, x, name='se-densenet')
 

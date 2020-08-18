@@ -254,7 +254,7 @@ class TestNBeats(unittest.TestCase):
                      "Test level 0 only.")
     def test_NBeats(self):
         K.clear_session()
-        num_samples, time_steps, input_dim, output_dim = 50_000, 10, 1, 1
+        num_samples, time_steps, input_dim, output_dim = 50000, 10, 1, 1
 
         # Definition of the model.
         keras_model = NBeatsNet(backcast_length=time_steps, forecast_length=output_dim,

@@ -16,7 +16,6 @@ from test_utils import run_keras_and_ort, test_level_0
 from keras_applications.imagenet_utils import _obtain_input_shape
 K = keras.backend
 is_keras_tensor = K.is_keras_tensor
-from keras.utils import get_source_inputs
 
 Activation = keras.layers.Activation
 AveragePooling2D = keras.layers.AveragePooling2D
@@ -251,12 +250,7 @@ def SEInceptionResNetV2(include_top=True,
         elif pooling == 'max':
             x = GlobalMaxPooling2D()(x)
 
-    # Ensure that the model takes into account
-    # any potential predecessors of `input_tensor`
-    if input_tensor is not None:
-        inputs = get_source_inputs(input_tensor)
-    else:
-        inputs = img_input
+    inputs = img_input
 
     # Create model
     model = Model(inputs, x, name='se_inception_resnet_v2')
