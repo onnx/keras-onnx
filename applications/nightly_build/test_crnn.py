@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_onnx_runtime, test_level_0
@@ -47,6 +48,8 @@ class TestCRNN(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    @unittest.skipIf(get_maximum_opset_supported() < 10,
+                     "CRNN conversion need opset >= 10.")
     def test_CRNN(self):
         img_w = 128
         img_h = 64
