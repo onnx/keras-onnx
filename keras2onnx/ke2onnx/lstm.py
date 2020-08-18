@@ -9,7 +9,9 @@ from collections.abc import Iterable
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_concat,
+    apply_gather,
     apply_reshape,
+    apply_shape,
     apply_split,
     apply_squeeze,
     apply_unsqueeze,
@@ -18,6 +20,7 @@ from ..common.onnx_ops import (
 )
 from ..proto import onnx_proto, keras
 from . import simplernn
+from onnx import numpy_helper
 
 LSTM = keras.layers.LSTM
 TensorProto = onnx_proto.TensorProto
@@ -181,9 +184,11 @@ def build_attributes(scope, operator, container, bidirectional=False):
     return attrs
 
 
-def build_output(scope, operator, container, output_names, bidirectional=False):
+def build_output(scope, operator, container, output_names, direction='forward'):
     """Builds the output operators for the LSTM layer.
     """
+    bidirectional = True if direction == 'bidirectional' else False
+
     if bidirectional:
         return simplernn.build_output(scope, operator, container, output_names[:-1], bidirectional)
 
@@ -202,17 +207,56 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     if output_seq:
         # Squeeze the num_direction dim as we know its size is 1 for
         # lstm(forward/reverse).
+        is_reverse = True if direction == 'reverse' else False
         lstm_out = output_name if time_major else _name('y_squeezed')
-        apply_squeeze(scope, lstm_y, lstm_out, container, axes=[1])
-        if not time_major:
+        squeeze_out = lstm_out if not is_reverse else _name('y_squeezed')
+        apply_squeeze(scope, lstm_y, squeeze_out, container, axes=[1])
+
+        if time_major:
+            if is_reverse:
+                reverse_sequence(scope, container, lstm_out, output_name, name=_name('reverse_seq'), axes=[0])
+
+        else:
             # Onnx LSTM produces time major output. Add a transpose operator to
             # make it batch_major, if the keras op was not time_major.
             # This transforms [ S, B, I] -> [ B, S, I ] where B is
             # batch_size and S is seq_len.
             perm = [1, 0, 2]
-            apply_transpose(scope, lstm_out, output_name, container, perm=perm)
+            transpose_out = output_name if not is_reverse else _name('transpose')
+            apply_transpose(scope, squeeze_out, transpose_out, container, perm=perm)
+            if is_reverse:
+                reverse_sequence(scope, container, transpose_out, output_name, name=_name('reverse_seq'), axes=[1])
+
     else:
         apply_squeeze(scope, lstm_h, output_name, container, axes=[0])
+
+
+def reverse_sequence(scope, container, input_name, output_name, name, axes):
+    oopb = OnnxOperatorBuilder(container, scope)
+    rv2_in_names = [input_name]
+    apply_shape(scope, input_name, input_name + '_shape', container)
+    rv2_node_name = name
+    inputs = rv2_in_names
+
+    axis = axes[0]
+    batch_axis = 1 if axis != 1 else 0
+
+    const_batch = numpy_helper.from_array(np.array([batch_axis], dtype=np.int64), rv2_node_name + '_const_batch')
+    container.add_initializer_from_tensor(const_batch)
+    const_axis = numpy_helper.from_array(np.array([axis], dtype=np.int64), rv2_node_name + '_const_axis')
+    container.add_initializer_from_tensor(const_axis)
+
+    apply_gather(scope, [input_name + '_shape', const_batch.name], rv2_node_name + '_gather_batch', container)
+    apply_gather(scope, [input_name + '_shape', const_axis.name], rv2_node_name + '_gather_axis', container)
+    seq_array = oopb.add_node('Expand', [rv2_node_name + '_gather_axis', rv2_node_name + '_gather_batch'],
+                              rv2_node_name + '_expand')
+    inputs.append(seq_array)
+
+    res_seq_node = oopb.add_node('ReverseSequence', inputs, name=rv2_node_name + '_rev_seq', batch_axis=batch_axis,
+                                 time_axis=axis, op_version=10)
+
+    oopb.apply_op_with_output('apply_identity', [res_seq_node], [output_name],
+                              name=rv2_node_name + '_Identity')
 
 
 def build_output_states(scope, operator, container, output_names, bidirectional=False):
@@ -314,5 +358,5 @@ def convert_keras_lstm(scope, operator, container, bidirectional=False):
                               output_seq=output_seq,
                               **attrs)
 
-    build_output(scope, operator, container, output_names, bidirectional)
+    build_output(scope, operator, container, output_names, attrs['direction'])
     build_output_states(scope, operator, container, output_names, bidirectional)
