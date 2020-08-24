@@ -397,7 +397,7 @@ def create_wide_residual_network(input_dim, nb_classes=100, N=2, k=1, dropout=0.
     return model
 
 
-# Model from https://github.com/cvjena/semantic-embeddings
+# Models from https://github.com/cvjena/semantic-embeddings
 class TestSemanticEmbeddings(unittest.TestCase):
 
     def setUp(self):
