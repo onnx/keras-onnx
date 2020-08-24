@@ -13,7 +13,7 @@ from keras2onnx.proto import keras, is_keras_older_than
 from os.path import dirname, abspath
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_image, run_onnx_runtime, test_level_0
+from test_utils import run_image, test_level_0, run_keras_and_ort
 img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 Activation = keras.layers.Activation
@@ -126,7 +126,7 @@ class TestKerasApplications(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
         expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/titu1994/Image-Super-Resolution
     def test_ExpantionSuperResolution(self):
@@ -154,7 +154,7 @@ class TestKerasApplications(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             data = np.random.rand(actual_batch_size, timesteps, input_dim).astype(np.float32).reshape((actual_batch_size, timesteps, input_dim))
             expected = model.predict(data)
-            self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+            self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/titu1994/LSTM-FCN
     @unittest.skipIf(test_level_0,
@@ -192,7 +192,7 @@ class TestKerasApplications(unittest.TestCase):
         batch_size = 2
         data = np.random.rand(batch_size, 1, MAX_SEQUENCE_LENGTH).astype(np.float32).reshape(batch_size, 1, MAX_SEQUENCE_LENGTH)
         expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # model from https://github.com/CyberZHG/keras-self-attention
     @unittest.skipIf(test_level_0 or get_maximum_opset_supported() < 11,
@@ -212,7 +212,7 @@ class TestKerasApplications(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(5, 10).astype(np.float32).reshape(5, 10)
         expected = model.predict(data)
-        self.assertTrue(run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
 
     # Model from https://github.com/chandrikadeb7/Face-Mask-Detection
     @unittest.skipIf(test_level_0 or is_keras_older_than("2.2.3"),
@@ -258,6 +258,57 @@ class TestKerasApplications(unittest.TestCase):
         keras_model = Model(inputs=model_inputs, outputs=[predictions_class, predictions_iou])
         res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=224, compare_perf=True)
         self.assertTrue(*res)
+
+    # Model from https://github.com/manicman1999/Keras-BiGAN
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_bigan_generator(self):
+        def g_block(inp, fil, u=True):
+
+            if u:
+                out = UpSampling2D(interpolation='bilinear')(inp)
+            else:
+                out = Activation('linear')(inp)
+
+            skip = Conv2D(fil, 1, padding='same', kernel_initializer='he_normal')(out)
+
+            out = Conv2D(filters=fil, kernel_size=3, padding='same', kernel_initializer='he_normal')(out)
+            out = LeakyReLU(0.2)(out)
+
+            out = Conv2D(filters=fil, kernel_size=3, padding='same', kernel_initializer='he_normal')(out)
+            out = LeakyReLU(0.2)(out)
+
+            out = Conv2D(fil, 1, padding='same', kernel_initializer='he_normal')(out)
+
+            out = keras.layers.add([out, skip])
+            out = LeakyReLU(0.2)(out)
+
+            return out
+
+        latent_size = 64
+        cha = 16
+
+        inp = Input(shape = [latent_size])
+
+        x = Dense(4*4*16*cha, kernel_initializer = 'he_normal')(inp)
+        x = Reshape([4, 4, 16*cha])(x)
+
+        x = g_block(x, 16 * cha, u = False)  #4
+        x = g_block(x, 8 * cha)  #8
+        x = g_block(x, 4 * cha)  #16
+        x = g_block(x, 3 * cha)   #32
+        x = g_block(x, 2 * cha)   #64
+        x = g_block(x, 1 * cha)   #128
+
+        x = Conv2D(filters = 3, kernel_size = 1, activation = 'sigmoid', padding = 'same', kernel_initializer = 'he_normal')(x)
+
+        model = Model(inputs = inp, outputs = x)
+
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(200, latent_size).astype(np.float32).reshape(200, latent_size)
+        expected = model.predict(data)
+        self.assertTrue(
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":
