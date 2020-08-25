@@ -126,7 +126,7 @@ class TestKerasApplications(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(N, H, W, C).astype(np.float32).reshape((N, H, W, C))
         expected = model.predict(data)
-        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
     # model from https://github.com/titu1994/Image-Super-Resolution
     def test_ExpantionSuperResolution(self):
@@ -154,7 +154,7 @@ class TestKerasApplications(unittest.TestCase):
             onnx_model = keras2onnx.convert_keras(model, model.name)
             data = np.random.rand(actual_batch_size, timesteps, input_dim).astype(np.float32).reshape((actual_batch_size, timesteps, input_dim))
             expected = model.predict(data)
-            self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+            self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
     # model from https://github.com/titu1994/LSTM-FCN
     @unittest.skipIf(test_level_0,
@@ -192,7 +192,7 @@ class TestKerasApplications(unittest.TestCase):
         batch_size = 2
         data = np.random.rand(batch_size, 1, MAX_SEQUENCE_LENGTH).astype(np.float32).reshape(batch_size, 1, MAX_SEQUENCE_LENGTH)
         expected = model.predict(data)
-        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
     # model from https://github.com/CyberZHG/keras-self-attention
     @unittest.skipIf(test_level_0 or get_maximum_opset_supported() < 11,
@@ -212,7 +212,7 @@ class TestKerasApplications(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(5, 10).astype(np.float32).reshape(5, 10)
         expected = model.predict(data)
-        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+        self.assertTrue(run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
     # Model from https://github.com/chandrikadeb7/Face-Mask-Detection
     @unittest.skipIf(test_level_0 or is_keras_older_than("2.2.3"),
@@ -303,7 +303,6 @@ class TestKerasApplications(unittest.TestCase):
         x = Conv2D(filters = 3, kernel_size = 1, activation = 'sigmoid', padding = 'same', kernel_initializer = 'he_normal')(x)
 
         model = Model(inputs = inp, outputs = x)
-
         onnx_model = keras2onnx.convert_keras(model, model.name)
         data = np.random.rand(200, latent_size).astype(np.float32).reshape(200, latent_size)
         expected = model.predict(data)
