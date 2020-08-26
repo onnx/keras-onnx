@@ -2188,6 +2188,37 @@ def convert_tf_strided_slice(scope, operator, container):
                                   operator.inputs[0].full_name + '_identity')
 
 
+@converter_func(TYPES.TensorScatterUpdate)
+def convert_tf_tensor_scatter_update(scope, operator, container):
+    if operator.target_opset < 11:
+        raise ValueError("TensorScatterUpdate op is not supported for opset = " + str(operator.target_opset))
+    else:
+        oopb = OnnxOperatorBuilder(container, scope)
+        node = operator.raw_operator
+
+        indices = _cal_tensor_value(node.inputs[1])
+        indices_arr = np.array(indices)
+        indices_tensor = numpy_helper.from_array(indices_arr, operator.inputs[1].full_name + '_value')
+        container.add_initializer_from_tensor(indices_tensor)
+
+        updates_name = operator.inputs[2].full_name
+        updates = _cal_tensor_value(node.inputs[2])
+        if (updates is not None):
+            updates_arr = np.array(updates)
+            updates_tensor = numpy_helper.from_array(updates_arr, operator.inputs[2].full_name + '_value')
+            container.add_initializer_from_tensor(updates_tensor)
+            updates_name = operator.inputs[2].full_name + '_value'
+
+        cast_indices = oopb.apply_cast(indices_tensor.name,
+                                       to=oopb.int64,
+                                       name=operator.full_name + '_input_1_cast')
+        oopb.add_node_with_output('ScatterND',
+                                  [operator.inputs[0].full_name, cast_indices[0], updates_name],
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_tensor_scatter_nd',
+                                  op_version=11)
+
+
 @converter_func(TYPES.Unpack)
 def convert_tf_unpack(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
