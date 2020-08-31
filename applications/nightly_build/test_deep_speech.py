@@ -32,7 +32,6 @@ MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Permute = keras.layers.Permute
 Reshape = keras.layers.Reshape
-SeparableConv2D = keras.layers.SeparableConv2D
 UpSampling2D = keras.layers.UpSampling2D
 ZeroPadding2D = keras.layers.ZeroPadding2D
 
