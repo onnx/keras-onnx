@@ -280,7 +280,6 @@ class BilinearUpsampling(keras.layers.Layer):
                                                  int(inputs.shape[2] * self.upsampling[1])))
 
     def get_config(self):
-
         config = {'size': self.upsampling, 'data_format': self.data_format}
         base_config = super(BilinearUpsampling, self).get_config()
         return dict(list(base_config.items()) + list(config.items()))
