@@ -87,7 +87,7 @@ class DeepSpeakerModel:
         return relu
 
     def identity_block(self, input_tensor, kernel_size, filters, stage, block):
-        conv_name_base = f'res{stage}_{block}_branch'
+        conv_name_base = 'res'+str(stage)+'_'+str(block)+'_branch'
 
         x = Conv2D(filters,
                    kernel_size=kernel_size,
