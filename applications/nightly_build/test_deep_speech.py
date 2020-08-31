@@ -51,8 +51,7 @@ class TestDeepSpeech(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(False,
-                     "Test level 0 only.")
+    @unittest.skip("TODO: TimeDistributed Reshape multiple None.")
     def test_deep_speech(self):
         K.clear_session()
         input_dim = 20
