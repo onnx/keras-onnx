@@ -104,8 +104,7 @@ class TestDeepSpeech(unittest.TestCase):
             run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
 
-    @unittest.skipIf(test_level_0,
-                     "Test level 0 only.")
+    @unittest.skip("TODO: TimeDistributed Reshape multiple None.")
     def test_deep_speech_2(self):
         K.clear_session()
         input_dim = 20
