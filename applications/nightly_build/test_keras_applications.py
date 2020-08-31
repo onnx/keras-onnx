@@ -33,7 +33,7 @@ Flatten = keras.layers.Flatten
 GlobalAveragePooling1D = keras.layers.GlobalAveragePooling1D
 Input = keras.layers.Input
 LeakyReLU = keras.layers.LeakyReLU
-LSTM = keras.layers.LSTM
+MaxPool2D = keras.layers.MaxPool2D
 MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Permute = keras.layers.Permute
@@ -309,6 +309,86 @@ class TestKerasApplications(unittest.TestCase):
         self.assertTrue(
             run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
+    # Model from https://github.com/ankur219/ECG-Arrhythmia-classification
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_ecg_classification(self):
+        model = Sequential()
+        model.add(Conv2D(64, (3, 3), strides=(1, 1), input_shape=[128, 128, 3], kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(Conv2D(64, (3, 3), strides=(1, 1), kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+        model.add(Conv2D(128, (3, 3), strides=(1, 1), kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(Conv2D(128, (3, 3), strides=(1, 1), kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+        model.add(Conv2D(256, (3, 3), strides=(1, 1), kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(Conv2D(256, (3, 3), strides=(1, 1), kernel_initializer='glorot_uniform'))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(MaxPool2D(pool_size=(2, 2), strides=(2, 2)))
+        model.add(Flatten())
+        model.add(Dense(2048))
+        model.add(keras.layers.ELU())
+        model.add(BatchNormalization())
+        model.add(Dropout(0.5))
+        model.add(Dense(7, activation='softmax'))
+        onnx_model = keras2onnx.convert_keras(model, model.name)
+        data = np.random.rand(2, 128, 128, 3).astype(np.float32)
+        expected = model.predict(data)
+        self.assertTrue(
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
+
+    # Model from https://github.com/arunponnusamy/gender-detection-keras
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_gender_detection(self):
+        model = Sequential()
+        inputShape = (224, 224, 3)
+        chanDim = -1
+        model.add(Conv2D(32, (3,3), padding="same", input_shape=inputShape))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization(axis=chanDim))
+        model.add(MaxPooling2D(pool_size=(3,3)))
+        model.add(Dropout(0.25))
+
+        model.add(Conv2D(64, (3,3), padding="same"))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization(axis=chanDim))
+        model.add(Conv2D(64, (3,3), padding="same"))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization(axis=chanDim))
+        model.add(MaxPooling2D(pool_size=(2,2)))
+        model.add(Dropout(0.25))
+
+        model.add(Conv2D(128, (3,3), padding="same"))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization(axis=chanDim))
+        model.add(Conv2D(128, (3,3), padding="same"))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization(axis=chanDim))
+        model.add(MaxPooling2D(pool_size=(2,2)))
+        model.add(Dropout(0.25))
+
+        model.add(Flatten())
+        model.add(Dense(1024))
+        model.add(Activation("relu"))
+        model.add(BatchNormalization())
+        model.add(Dropout(0.5))
+
+        model.add(Dense(80))
+        model.add(Activation("sigmoid"))
+
+        res = run_image(model, self.model_files, img_path, atol=5e-3, target_size=224)
+        self.assertTrue(*res)
 
 if __name__ == "__main__":
     unittest.main()

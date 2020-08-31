@@ -69,7 +69,10 @@ def convert_keras_pooling_core(scope, operator, container, n_dims,
     else:
         squeeze_result = pool_result
 
-    container.add_node('Identity', squeeze_result, operator.outputs[0].full_name)
+    oopb.apply_op_with_output("apply_identity",
+                              squeeze_result,
+                              operator.output_full_names,
+                              name=operator.full_name + '_identity')
 
 
 def convert_keras_max_pooling_1d(scope, operator, container):
