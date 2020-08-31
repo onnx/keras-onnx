@@ -145,9 +145,9 @@ class TestDeepSpeech(unittest.TestCase):
                                    use_bias=True,
                                    return_sequences=True,
                                    reset_after=True,
-                                   name=f'gru_{i}')
+                                   name='gru_'+str(i))
             x = layers.Bidirectional(recurrent,
-                                     name=f'bidirectional_{i}',
+                                     name='bidirectional'+str(i),
                                      merge_mode='concat')(x)
             x = layers.Dropout(rate=0.5)(x) if i < 5 else x  # Only between
 

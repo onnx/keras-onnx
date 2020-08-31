@@ -260,13 +260,10 @@ def AttUNet(nClasses, input_height=224, input_width=224):
     return model
 
 
-from keras.backend.common import normalize_data_format
-
 class BilinearUpsampling(keras.layers.Layer):
 
     def __init__(self, upsampling=(2, 2), data_format=None, **kwargs):
         super(BilinearUpsampling, self).__init__(**kwargs)
-        self.data_format = normalize_data_format(data_format)
         self.upsampling = keras.utils.conv_utils.normalize_tuple(upsampling, 2, 'size')
         self.input_spec = keras.layers.InputSpec(ndim=4)
 

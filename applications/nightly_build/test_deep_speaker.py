@@ -82,7 +82,7 @@ class DeepSpeakerModel:
         return w
 
     def clipped_relu(self, inputs):
-        relu = Lambda(lambda y: K.minimum(K.maximum(y, 0), 20), name=f'clipped_relu_{self.clipped_relu_count}')(inputs)
+        relu = Lambda(lambda y: K.minimum(K.maximum(y, 0), 20), name='clipped_relu_'+str(self.clipped_relu_count))(inputs)
         self.clipped_relu_count += 1
         return relu
 
