@@ -25,7 +25,7 @@ Conv1D = keras.layers.Conv1D
 Conv2D = keras.layers.Conv2D
 Conv3D = keras.layers.Conv3D
 Convolution2D = keras.layers.Convolution2D
-Convolution2DTranspose = keras.layers.Convolution2DTranspose
+Conv2DTranspose = keras.layers.Conv2DTranspose
 Dense = keras.layers.Dense
 dot = keras.layers.dot
 Dropout = keras.layers.Dropout
@@ -174,10 +174,10 @@ class DenoisingAutoEncoderSR(BaseSuperResolutionModel):
         level1_1 = Convolution2D(self.n1, (3, 3), activation='relu', padding='same')(init)
         level2_1 = Convolution2D(self.n1, (3, 3), activation='relu', padding='same')(level1_1)
 
-        level2_2 = Convolution2DTranspose(self.n1, (3, 3), activation='relu', padding='same')(level2_1)
+        level2_2 = Conv2DTranspose(self.n1, (3, 3), activation='relu', padding='same')(level2_1)
         level2 = Add()([level2_1, level2_2])
 
-        level1_2 = Convolution2DTranspose(self.n1, (3, 3), activation='relu', padding='same')(level2)
+        level1_2 = Conv2DTranspose(self.n1, (3, 3), activation='relu', padding='same')(level2)
         level1 = Add()([level1_1, level1_2])
 
         decoded = Convolution2D(channels, (5, 5), activation='linear', padding='same')(level1)
@@ -312,9 +312,6 @@ class ResNetSR(BaseSuperResolutionModel):
         #x = SubPixelUpscaling(r=2, channels=self.n, name='sr_res_upscale1_%d' % id)(x)
         x = UpSampling2D()(init)
         x = Convolution2D(self.n, (3, 3), activation="relu", padding='same', name='sr_res_filter1_%d' % id)(x)
-
-        # x = Convolution2DTranspose(channels, (4, 4), strides=(2, 2), padding='same', activation='relu',
-        #                            name='upsampling_deconv_%d' % id)(init)
 
         return x
 

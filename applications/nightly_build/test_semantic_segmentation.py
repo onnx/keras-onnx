@@ -40,7 +40,6 @@ Multiply = keras.layers.Multiply
 multiply = keras.layers.multiply
 Permute = keras.layers.Permute
 PReLU = keras.layers.PReLU
-ReLU = keras.layers.ReLU
 Reshape = keras.layers.Reshape
 SeparableConv2D = keras.layers.SeparableConv2D
 SpatialDropout2D = keras.layers.SpatialDropout2D
