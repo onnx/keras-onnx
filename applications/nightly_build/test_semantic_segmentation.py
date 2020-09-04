@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 import numpy as np
 import math
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from keras2onnx.proto import keras
 from keras.initializers import RandomNormal
 from os.path import dirname, abspath
@@ -2102,6 +2103,8 @@ class TestSemanticSegmentation(unittest.TestCase):
             run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files))
 
 
+    @unittest.skipIf(get_maximum_opset_supported() < 10,
+                     reason="Upsample op need scale value >= 1.0.")
     def test_ICNet(self):
         K.clear_session()
         keras_model = ICNet(80)
