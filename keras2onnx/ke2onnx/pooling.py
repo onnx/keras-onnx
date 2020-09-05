@@ -32,7 +32,7 @@ def convert_keras_pooling_core(scope, operator, container, n_dims,
         op_version = 11
     if not is_global:
         attrs['strides'] = list(op.strides)
-        attrs['kernel_shape'] = op.pool_size
+        attrs['kernel_shape'] = tuple([int(pool_size) for pool_size in op.pool_size])
         attrs['op_version'] = op_version
         # In ONNX opset 10, the ceil_mode attribute was added to local MaxPool and AveragePool
         if container.target_opset >= 10:
