@@ -13,6 +13,7 @@ from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_keras_and_ort, test_level_0
 K = keras.backend
+import tensorflow as tf
 
 Activation = keras.layers.Activation
 add = keras.layers.add
@@ -39,6 +40,7 @@ MaxPool1D = keras.layers.MaxPool1D
 MaxPooling2D = keras.layers.MaxPooling2D
 multiply = keras.layers.multiply
 Permute = keras.layers.Permute
+PReLU = keras.layers.PReLU
 Reshape = keras.layers.Reshape
 SeparableConv2D = keras.layers.SeparableConv2D
 UpSampling2D = keras.layers.UpSampling2D
@@ -613,6 +615,107 @@ class NonLocalResNetSR(BaseSuperResolutionModel):
         return x
 
 
+def get_srresnet_model(input_channel_num=3, feature_dim=64, resunit_num=16):
+    def _residual_block(inputs):
+        x = Conv2D(feature_dim, (3, 3), padding="same", kernel_initializer="he_normal")(inputs)
+        x = BatchNormalization()(x)
+        x = PReLU(shared_axes=[1, 2])(x)
+        x = Conv2D(feature_dim, (3, 3), padding="same", kernel_initializer="he_normal")(x)
+        x = BatchNormalization()(x)
+        m = Add()([x, inputs])
+
+        return m
+
+    inputs = Input(shape=(None, None, input_channel_num))
+    x = Conv2D(feature_dim, (3, 3), padding="same", kernel_initializer="he_normal")(inputs)
+    x = PReLU(shared_axes=[1, 2])(x)
+    x0 = x
+
+    for i in range(resunit_num):
+        x = _residual_block(x)
+
+    x = Conv2D(feature_dim, (3, 3), padding="same", kernel_initializer="he_normal")(x)
+    x = BatchNormalization()(x)
+    x = Add()([x, x0])
+    x = Conv2D(input_channel_num, (3, 3), padding="same", kernel_initializer="he_normal")(x)
+    model = Model(inputs=inputs, outputs=x)
+
+    return model
+
+
+DIV2K_RGB_MEAN = np.array([0.4488, 0.4371, 0.4040]) * 255
+
+
+def normalize(x, rgb_mean=DIV2K_RGB_MEAN):
+    return (x - rgb_mean) / 127.5
+
+
+def denormalize(x, rgb_mean=DIV2K_RGB_MEAN):
+    return x * 127.5 + rgb_mean
+
+
+def normalize_01(x):
+    """Normalizes RGB images to [0, 1]."""
+    return x / 255.0
+
+
+def normalize_m11(x):
+    """Normalizes RGB images to [-1, 1]."""
+    return x / 127.5 - 1
+
+
+def denormalize_m11(x):
+    """Inverse of normalize_m11."""
+    return (x + 1) * 127.5
+
+
+def pixel_shuffle(scale):
+    return lambda x: tf.nn.depth_to_space(x, scale)
+
+
+LR_SIZE = 24
+HR_SIZE = 96
+
+
+def upsample(x_in, num_filters):
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
+    x = Lambda(pixel_shuffle(scale=2))(x)
+    return PReLU(shared_axes=[1, 2])(x)
+
+
+def res_block(x_in, num_filters, momentum=0.8):
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x_in)
+    x = BatchNormalization(momentum=momentum)(x)
+    x = PReLU(shared_axes=[1, 2])(x)
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
+    x = BatchNormalization(momentum=momentum)(x)
+    x = Add()([x_in, x])
+    return x
+
+
+def sr_resnet(num_filters=64, num_res_blocks=16):
+    x_in = Input(shape=(None, None, 3))
+    x = Lambda(normalize_01)(x_in)
+
+    x = Conv2D(num_filters, kernel_size=9, padding='same')(x)
+    x = x_1 = PReLU(shared_axes=[1, 2])(x)
+
+    for _ in range(num_res_blocks):
+        x = res_block(x, num_filters)
+
+    x = Conv2D(num_filters, kernel_size=3, padding='same')(x)
+    x = BatchNormalization()(x)
+    x = Add()([x_1, x])
+
+    x = upsample(x, num_filters * 4)
+    x = upsample(x, num_filters * 4)
+
+    x = Conv2D(3, kernel_size=9, padding='same', activation='tanh')(x)
+    x = Lambda(denormalize_m11)(x)
+
+    return Model(x_in, x)
+
+
 # Model from https://github.com/titu1994/Image-Super-Resolution
 class TestSuperResolution(unittest.TestCase):
 
@@ -723,6 +826,86 @@ class TestSuperResolution(unittest.TestCase):
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(
             run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files, atol=1e-4))
+
+
+    # From https://github.com/yu4u/noise2noise/blob/master/model.py
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_SRResNet(self):
+        K.clear_session()
+        keras_model = get_srresnet_model()
+        data = np.random.rand(2, 32, 32, 3).astype(np.float32)
+        expected = keras_model.predict(data)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        keras2onnx.save_model(onnx_model, 'sr_resnet.onnx')
+        self.assertTrue(
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files, rtol=1e-2, atol=1e-4))
+
+
+    # From https://github.com/krasserm/super-resolution/blob/master/model/srgan.py
+    @unittest.skipIf(test_level_0,
+                     "TODO: perf")
+    def test_sr_resnet(self):
+        K.clear_session()
+        keras_model = sr_resnet()
+        data = np.random.rand(2, 32, 32, 3).astype(np.float32)
+        expected = keras_model.predict(data)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        self.assertTrue(
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files))
+
+
+    # From https://github.com/krasserm/super-resolution/blob/master/model/edsr.py
+    @unittest.skipIf(test_level_0,
+                     "Test level 0 only.")
+    def test_edsr(self):
+        K.clear_session()
+
+        def edsr(scale, num_filters=64, num_res_blocks=8, res_block_scaling=None):
+            x_in = Input(shape=(None, None, 3))
+            x = Lambda(normalize)(x_in)
+
+            x = b = Conv2D(num_filters, 3, padding='same')(x)
+            for i in range(num_res_blocks):
+                b = res_block(b, num_filters, res_block_scaling)
+            b = Conv2D(num_filters, 3, padding='same')(b)
+            x = Add()([x, b])
+
+            x = upsample(x, scale, num_filters)
+            x = Conv2D(3, 3, padding='same')(x)
+
+            x = Lambda(denormalize)(x)
+            return Model(x_in, x, name="edsr")
+
+        def res_block(x_in, filters, scaling):
+            x = Conv2D(filters, 3, padding='same', activation='relu')(x_in)
+            x = Conv2D(filters, 3, padding='same')(x)
+            if scaling:
+                x = Lambda(lambda t: t * scaling)(x)
+            x = Add()([x_in, x])
+            return x
+
+        def upsample(x, scale, num_filters):
+            def upsample_1(x, factor, **kwargs):
+                x = Conv2D(num_filters * (factor ** 2), 3, padding='same', **kwargs)(x)
+                return Lambda(pixel_shuffle(scale=factor))(x)
+
+            if scale == 2:
+                x = upsample_1(x, 2, name='conv2d_1_scale_2')
+            elif scale == 3:
+                x = upsample_1(x, 3, name='conv2d_1_scale_3')
+            elif scale == 4:
+                x = upsample_1(x, 2, name='conv2d_1_scale_2')
+                x = upsample_1(x, 2, name='conv2d_2_scale_2')
+
+            return x
+
+        keras_model = edsr(2.0)
+        data = np.random.rand(2, 32, 32, 3).astype(np.float32)
+        expected = keras_model.predict(data)
+        onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        self.assertTrue(
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files, rtol=1e-2, atol=1e-3))
 
 
 if __name__ == "__main__":
