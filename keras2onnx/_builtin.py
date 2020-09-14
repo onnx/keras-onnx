@@ -1769,11 +1769,27 @@ def convert_tf_topkv2(scope, operator, container):
         k_value = unsqueeze
     else:
         k_value = k.item(0)
-    oopb.apply_op_with_output('apply_topk',
-                              [cast_0],
-                              operator.output_full_names,
-                              operator.inputs[0].full_name + '_topk',
-                              k=k_value)
+    output_1_dtype = _to_onnx_type(node.outputs[1].dtype)
+    if output_1_dtype == oopb.int64:
+        oopb.apply_op_with_output('apply_topk',
+                                  [cast_0],
+                                  operator.output_full_names,
+                                  operator.inputs[0].full_name + '_topk',
+                                  k=k_value)
+    else:
+        topk = oopb.apply_topk([cast_0],
+                               operator.inputs[0].full_name + '_topk',
+                               outputs_num=2,
+                               k=k_value)
+        oopb.apply_op_with_output("apply_identity",
+                                  topk[0],
+                                  operator.output_full_names[0],
+                                  name=operator.full_name + '_identity')
+        oopb.apply_op_with_output("apply_cast",
+                                  topk[1],
+                                  operator.output_full_names[1],
+                                  name=operator.full_name + '_cast',
+                                  to=output_1_dtype)
 
 
 @converter_func(TYPES.Transpose)

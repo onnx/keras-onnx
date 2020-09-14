@@ -857,6 +857,25 @@ def test_stridedslice_dynamic_end(runner):
     assert runner(onnx_model.graph.name, onnx_model, data1, expected)
 
 
+@pytest.mark.skip("ConvTranspose does not support dynamic input for padding=same")
+def test_conv_transpose_dynamic(runner):
+    def my_func(x):
+        frame_dim = tf.shape(x)[2]
+        return x[:, :-1, 1:frame_dim - 1, :]
+
+    model = Sequential()
+    filters = 8
+    kernel_size = (2, 5)
+    strides = (1, 1)
+    model.add(Lambda(my_func, input_shape=[3, 4, 5]))
+    model.add(Conv2DTranspose(filters, kernel_size, strides=strides, use_bias=False,
+                              padding="same", name='conv2d_transpose'))
+    data1 = np.random.rand(2 * 3 * 4 * 5).astype(np.float32).reshape(2, 3, 4, 5)
+    expected = model.predict(data1)
+    onnx_model = keras2onnx.convert_keras(model, 'test_conv_transpose_dynamic')
+    assert runner(onnx_model.graph.name, onnx_model, data1, expected)
+
+
 def test_tf_tile(runner):
     model = Sequential()
     model.add(Lambda(lambda x: tf.tile(x, [1, 1, 3]), input_shape=[2, 2]))
