@@ -5,8 +5,9 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
+from .common import reverse_sequence, reverse_output_adjustment
 from ..common import name_func
-from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
+from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder, apply_squeeze
 from . import simplernn
 
 TensorProto = onnx_proto.TensorProto
@@ -162,5 +163,10 @@ def convert_keras_gru(scope, operator, container, bidirectional=False):
                               reset_after=reset_after,
                               **attrs)
 
+    bidirectional = True if attrs['direction'] == 'bidirectional' else False
     simplernn.build_output(scope, operator, container, output_names, bidirectional)
+    gru_y, gru_h = output_names
+    output_seq = op.return_sequences
+    if not bidirectional:
+        reverse_output_adjustment(scope, operator, container, gru_y, gru_h, output_seq, time_major, attrs['direction'])
     simplernn.build_output_states(scope, operator, container, output_names, bidirectional)
