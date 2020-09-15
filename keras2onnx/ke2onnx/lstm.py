@@ -6,13 +6,11 @@
 import numbers
 import numpy as np
 from collections.abc import Iterable
-from .common import reverse_sequence, reverse_output_adjustment
+from .common import reverse_output_adjustment
 from ..common import cvtfunc, name_func
 from ..common.onnx_ops import (
     apply_concat,
-    apply_gather,
     apply_reshape,
-    apply_shape,
     apply_split,
     apply_squeeze,
     apply_unsqueeze,

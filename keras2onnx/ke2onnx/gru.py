@@ -5,9 +5,9 @@
 ###############################################################################
 import numpy as np
 from ..proto import onnx_proto
-from .common import reverse_sequence, reverse_output_adjustment
+from .common import reverse_output_adjustment
 from ..common import name_func
-from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder, apply_squeeze
+from ..common.onnx_ops import apply_transpose, OnnxOperatorBuilder
 from . import simplernn
 
 TensorProto = onnx_proto.TensorProto
