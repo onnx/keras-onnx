@@ -12,7 +12,7 @@ from keras2onnx.proto import keras
 from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
-from test_utils import run_onnx_runtime, test_level_0
+from test_utils import run_keras_and_ort, test_level_0
 
 Activation = keras.layers.Activation
 add = keras.layers.add
@@ -50,7 +50,7 @@ class TestCRNN(unittest.TestCase):
 
     @unittest.skipIf(get_maximum_opset_supported() < 10,
                      "CRNN conversion need opset >= 10.")
-    def test_CRNN(self):
+    def test_CRNN_LSTM(self):
         img_w = 128
         img_h = 64
         input_shape = (img_w, img_h, 1)  # (128, 64, 1)
@@ -128,10 +128,10 @@ class TestCRNN(unittest.TestCase):
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(
-            run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
-    @unittest.skipIf(test_level_0,
-                     "Test level 0 only.")
+    @unittest.skipIf(get_maximum_opset_supported() < 10,
+                     "CRNN conversion need opset >= 10.")
     def test_CRNN_GRU(self):
         img_w = 128
         img_h = 64
@@ -209,7 +209,7 @@ class TestCRNN(unittest.TestCase):
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(
-            run_onnx_runtime(onnx_model.graph.name, onnx_model, data, expected, self.model_files))
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files, compare_perf=True))
 
 
 if __name__ == "__main__":
