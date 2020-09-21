@@ -116,8 +116,15 @@ def _on_parsing_time_distributed_layer(graph, node_list, layer, model, varset, p
     k2o_logger().debug('td_layer output: ' + oname)
     o1 = varset.get_local_variable_or_declare_one(oname, infer_variable_type(o_, varset.target_opset))
     oshapes1 = [-1 if s_ is None else s_ for s_ in oshapes[0]]
-    operator_reshape_1 = varset.declare_local_operator(TYPES.TD_Reshape,
-                                                       op_name=layer.name + '_reshape_1', target_shape=oshapes1)
+    num_minus_1 = len(list(i for i in oshapes1 if i is not None and i < 0))
+    if num_minus_1 > 1:
+        operator_reshape_1 = varset.declare_local_operator(TYPES.TD_Reshape,
+                                                           op_name=layer.name + '_reshape_1', target_shape=oshapes1[2:],
+                                                           input_name=iname)
+    else:
+        operator_reshape_1 = varset.declare_local_operator(TYPES.TD_Reshape,
+                                                           op_name=layer.name + '_reshape_1', target_shape=oshapes1)
+
     operator_reshape_1.add_output(o1)
     o1_reshape_name = o_.op.name + '_reshape_1:0'
     o1_reshape = varset.declare_local_variable(o1_reshape_name, infer_variable_type(o_, varset.target_opset))

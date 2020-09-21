@@ -9,7 +9,7 @@ import unittest
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras
-from keras.initializers import RandomUniform
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_keras_and_ort, test_level_0
@@ -48,8 +48,8 @@ class TestNameEntityRecognition(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(True,
-                     "TimeDistributed Reshape error.")
+    @unittest.skipIf(get_maximum_opset_supported() < 11,
+                     "Deep speech conversion need opset >= 11.")
     def test_name_entity_recognition(self):
         K.clear_session()
         words_input = Input(shape=(None,), dtype='int32', name='words_input')
@@ -60,7 +60,7 @@ class TestNameEntityRecognition(unittest.TestCase):
                            weights=None, trainable=False)(casing_input)
         character_input = Input(shape=(None, 52,), name='char_input')
         embed_char_out = TimeDistributed(
-            Embedding(26, 20, embeddings_initializer=RandomUniform(minval=-0.5, maxval=0.5)),
+            Embedding(26, 20),
             name='char_embedding')(character_input)
         dropout = Dropout(0.5)(embed_char_out)
         conv1d_out = TimeDistributed(Conv1D(kernel_size=3, filters=30, padding='same', activation='tanh', strides=1))(
@@ -72,13 +72,17 @@ class TestNameEntityRecognition(unittest.TestCase):
         output = Bidirectional(LSTM(200, return_sequences=True, dropout=0.50, recurrent_dropout=0.25))(output)
         output = TimeDistributed(Dense(35, activation='softmax'))(output)
         keras_model = Model(inputs=[words_input, casing_input, character_input], outputs=[output])
-        data1 = np.random.rand(2, 6).astype(np.float32)
-        data2 = np.random.rand(2, 6).astype(np.float32)
-        data3 = np.random.rand(2, 6, 52).astype(np.float32)
+        batch_size = 100
+        data1 = np.random.randint(5, 10, size=(batch_size, 6)).astype(np.int32)
+        data2 = np.random.randint(5, 10, size=(batch_size, 6)).astype(np.int32)
+        data3 = np.random.rand(batch_size, 6, 52).astype(np.float32)
         expected = keras_model.predict([data1, data2, data3])
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(
-            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, [data1, data2, data3], expected, self.model_files, compare_perf=True))
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model,
+                              {keras_model.input_names[0]: data1,
+                               keras_model.input_names[1]: data2,
+                               keras_model.input_names[2]: data3}, expected, self.model_files, compare_perf=True))
 
 
 if __name__ == "__main__":
