@@ -268,13 +268,8 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
         hidden_size = forward_layer.units
         output_seq = forward_layer.return_sequences
 
-        merge_concat = False
-        if hasattr(op, 'merge_mode'):
-            if op.merge_mode not in ['concat', None]:
-                raise ValueError('Bidirectional only supports merge_mode=\'concat\' '
-                                 'but got %s' % op.merge_mode)
-            if op.merge_mode is not None:
-                merge_concat = True
+        merge_mode = op.merge_mode if hasattr(op, 'merge_mode') else None
+        merge_mode_map = {'ave': 'apply_mean', 'mul': 'apply_mul', 'sum': 'apply_sum'}
 
         if output_seq:
             lstm_out = _name('y_transposed')
@@ -284,7 +279,7 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
             else:
                 # Transpose RNN Y with shape (T, D, N, C) into (T, N, D, C)
                 apply_transpose(scope, rnn_y, lstm_out, container, perm=[0, 2, 1, 3])
-            if merge_concat:
+            if merge_mode == 'concat':
                 # In this case, only one Keras output with shape (N, T, 2 * C') should be produced.
                 # ( T, N, 2*C ) if it was time major.
                 apply_reshape(scope, lstm_out, operator.outputs[0].full_name, container,
@@ -299,18 +294,23 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
                 axis_direction = 2
                 apply_split(scope, lstm_out, [forward_y, backward_y], container, axis=axis_direction)
 
-                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
-                apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
-                apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
+                if merge_mode in merge_mode_map:
+                    oopb.apply_op_with_output(merge_mode_map[merge_mode],
+                                              [forward_y, backward_y],
+                                              operator.output_full_names,
+                                              name=operator.full_name + '_merge_map')
+                else:
+                    # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                    apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
+                    apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
         else:
             perm = [1, 0, 2]
-            if merge_concat:
+            # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
+            transposed_h = _name('Y_h_transposed')
+            apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
+
+            if merge_mode == 'concat':
                 # In this case, only one Keras output with shape (N, 2 * C') should be produced
-
-                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
-                transposed_h = _name('Y_h_transposed')
-                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
-
                 # Flatten ONNX (N, D, C') into (N, D * C')
                 oopb.apply_op_with_output("apply_flatten",
                                           transposed_h,
@@ -320,20 +320,21 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
             else:
                 # If merge_mode=None, two tensors should be generated. The first/second tensor is the output of
                 # forward/backward pass.
-
-                # Transpose ONNX RNN Y_h with shape (D, N, C') into (N, D, C')
-                transposed_h = _name('Y_h_transposed')
-                apply_transpose(scope, rnn_h, transposed_h, container, perm=perm)
-
                 # Split the transposed Y with shape (T, N, D, C') into (T, N, 1, C') and (T, N, 1, C')
                 forward_y = _name('Y_forward')
                 backward_y = _name('Y_backward')
                 axis_direction = 1
                 apply_split(scope, transposed_h, [forward_y, backward_y], container, axis=axis_direction)
 
-                # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
-                apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
-                apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
+                if merge_mode in merge_mode_map:
+                    oopb.apply_op_with_output(merge_mode_map[merge_mode],
+                                              [forward_y, backward_y],
+                                              operator.output_full_names,
+                                              name=operator.full_name + '_merge_map')
+                else:
+                    # Change (T, N, 1, C') into (T, N, C') to meet Keras spec
+                    apply_squeeze(scope, forward_y, operator.outputs[0].full_name, container, axes=[axis_direction])
+                    apply_squeeze(scope, backward_y, operator.outputs[1].full_name, container, axes=[axis_direction])
     else:
         hidden_size = op.units
         output_seq = op.return_sequences

@@ -1241,9 +1241,26 @@ def convert_tf_range(scope, operator, container):
 
 @converter_func(TYPES.TD_Reshape)
 def convert_reshape_timedistributed(scope, operator, container):
+    input_name = operator.get_attr('input_name')
     target_shape = operator.get_attr('target_shape')
-    apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
-                  operator_name=operator.full_name, desired_shape=target_shape)
+    if input_name is None:
+        apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
+                      operator_name=operator.full_name, desired_shape=target_shape)
+    else:
+        oopb = OnnxOperatorBuilder(container, scope)
+        shape0 = oopb.apply_shape(input_name, name=operator.full_name + '_shape')
+        cropped_tensor_name = oopb.add_node('Slice',
+                                            [shape0[0],
+                                             ('_start', oopb.int64, np.array([0], dtype=np.int64)),
+                                             ('_end', oopb.int64, np.array([2], dtype=np.int64))
+                                             ],
+                                            operator.inputs[0].full_name + '_cropping',
+                                            op_version=11)
+        concat = oopb.apply_concat([cropped_tensor_name,
+                                    ('_start', oopb.int64, np.array(target_shape, dtype=np.int64)),
+                                    ], name=operator.full_name + '_concat')
+        apply_reshape(scope, operator.inputs[0].full_name, operator.outputs[0].full_name, container,
+                      operator_name=operator.full_name, desired_shape=concat[0])
 
 
 @converter_func(TYPES.All, TYPES.Any)
