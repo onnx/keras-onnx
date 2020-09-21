@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_keras_and_ort, test_level_0
@@ -50,7 +51,8 @@ class TestDeepSpeech(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skip("TODO: TimeDistributed Reshape multiple None.")
+    @unittest.skipIf(get_maximum_opset_supported() < 11,
+                     "Deep speech conversion need opset >= 11.")
     def test_deep_speech(self):
         K.clear_session()
         input_dim = 20
@@ -102,7 +104,8 @@ class TestDeepSpeech(unittest.TestCase):
             run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
 
-    @unittest.skip("TODO: TimeDistributed Reshape multiple None.")
+    @unittest.skipIf(get_maximum_opset_supported() < 11,
+                     "Deep speech conversion need opset >= 11.")
     def test_deep_speech_2(self):
         K.clear_session()
         input_dim = 20
