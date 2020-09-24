@@ -272,7 +272,6 @@ class TestSegNet(unittest.TestCase):
         data = np.random.rand(2, 128, 128, 3).astype(np.float32)
         expected = keras_model.predict(data)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
-        keras2onnx.save_model(onnx_model, 'argmax.onnx')
         self.assertTrue(
             run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files))
 
