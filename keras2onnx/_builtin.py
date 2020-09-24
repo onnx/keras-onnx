@@ -201,12 +201,19 @@ def _convert_tf_pool(scope, operator, container, arg_str):
     padding = node.get_attr('padding')
     attrs_pads = _add_padding(node, padding, dilations, spatial, pad_perm, strides_hw, kernel_shape_hw)
     attrs.update(attrs_pads)
+    output_indices = None
+    op_str = arg_str
+    if arg_str == 'MaxPoolWithArgmax':
+        output_indices = [0, 1]
+        op_str = 'MaxPool'
     if spatial < 3:
-        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, input_perm=NHWC_TO_NCHW,
-                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC, op_type=arg_str)
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, output_indices=output_indices,
+                             input_perm=NHWC_TO_NCHW,
+                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC, op_type=op_str)
     else:
-        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, input_perm=NDHWC_TO_NCDHW,
-                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC, op_type=arg_str)
+        _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, output_indices=output_indices,
+                             input_perm=NDHWC_TO_NCDHW,
+                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC, op_type=op_str)
 
 
 @converter_func(TYPES.AvgPool)
@@ -222,6 +229,11 @@ def convert_tf_avgpool3d(scope, operator, container):
 @converter_func(TYPES.MaxPool)
 def convert_tf_maxpool(scope, operator, container):
     _convert_tf_pool(scope, operator, container, 'MaxPool')
+
+
+@converter_func(TYPES.MaxPoolWithArgmax)
+def convert_tf_maxpool_argmax(scope, operator, container):
+    _convert_tf_pool(scope, operator, container, 'MaxPoolWithArgmax')
 
 
 @converter_func(TYPES.MaxPoolV2)
@@ -1479,7 +1491,8 @@ def convert_tf_scatter_nd(scope, operator, container):
         else:
             const_of_shape_input = [operator.inputs[2].full_name]
 
-        np_val = np.array([0], dtype=np.int64)
+        np_type = TENSOR_TYPE_TO_NP_TYPE[operator.inputs[1].type.to_onnx_type().tensor_type.elem_type]
+        np_val = np.array([0], dtype=np_type)
         onnx_tensor = numpy_helper.from_array(np_val, operator.inputs[2].full_name + '_value')
         const_of_shape = oopb.add_node('ConstantOfShape',
                                        const_of_shape_input,

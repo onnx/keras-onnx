@@ -55,6 +55,7 @@ class TYPES:
     Maximum = 'Maximum'
     MaxPool = 'MaxPool'
     MaxPoolV2 = 'MaxPoolV2'
+    MaxPoolWithArgmax = 'MaxPoolWithArgmax'
     MaxPool3D = 'MaxPool3D'
     Mean = 'Mean'
     Min = 'Min'
