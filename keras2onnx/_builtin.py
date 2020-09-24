@@ -87,11 +87,11 @@ def _spatial_map(shape, perm):
 
 def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_kernel_shape=None,
                          output_indices=None, input_perm=NHWC_TO_NCHW, kernel_perm=HWCN_TO_NCHW,
-                         output_perm=NCHW_TO_NHWC, op_type='Conv'):
+                         output_perm=NCHW_TO_NHWC, op_type='Conv', arg_str='Conv'):
     if output_indices is None:
         output_indices = [0]
 
-    if _is_nhwc(node):
+    if arg_str == 'MaxPoolWithArgmax' or _is_nhwc(node):
         # transpose input if needed, no need to record shapes on input
         transpose_node_1 = oopb.apply_transpose(node.inputs[0].name,
                                                 name=operator.full_name + '_transpose_1',
@@ -126,7 +126,7 @@ def _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, new_ker
                                   **attrs)
 
     # transpose outputs if needed
-    if _is_nhwc(node):
+    if arg_str == 'MaxPoolWithArgmax' or _is_nhwc(node):
         for idx in output_indices:
             oopb.add_node_with_output("Transpose",
                                       conv_node,
@@ -151,7 +151,7 @@ def _conv_dims_attr(node, dims):
         return dims[2:]
 
 
-def _add_padding(node, padding, dilations, spatial, pad_perm, strides, kernel_shape):
+def _add_padding(node, padding, dilations, spatial, pad_perm, strides, kernel_shape, arg_str='Conv'):
     attrs_pad = {}
     if padding:
         if dilations is None:
@@ -161,7 +161,7 @@ def _add_padding(node, padding, dilations, spatial, pad_perm, strides, kernel_sh
             input_shape = _cal_tensor_shape(node.inputs[0])
             output_shape = _cal_tensor_shape(node.outputs[0])
             # transpose shape to nchw
-            if not hasattr(node, 'data_format') or _is_nhwc(node):
+            if arg_str == 'MaxPoolWithArgmax' or _is_nhwc(node):
                 input_shape = _spatial_map(input_shape, pad_perm)
                 output_shape = _spatial_map(output_shape, pad_perm)
             # calculate pads
@@ -189,7 +189,7 @@ def _convert_tf_pool(scope, operator, container, arg_str):
         kernel_shape_tf = _cal_tensor_value(node.inputs[1])
         strides_tf = _cal_tensor_value(node.inputs[2])
 
-    if not hasattr(node, 'data_format') or _is_nhwc(node):
+    if arg_str == 'MaxPoolWithArgmax' or _is_nhwc(node):
         kernel_shape_hw = kernel_shape_tf[1:-1]
         strides_hw = strides_tf[1:-1]
     else:
@@ -199,7 +199,7 @@ def _convert_tf_pool(scope, operator, container, arg_str):
     dilations = None
     attrs = {"kernel_shape": kernel_shape_hw, "strides": strides_hw}
     padding = node.get_attr('padding')
-    attrs_pads = _add_padding(node, padding, dilations, spatial, pad_perm, strides_hw, kernel_shape_hw)
+    attrs_pads = _add_padding(node, padding, dilations, spatial, pad_perm, strides_hw, kernel_shape_hw, arg_str)
     attrs.update(attrs_pads)
     output_indices = None
     op_str = arg_str
@@ -209,11 +209,13 @@ def _convert_tf_pool(scope, operator, container, arg_str):
     if spatial < 3:
         _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, output_indices=output_indices,
                              input_perm=NHWC_TO_NCHW,
-                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC, op_type=op_str)
+                             kernel_perm=HWCN_TO_NCHW, output_perm=NCHW_TO_NHWC, op_type=op_str,
+                             arg_str=arg_str)
     else:
         _conv_convert_inputs(oopb, operator, node, attrs, with_kernel=False, output_indices=output_indices,
                              input_perm=NDHWC_TO_NCDHW,
-                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC, op_type=op_str)
+                             kernel_perm=DHWCN_TO_NCDHW, output_perm=NCDHW_TO_NDHWC, op_type=op_str,
+                             arg_str=arg_str)
 
 
 @converter_func(TYPES.AvgPool)
