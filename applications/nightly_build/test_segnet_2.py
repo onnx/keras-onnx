@@ -9,6 +9,7 @@ import unittest
 import keras2onnx
 import numpy as np
 from keras2onnx.proto import keras
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from os.path import dirname, abspath
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_keras_and_ort, test_level_0
@@ -185,7 +186,6 @@ def segnet(input_shape, n_labels, kernel=3, pool_size=(2, 2), output_mode="softm
     conv_13 = Activation("relu")(conv_13)
 
     pool_5, mask_5 = MaxPoolingWithArgmax2D(pool_size)(conv_13)
-    print("Build enceder done..")
 
     # decoder
 
@@ -248,7 +248,6 @@ def segnet(input_shape, n_labels, kernel=3, pool_size=(2, 2), output_mode="softm
     )(conv_26)
 
     outputs = Activation(output_mode)(conv_26)
-    print("Build decoder done..")
 
     model = Model(inputs=inputs, outputs=outputs, name="SegNet")
 
@@ -265,14 +264,15 @@ class TestSegNet(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(test_level_0,
-                     "Need custom op support for tf.nn.max_pool_with_argmax")
+    @unittest.skipIf(get_maximum_opset_supported() < 11,
+                     "ScatterNd support need opset >= 11.")
     def test_segnet(self):
         K.clear_session()
         keras_model = segnet((128, 128, 3), 80)
         data = np.random.rand(2, 128, 128, 3).astype(np.float32)
         expected = keras_model.predict(data)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+        keras2onnx.save_model(onnx_model, 'argmax.onnx')
         self.assertTrue(
             run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files))
 
