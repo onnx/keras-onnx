@@ -133,10 +133,11 @@ def convert_keras_permute(scope, operator, container):
 
 def convert_keras_repeat_vector(scope, operator, container):
     op = operator.raw_operator
+    input_shape_1 = op.input_shape[1] if hasattr(op, 'input_shape') else operator.inputs[0].type.shape[1]
 
     intermediate_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_reshaped')
     apply_reshape(scope, operator.inputs[0].full_name, intermediate_tensor_name, container,
-                  desired_shape=[-1, 1, op.input_shape[1]])
+                  desired_shape=[-1, 1, input_shape_1])
 
     repeats = [1, int(op.n), 1]
     apply_tile(scope, intermediate_tensor_name, operator.outputs[0].full_name, container, repeats=repeats)

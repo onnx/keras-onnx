@@ -31,7 +31,8 @@ def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the GRU layer.
     """
     op = operator.raw_operator
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
+    input_shape = operator.inputs[0].type.shape
+    _, seq_length, input_size = simplernn.extract_input_shape(op, input_shape)
 
     _name = name_func(scope, operator)
 
