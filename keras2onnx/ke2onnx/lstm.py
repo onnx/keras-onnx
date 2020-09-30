@@ -245,7 +245,8 @@ def _calculate_keras_lstm_output_shapes(operator):
             operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
                                                   for i in op.output_shape[0])
         else:
-            operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None for i in op.output_shape)
+            operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
+                                                  for i in op.output_shape)
 
 
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)
