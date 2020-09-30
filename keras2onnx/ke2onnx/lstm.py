@@ -54,7 +54,8 @@ def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the LSTM layer.
     """
     op = operator.raw_operator
-    _, seq_length, input_size = simplernn.extract_input_shape(op)
+    input_shape = operator.inputs[0].type.shape
+    _, seq_length, input_size = simplernn.extract_input_shape(op, input_shape)
 
     _name = name_func(scope, operator)
 
@@ -239,11 +240,13 @@ def build_output_states(scope, operator, container, output_names, bidirectional=
 
 def _calculate_keras_lstm_output_shapes(operator):
     op = operator.raw_operator
-    if isinstance(op.output_shape[0], Iterable):
-        operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
-                                              for i in op.output_shape[0])
-    else:
-        operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None for i in op.output_shape)
+    if hasattr(op, 'output_shape'):
+        if isinstance(op.output_shape[0], Iterable):
+            operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
+                                                  for i in op.output_shape[0])
+        else:
+            operator.outputs[0].type.shape = list(i if isinstance(i, numbers.Integral) else None
+                                                  for i in op.output_shape)
 
 
 @cvtfunc(shape_infer=_calculate_keras_lstm_output_shapes)

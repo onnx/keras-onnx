@@ -21,12 +21,13 @@ from ..common.onnx_ops import (
 TensorProto = onnx_proto.TensorProto
 
 
-def extract_input_shape(op):
+def extract_input_shape(op, input_shape):
     """Returns the input shape for a RNN class.
     """
-    input_shape = op.get_input_shape_at(0)
-    if isinstance(input_shape, list):
-        input_shape = input_shape[0]
+    if hasattr(op, 'input_shape'):
+        input_shape = op.get_input_shape_at(0)
+        if isinstance(input_shape, list):
+            input_shape = input_shape[0]
     return input_shape
 
 
@@ -98,7 +99,8 @@ def build_parameters(scope, operator, container, bidirectional=False):
     """Returns the parameter initialization values after extracting them from the RNN layer.
     """
     op = operator.raw_operator
-    _, seq_length, input_size = extract_input_shape(op)
+    input_shape = operator.inputs[0].type.shape
+    _, seq_length, input_size = extract_input_shape(op, input_shape)
 
     _name = name_func(scope, operator)
 
@@ -246,7 +248,8 @@ def build_output(scope, operator, container, output_names, bidirectional=False):
     rnn_y, rnn_h = output_names
 
     op = operator.raw_operator
-    _, seq_length, input_size = extract_input_shape(op)
+    input_shape = operator.inputs[0].type.shape
+    _, seq_length, input_size = extract_input_shape(op, input_shape)
     is_static_shape = seq_length is not None
 
     _name = name_func(scope, operator)
