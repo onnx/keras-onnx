@@ -653,7 +653,19 @@ def _sorted_inputs(nodelist, outputs, inputs_set):
 
 def _is_ts_op_in(op, kenode):
     names = {ts_.name for ts_ in op.outputs}
+    mask_ts = []
+    if hasattr(kenode, 'outbound_layer') and hasattr(kenode.outbound_layer, 'output_mask'):
+        output_mask_list = kenode.outbound_layer.output_mask if \
+            isinstance(kenode.outbound_layer.output_mask, list) else [kenode.outbound_layer.output_mask]
+        for ts_ in output_mask_list:
+            if ts_ is not None:
+                mask_ts.append(ts_)
+
     for ts_ in list_output_tensors(kenode):
+        if ts_.name in names:
+            return True
+
+    for ts_ in mask_ts:
         if ts_.name in names:
             return True
 
