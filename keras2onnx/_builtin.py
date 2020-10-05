@@ -2051,7 +2051,13 @@ def _prepare_StridedSlice(node, target_opset):
     if begin is None:
         begin = [0] * node.inputs[1].shape[0]
     end = _cal_tensor_value(node.inputs[2])
-    if end is None:
+    has_zero = False
+    if end is not None:
+        for end_ in end:
+            if end_ == 0:
+                has_zero = True
+                break
+    if end is None or has_zero:
         dynamic_end = True
         end = [max_size] * node.inputs[2].shape[0]  # this is dummy and not really used.
     else:
