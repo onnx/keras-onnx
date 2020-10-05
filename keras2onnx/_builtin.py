@@ -2055,6 +2055,8 @@ def _prepare_StridedSlice(node, target_opset):
         dynamic_end = True
         end = [max_size] * node.inputs[2].shape[0]  # this is dummy and not really used.
     else:
+        # for ResNext model, end = [0, 0, 0, 64], it still works using dynamic_end=False
+        # so will not set dynamic_end=True for simplicity.
         dynamic_end = False
     strides = _cal_tensor_value(node.inputs[3])
     if strides is None:
