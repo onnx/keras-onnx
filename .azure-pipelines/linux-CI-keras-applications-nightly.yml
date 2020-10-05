@@ -68,7 +68,7 @@ jobs:
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS: pip install transformers
-        NIGHTLY_BUILD_TEST: pytest test_keras_applications_v2.py test_transformers.py test_efn.py --doctest-modules --junitxml=junit/test-results-v2.xml
+        NIGHTLY_BUILD_TEST: python run_all_v2.py
 
     maxParallel: 3
 
