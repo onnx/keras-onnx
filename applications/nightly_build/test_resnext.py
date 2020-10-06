@@ -44,13 +44,26 @@ Sequential = keras.models.Sequential
 Model = keras.models.Model
 
 
-def __initial_conv_block(input, weight_decay=5e-4):
+def initial_conv_block(input, weight_decay=5e-4):
     channel_axis = -1
 
     x = Conv2D(64, (3, 3), padding='same', use_bias=False, kernel_initializer='he_normal',
                kernel_regularizer=l2(weight_decay))(input)
     x = BatchNormalization(axis=channel_axis)(x)
     x = Activation('relu')(x)
+
+    return x
+
+
+def initial_conv_block_inception(input_tensor, weight_decay=5e-4):
+    channel_axis = -1
+
+    x = Conv2D(64, (7, 7), padding='same', use_bias=False, kernel_initializer='he_normal',
+               kernel_regularizer=l2(weight_decay), strides=(2, 2))(input_tensor)
+    x = BatchNormalization(axis=channel_axis)(x)
+    x = LeakyReLU()(x)
+
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding='same')(x)
 
     return x
 
@@ -118,7 +131,7 @@ def __grouped_convolution_block(input, grouped_channels, cardinality, strides, w
     return x
 
 
-def __bottleneck_block(input, filters=64, cardinality=8, strides=1, weight_decay=5e-4):
+def bottleneck_block(input, filters=64, cardinality=8, strides=1, weight_decay=5e-4):
     init = input
 
     grouped_channels = int(filters / cardinality)
@@ -147,8 +160,123 @@ def __bottleneck_block(input, filters=64, cardinality=8, strides=1, weight_decay
     return x
 
 
-def create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=8, width=4,
-                      weight_decay=5e-4, pooling=None):
+def squeeze_excite_block(input, ratio=16):
+    init = input
+    channel_axis = -1
+    filters = init.shape[channel_axis]
+    se_shape = (1, 1, filters)
+
+    se = GlobalAveragePooling2D()(init)
+    se = Reshape(se_shape)(se)
+    se = Dense(filters // ratio, activation='relu', kernel_initializer='he_normal', use_bias=False)(se)
+    se = Dense(filters, activation='sigmoid', kernel_initializer='he_normal', use_bias=False)(se)
+
+    if K.image_data_format() == 'channels_first':
+        se = Permute((3, 1, 2))(se)
+
+    x = multiply([init, se])
+    return x
+
+
+def __grouped_se_convolution_block(input_tensor, grouped_channels, cardinality, strides, weight_decay=5e-4):
+    init = input_tensor
+    channel_axis = -1
+
+    group_list = []
+
+    if cardinality == 1:
+        # with cardinality 1, it is a standard convolution
+        x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+                   kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(init)
+        x = BatchNormalization(axis=channel_axis)(x)
+        x = LeakyReLU()(x)
+        return x
+
+    '''
+    for c in range(cardinality):
+        x = Lambda(lambda z: z[:, :, :, c * grouped_channels:(c + 1) * grouped_channels]
+        if K.image_data_format() == 'channels_last' else
+        lambda _z: _z[:, c * grouped_channels:(c + 1) * grouped_channels, :, :])(input_tensor)
+
+        x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+                   kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+
+        group_list.append(x)
+    '''
+    x = Lambda(lambda z: z[:, :, :, 0 * grouped_channels:(0 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 1 * grouped_channels:(1 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 2 * grouped_channels:(2 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 3 * grouped_channels:(3 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 4 * grouped_channels:(4 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 5 * grouped_channels:(5 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 6 * grouped_channels:(6 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+    x = Lambda(lambda z: z[:, :, :, 7 * grouped_channels:(7 + 1) * grouped_channels])(input_tensor)
+    x = Conv2D(grouped_channels, (3, 3), padding='same', use_bias=False, strides=(strides, strides),
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(x)
+    group_list.append(x)
+
+    group_merge = concatenate(group_list, axis=channel_axis)
+    x = BatchNormalization(axis=channel_axis)(group_merge)
+    x = LeakyReLU()(x)
+
+    return x
+
+
+def se_bottleneck_block(input_tensor, filters=64, cardinality=8, strides=1, weight_decay=5e-4):
+    init = input_tensor
+
+    grouped_channels = int(filters / cardinality)
+    channel_axis = -1
+
+    if init.shape[-1] != 2 * filters:
+        init = Conv2D(filters * 2, (1, 1), padding='same', strides=(strides, strides),
+                      use_bias=False, kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(init)
+        init = BatchNormalization(axis=channel_axis)(init)
+
+    x = Conv2D(filters, (1, 1), padding='same', use_bias=False,
+               kernel_initializer='he_normal', kernel_regularizer=l2(weight_decay))(input_tensor)
+    x = BatchNormalization(axis=channel_axis)(x)
+    x = LeakyReLU()(x)
+
+    x = __grouped_se_convolution_block(x, grouped_channels, cardinality, strides, weight_decay)
+
+    x = Conv2D(filters * 2, (1, 1), padding='same', use_bias=False, kernel_initializer='he_normal',
+               kernel_regularizer=l2(weight_decay))(x)
+    x = BatchNormalization(axis=channel_axis)(x)
+
+    # squeeze and excite block
+    x = squeeze_excite_block(x)
+
+    x = add([init, x])
+    x = LeakyReLU()(x)
+
+    return x
+
+
+def create_res_next(__initial_conv_block, __bottleneck_block,
+                    nb_classes, img_input, include_top, depth=29, cardinality=8, width=4,
+                    weight_decay=5e-4, pooling=None):
     if type(depth) is list or type(depth) is tuple:
         # If a list is provided, defer to user how many blocks are present
         N = list(depth)
@@ -195,7 +323,6 @@ def create_res_next(nb_classes, img_input, include_top, depth=29, cardinality=8,
     return x
 
 
-# Model from https://github.com/titu1994/Keras-ResNeXt
 class TestResNext(unittest.TestCase):
 
     def setUp(self):
@@ -205,6 +332,7 @@ class TestResNext(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
+    # Model from https://github.com/titu1994/Keras-ResNeXt
     @unittest.skipIf(not is_tf2,
                      "This is a tf2 model.")
     def test_ResNext(self):
@@ -219,11 +347,37 @@ class TestResNext(unittest.TestCase):
         classes = 10
 
         img_input = keras.layers.Input(shape=input_shape)
-        x = create_res_next(classes, img_input, include_top, depth, cardinality, width,
+        x = create_res_next(initial_conv_block, bottleneck_block,
+                            classes, img_input, include_top, depth, cardinality, width,
                             weight_decay, pooling)
         inputs = img_input
 
         keras_model = Model(inputs, x, name='resnext')
+        res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=112, tf_v2=True)
+        self.assertTrue(*res)
+
+
+    # Model from https://github.com/titu1994/keras-squeeze-excite-network
+    @unittest.skipIf(not is_tf2,
+                     "This is a tf2 model.")
+    def test_SEResNext(self):
+        K.clear_session()
+        input_shape = (112, 112, 3)
+        depth = 29
+        cardinality = 8
+        width = 64
+        weight_decay = 5e-4,
+        include_top = True
+        pooling = None
+        classes = 10
+
+        img_input = keras.layers.Input(shape=input_shape)
+        x = create_res_next(initial_conv_block_inception, se_bottleneck_block,
+                            classes, img_input, include_top, depth, cardinality, width,
+                            weight_decay, pooling)
+        inputs = img_input
+
+        keras_model = Model(inputs, x, name='se_resnext')
         res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=112, tf_v2=True)
         self.assertTrue(*res)
 
