@@ -356,7 +356,6 @@ class TestResNext(unittest.TestCase):
         res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=112, tf_v2=True)
         self.assertTrue(*res)
 
-
     # Model from https://github.com/titu1994/keras-squeeze-excite-network
     @unittest.skipIf(not is_tf2,
                      "This is a tf2 model.")
