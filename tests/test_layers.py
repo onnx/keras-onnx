@@ -1455,6 +1455,7 @@ def test_gelu(runner):
         cdf = 0.5 * (1.0 + tf.tanh(
             (np.sqrt(2 / np.pi) * (x + 0.044715 * tf.pow(x, 3)))))
         return x * cdf
+
     timesteps = 20
     a_dim = 10
     dense_hidden_size = 10
