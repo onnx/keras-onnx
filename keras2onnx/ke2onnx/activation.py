@@ -54,6 +54,46 @@ if hasattr(tf.compat, 'v1'):
     activation_map.update({tf.compat.v1.nn.tanh: apply_tanh})
 
 
+def builtin_activation_supported(activation, activation_type):
+    if activation in [activation_get('sigmoid'), keras.activations.sigmoid]:
+        return True
+    elif activation in [activation_get('tanh'), keras.activations.tanh]:
+        return True
+    elif activation in [activation_get('relu'), keras.activations.relu] or \
+            (hasattr(keras.layers.advanced_activations, 'ReLU') and
+             activation_type == keras.layers.advanced_activations.ReLU):
+        return True
+    elif activation in [activation_get('softmax'), keras.activations.softmax] or \
+            activation_type == keras.layers.advanced_activations.Softmax:
+        return True
+    elif activation in [activation_get('elu'), keras.activations.elu] or \
+            activation_type == keras.layers.advanced_activations.ELU:
+        return True
+    elif activation in [activation_get('hard_sigmoid'), keras.activations.hard_sigmoid]:
+        return True
+    elif activation in [activation_get('linear'), keras.activations.linear]:
+        return True
+    elif activation in [activation_get('selu'), keras.activations.selu]:
+        return True
+    elif activation_type == keras.layers.advanced_activations.LeakyReLU:
+        return True
+    elif activation_type == keras.layers.advanced_activations.PReLU:
+        return True
+    elif activation in [relu6] or (hasattr(activation, '__name__') and activation.__name__ == 'relu6'):
+        return True
+    elif hasattr(activation, '__name__') and activation.__name__ == 'swish':
+        return True
+    elif activation in activation_map:
+        return True
+    else:
+        if activation in [activation_get('softsign'), keras.activations.softsign]:
+            return True
+        elif activation in [activation_get('softplus'), keras.activations.softplus]:
+            return True
+        else:
+            return False
+
+
 def convert_keras_activation(scope, operator, container):
     input_name = operator.input_full_names[0]
     output_name = operator.output_full_names[0]
