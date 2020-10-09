@@ -20,6 +20,7 @@ from ._parser_tf import (infer_variable_type, LayerInfo, is_placeholder_node,
 from ._parser_1x import (extract_inbound_nodes,
                          list_input_tensors, list_input_mask, list_output_mask,
                          list_output_tensors, list_input_shapes, list_output_shapes, on_parsing_keras_layer)
+from .ke2onnx.activation import builtin_activation_supported
 
 
 def _find_node(nodes, name):
@@ -612,9 +613,16 @@ def _parse_graph_core(graph, keras_node_dict, topology, top_scope, output_names)
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_key_.name, type(layer_key_)) if
                            layer_key_ else (nodes[0].name, "Custom_Layer"))
+
+        if isinstance(layer_key_, keras.layers.core.Activation):
+            activation = layer_key_.activation
+            activation_type = type(activation)
+            activation_supported = builtin_activation_supported(activation, activation_type)
+
         if isinstance(layer_key_, keras.layers.TimeDistributed):
             _on_parsing_time_distributed_layer(graph, nodes, layer_key_, model_, varset)
-        elif layer_key_ is None or get_converter(type(layer_key_)) is None:
+        elif layer_key_ is None or get_converter(type(layer_key_)) is None or \
+                (isinstance(layer_key_, keras.layers.core.Activation) and not activation_supported):
             _on_parsing_tf_nodes(graph, nodes, varset, topology.debug_mode)
         else:
             kenode = _find_kenode_by_output_tensor(extract_inbound_nodes(layer_key_), nodes[0].name)
@@ -766,12 +774,19 @@ def _parse_graph_core_v2(graph, keras_node_dict, topology, top_scope, output_nam
 
         k2o_logger().debug('Processing a keras layer - (%s: %s)' % (layer_info.layer.name, type(layer_info.layer)) if
                            layer_info.layer else (layer_info.nodelist[0].name, "Custom_Layer"))
+
+        if isinstance(layer_info.layer, keras.layers.core.Activation):
+            activation = layer_info.layer.activation
+            activation_type = type(activation)
+            activation_supported = builtin_activation_supported(activation, activation_type)
+
         if layer_info.layer and isinstance(layer_info.layer, keras.layers.TimeDistributed):
             _on_parsing_time_distributed_layer(graph, layer_info.nodelist, layer_info.layer, model_, varset)
-        elif layer_info.layer and get_converter(type(layer_info.layer)):
-            on_parsing_keras_layer_v2(graph, layer_info, varset)
-        else:
+        elif layer_info.layer is None or get_converter(type(layer_info.layer)) is None or \
+                (isinstance(layer_info.layer, keras.layers.core.Activation) and not activation_supported):
             _on_parsing_tf_nodes(graph, layer_info.nodelist, varset, topology.debug_mode)
+        else:
+            on_parsing_keras_layer_v2(graph, layer_info, varset)
 
     for nd_ in input_nodes:
         var_ts = nd_.outputs[0]  # since it's placeholder node, safely claim there is only one output.

@@ -7,8 +7,7 @@ import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
 from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_tile
-from ..common.onnx_ops import apply_reshape, OnnxOperatorBuilder
+from ..common.onnx_ops import OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation, convert_keras_softmax
@@ -142,10 +141,9 @@ def convert_keras_repeat_vector(scope, operator, container):
                                          operator.inputs[0].full_name + '_shape')
         sliced_node = oopb.add_node('Slice',
                                     [input_shape_node,
-                                    ('_start', oopb.int64, np.array([1], dtype='int64')),
-                                    ('_end', oopb.int64, np.array([2], dtype='int64')),
-                                    ('_axes', oopb.int64, np.array([0], dtype='int64'))
-                                    ],
+                                        ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                        ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                        ('_axes', oopb.int64, np.array([0], dtype='int64'))],
                                     operator.inputs[0].full_name + '_sliced')
         desired_shape_node = oopb.apply_concat(
             [('_const', oopb.int64, np.array([-1, 1], dtype='int64'))] + [sliced_node],

@@ -1,6 +1,7 @@
 import os
 
-files = ['test_keras_applications_v2.py', 'test_transformers.py', 'test_efn.py', 'test_chatbot.py']
+files = ['test_keras_applications_v2.py', 'test_transformers.py', 'test_chatbot.py', 'test_efn.py', \
+         'test_resnext.py']
 files.sort()
 
 res_final = True

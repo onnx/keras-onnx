@@ -25,7 +25,7 @@ def main(input_file, output_file=None, opset=None, channel_first=None):
 
     assert file_ext[-1] == '.h5', "Unknown file extension."
     kml = tf.keras.models.load_model(input_file)
-    oxml = convert_keras(kml, kml.model, '', opset, channel_first)
+    oxml = convert_keras(kml, kml.name, '', opset, channel_first)
     onnx.save_model(oxml, output_file)
 
 
