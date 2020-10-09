@@ -73,7 +73,6 @@ class TestChatBot(unittest.TestCase):
         state_c = Concatenate(axis=-1, name='encoder_state_c')([fw_state_c, bw_state_c])
         encoder_states = [state_h, state_c]
 
-        # 设置decoder
         decoder_inputs = Input(shape=(None,), name='decoder_input')
         decoder_embedding = Embedding(vocabulary_size,
                                       embedding_dim,
@@ -87,7 +86,6 @@ class TestChatBot(unittest.TestCase):
         decoder_outputs, _, _ = decoder_lstm(decoder_embedding,
                                              initial_state=encoder_states)
 
-        # attention层
         attention = Dense(1, activation='tanh')(encoder_outputs)
         attention = Flatten()(attention)
         attention = Activation('softmax')(attention)
@@ -95,7 +93,6 @@ class TestChatBot(unittest.TestCase):
         attention = Permute([2, 1])(attention)
         sent_dense = Multiply()([decoder_outputs, attention])
 
-        # Dense层
         decoder_dense = Dense(vocabulary_size, activation='softmax', name='dense_layer')
         decoder_outputs = decoder_dense(sent_dense)
         keras_model = Model([encoder_inputs, decoder_inputs], decoder_outputs)

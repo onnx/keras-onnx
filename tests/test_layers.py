@@ -1450,6 +1450,28 @@ def test_selu(runner):
     assert runner(onnx_model.graph.name, onnx_model, data, expected)
 
 
+def test_gelu(runner):
+    def gelu(x):
+        cdf = 0.5 * (1.0 + tf.tanh(
+            (np.sqrt(2 / np.pi) * (x + 0.044715 * tf.pow(x, 3)))))
+        return x * cdf
+
+    timesteps = 20
+    a_dim = 10
+    dense_hidden_size = 10
+    dense_layer = Dense(dense_hidden_size, name="dense", trainable=False)
+
+    mi = Input(shape=(timesteps, a_dim), dtype='float32', name="input")
+    x1 = keras.layers.GlobalMaxPooling1D()(mi)
+    x1 = dense_layer(x1)
+    x1 = Activation(gelu, name='dense_gelu')(x1)
+    keras_model = Model(inputs=mi, outputs=x1)
+    data = np.random.rand(2, timesteps, a_dim).astype(np.float32)
+    onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
+    expected = keras_model.predict(data)
+    assert runner(onnx_model.graph.name, onnx_model, data, expected)
+
+
 def test_LeakyReLU(advanced_activation_runner):
     data = _asarray(-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5)
     layer = advanced_activations.LeakyReLU(alpha=0.1, input_shape=(data.size,))
