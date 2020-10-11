@@ -7,8 +7,7 @@ import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
 from ..common import with_variable, k2o_logger
-from ..common.onnx_ops import apply_tile
-from ..common.onnx_ops import apply_reshape, OnnxOperatorBuilder
+from ..common.onnx_ops import OnnxOperatorBuilder
 
 from .activation import convert_keras_activation
 from .adv_activation import convert_keras_advanced_activation, convert_keras_softmax
@@ -134,13 +133,36 @@ def convert_keras_permute(scope, operator, container):
 def convert_keras_repeat_vector(scope, operator, container):
     op = operator.raw_operator
     input_shape_1 = op.input_shape[1] if hasattr(op, 'input_shape') else operator.inputs[0].type.shape[1]
+    oopb = OnnxOperatorBuilder(container, scope)
 
-    intermediate_tensor_name = scope.get_unique_variable_name(operator.inputs[0].full_name + '_reshaped')
-    apply_reshape(scope, operator.inputs[0].full_name, intermediate_tensor_name, container,
-                  desired_shape=[-1, 1, input_shape_1])
+    if input_shape_1 is None:
+        input_shape_node = oopb.add_node('Shape',
+                                         operator.inputs[0].full_name,
+                                         operator.inputs[0].full_name + '_shape')
+        sliced_node = oopb.add_node('Slice',
+                                    [input_shape_node,
+                                        ('_start', oopb.int64, np.array([1], dtype='int64')),
+                                        ('_end', oopb.int64, np.array([2], dtype='int64')),
+                                        ('_axes', oopb.int64, np.array([0], dtype='int64'))],
+                                    operator.inputs[0].full_name + '_sliced')
+        desired_shape_node = oopb.apply_concat(
+            [('_const', oopb.int64, np.array([-1, 1], dtype='int64'))] + [sliced_node],
+            name=operator.full_name + '_concat_1',
+            axis=0)
+        reshaped_node = oopb.apply_reshape(operator.inputs[0].full_name,
+                                           name=operator.full_name + '_reshape_1',
+                                           desired_shape=desired_shape_node[0])
+    else:
+        reshaped_node = oopb.apply_reshape(operator.inputs[0].full_name,
+                                           name=operator.full_name + '_reshape_1',
+                                           desired_shape=[-1, 1, input_shape_1])
 
     repeats = [1, int(op.n), 1]
-    apply_tile(scope, intermediate_tensor_name, operator.outputs[0].full_name, container, repeats=repeats)
+    oopb.apply_op_with_output("apply_tile",
+                              reshaped_node[0],
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              repeats=repeats)
 
 
 def convert_keras_training_only_layer(scope, operator, container):
