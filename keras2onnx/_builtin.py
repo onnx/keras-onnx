@@ -1195,7 +1195,7 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
                                      name=operator.full_name + '_cast_delta')
     else:
         diff_output = diff_node
-        delta_cast = delta.name
+        delta_cast = [delta.name]
 
     div_node = oopb.apply_div(diff_output + delta_cast,
                               name=operator.full_name + '_div')
