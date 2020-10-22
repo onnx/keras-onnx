@@ -1185,7 +1185,7 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
     oopb = OnnxOperatorBuilder(container, scope)
     diff_node = oopb.apply_sub([limit.name, start.name],
                                name=operator.full_name + '_diff')
-    delta_cast = delta.name
+
     if onnx_type in [oopb.int32, oopb.int64]:
         diff_output = oopb.apply_cast(diff_node,
                                       to=oopb.float,
@@ -1193,6 +1193,9 @@ def _make_range_non_const(scope, operator, container, start, limit, delta, onnx_
         delta_cast = oopb.apply_cast(delta.name,
                                      to=oopb.float,
                                      name=operator.full_name + '_cast_delta')
+    else:
+        diff_output = diff_node
+        delta_cast = delta.name
 
     div_node = oopb.apply_div(diff_output + delta_cast,
                               name=operator.full_name + '_div')
