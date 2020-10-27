@@ -6,8 +6,11 @@
 import collections
 import numbers
 from ..common import cvtfunc
-from ..proto import keras
+from ..proto import keras, is_tf_keras, is_tensorflow_later_than
 from . import simplernn, gru, lstm
+
+LSTM_CLASSES = {keras.layers.LSTM}
+GRU_CLASSES = {keras.layers.GRU}
 
 
 def _calculate_keras_bidirectional_output_shapes(operator):
@@ -27,9 +30,15 @@ def convert_bidirectional(scope, operator, container):
     op_type = type(operator.raw_operator.forward_layer)
     bidirectional = True
 
-    if op_type == keras.layers.LSTM:
+    if is_tf_keras and is_tensorflow_later_than("1.14.0"):
+        # Add the TF v2 compatability layers (available after TF 1.14)
+        from tensorflow.python.keras.layers import recurrent_v2
+        LSTM_CLASSES.add(recurrent_v2.LSTM)
+        GRU_CLASSES.add(recurrent_v2.GRU)
+
+    if op_type in LSTM_CLASSES:
         lstm.convert_keras_lstm(scope, operator, container, bidirectional)
-    elif op_type == keras.layers.GRU:
+    elif op_type in GRU_CLASSES:
         gru.convert_keras_gru(scope, operator, container, bidirectional)
     elif op_type == keras.layers.SimpleRNN:
         simplernn.convert_keras_simple_rnn(scope, operator, container, bidirectional)

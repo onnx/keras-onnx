@@ -71,6 +71,11 @@ if not is_keras_older_than("2.2.4"):
 
 RNN_CLASSES = [SimpleRNN, GRU, LSTM]
 
+if is_tf_keras and is_tensorflow_later_than("1.14.0"):
+    # Add the TF v2 compatability layers (available after TF 1.14)
+    from tensorflow.python.keras.layers import recurrent_v2
+    RNN_CLASSES.extend([recurrent_v2.GRU, recurrent_v2.LSTM])
+
 
 def _asarray(*a):
     return np.array([a], dtype='f')
