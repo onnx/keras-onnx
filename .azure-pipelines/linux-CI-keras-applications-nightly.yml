@@ -67,7 +67,7 @@ jobs:
         INSTALL_TENSORFLOW: pip install tensorflow==2.2.0
         INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
         INSTALL_KERAS_RESNET: pip install keras-resnet
-        INSTALL_TRANSFORMERS: pip install transformers
+        INSTALL_TRANSFORMERS: pip install transformers==3.4.0
         NIGHTLY_BUILD_TEST: python run_all_v2.py
 
     maxParallel: 3
