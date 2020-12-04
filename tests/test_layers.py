@@ -2122,7 +2122,6 @@ def test_bidirectional_seqlen_none(runner, rnn_class):
         assert runner(onnx_model.graph.name, onnx_model, x, expected)
 
 
-@pytest.mark.skipif(is_tf2, reason='TODO')
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
 def test_rnn_state_passing(runner, rnn_class):
     input1 = Input(shape=(None, 5))
