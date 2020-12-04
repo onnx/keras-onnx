@@ -4,8 +4,7 @@
 # license information.
 ###############################################################################
 import numpy as np
-from ..proto import keras, is_tf_keras, is_keras_older_than
-from ..proto.tfcompat import is_tf2
+from ..proto import keras, is_tf_keras, is_keras_older_than, is_tensorflow_later_than
 from ..common import with_variable, k2o_logger
 from ..common.onnx_ops import OnnxOperatorBuilder
 
@@ -261,7 +260,7 @@ if not is_keras_older_than('2.2.0'):
         _adv_activations.ReLU: convert_keras_advanced_activation,
     })
 
-if is_tf_keras and is_tf2:
+if is_tf_keras and is_tensorflow_later_than("1.14.0"):
     keras_layer_to_operator.update({
         _layer.recurrent.GRU: convert_keras_gru,
         _layer.recurrent.LSTM: convert_keras_lstm,
