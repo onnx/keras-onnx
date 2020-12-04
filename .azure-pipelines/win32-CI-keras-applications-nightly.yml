@@ -39,11 +39,11 @@ jobs:
 
       Python37:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: onnx==1.8.0
         INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly
+        INSTALL_ORT: pip install -i https://test.pypi.org/simple/ ort-nightly==1.5.2.dev202012021
         INSTALL_KERAS_RESNET: pip install keras-resnet
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
