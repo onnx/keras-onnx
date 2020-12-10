@@ -3,6 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 ###############################################################################
+import os
 import collections
 from ..common.onnx_ops import apply_transpose, apply_upsample
 from .common import get_permutation_config
@@ -69,6 +70,11 @@ def convert_keras_upsample(scope, operator, container, n_dims):
 
     if coordinate_transformation_mode is None:
         coordinate_transformation_mode = 'asymmetric'
+
+    # tflite uses 'asymmetric' mode not 'half_pixel', use the env variable as an option.
+    mode_env = os.environ.get('UPSAMPLE_COORDINATE_TRANSFORMATION_MODE', None)
+    if mode_env == 'asymmetric':
+        coordinate_transformation_mode = mode_env
 
     if no_permutation_required:
         apply_upsample(scope, input_tensor_name, operator.outputs[0].full_name, container,
