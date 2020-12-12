@@ -9,6 +9,7 @@ import unittest
 import keras_segmentation
 from os.path import dirname, abspath
 from keras2onnx.proto import keras, is_keras_older_than
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image
@@ -16,12 +17,51 @@ img_path = os.path.join(os.path.dirname(__file__), '../data', 'street.jpg')
 
 
 Input = keras.layers.Input
+Concatenate = keras.layers.Concatenate
 concatenate = keras.layers.concatenate
 Conv2D = keras.layers.Conv2D
 Conv2DTranspose = keras.layers.Conv2DTranspose
+Dropout = keras.layers.Dropout
 MaxPooling2D = keras.layers.MaxPooling2D
+UpSampling2D = keras.layers.UpSampling2D
 
 Model = keras.models.Model
+
+def get_unet_model(input_channel_num=3, out_ch=3, start_ch=64, depth=4, inc_rate=2., activation='relu',
+         dropout=0.5, batchnorm=False, maxpool=True, upconv=True, residual=False):
+    def _conv_block(m, dim, acti, bn, res, do=0):
+        n = Conv2D(dim, 3, activation=acti, padding='same')(m)
+        n = BatchNormalization()(n) if bn else n
+        n = Dropout(do)(n) if do else n
+        n = Conv2D(dim, 3, activation=acti, padding='same')(n)
+        n = BatchNormalization()(n) if bn else n
+
+        return Concatenate()([m, n]) if res else n
+
+    def _level_block(m, dim, depth, inc, acti, do, bn, mp, up, res):
+        if depth > 0:
+            #n = _conv_block(m, dim, acti, bn, res)
+            n = m
+            m = MaxPooling2D()(n) if mp else Conv2D(dim, 3, strides=2, padding='same')(n)
+            m = _level_block(m, int(inc * dim), depth - 1, inc, acti, do, bn, mp, up, res)
+            if up:
+                m = UpSampling2D()(m)
+                m = Conv2D(dim, 2, activation=acti, padding='same')(m)
+            else:
+                m = Conv2DTranspose(dim, 3, strides=2, activation=acti, padding='same')(m)
+            n = Concatenate()([n, m])
+            m = _conv_block(n, dim, acti, bn, res)
+        else:
+            m = _conv_block(m, dim, acti, bn, res, do)
+
+        return m
+
+    i = Input(shape=(None, None, input_channel_num))
+    o = _level_block(i, start_ch, depth, inc_rate, activation, dropout, batchnorm, maxpool, upconv, residual)
+    o = Conv2D(out_ch, 1)(o)
+    model = Model(inputs=i, outputs=o)
+
+    return model
 
 class TestUnet(unittest.TestCase):
 
@@ -85,6 +125,14 @@ class TestUnet(unittest.TestCase):
 
         model = Model(inputs=[inputs], outputs=[conv10])
         res = run_image(model, self.model_files, img_path, color_mode="grayscale", target_size=(img_rows, img_cols))
+        self.assertTrue(*res)
+
+    @unittest.skipIf(get_maximum_opset_supported() < 14,
+                     "Need ConvTranspose-14 support.")
+    def test_unet_3(self):
+        # From https://github.com/yu4u/noise2noise/blob/master/model.py
+        model = get_unet_model(out_ch=3, upconv=False)
+        res = run_image(model, self.model_files, img_path, target_size=(256, 256, 3))
         self.assertTrue(*res)
 
 if __name__ == "__main__":

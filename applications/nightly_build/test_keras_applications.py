@@ -256,7 +256,7 @@ class TestKerasApplications(unittest.TestCase):
 
         ## Create Model
         keras_model = Model(inputs=model_inputs, outputs=[predictions_class, predictions_iou])
-        res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=224, compare_perf=True)
+        res = run_image(keras_model, self.model_files, img_path, atol=5e-3, target_size=224)
         self.assertTrue(*res)
 
     # Model from https://github.com/manicman1999/Keras-BiGAN

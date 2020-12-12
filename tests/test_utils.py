@@ -9,6 +9,7 @@ import onnx
 import numpy as np
 import keras2onnx
 from keras2onnx.proto import keras, is_keras_older_than
+from keras2onnx.proto.tfcompat import is_tf2
 from keras2onnx.common.onnx_ops import apply_identity, OnnxOperatorBuilder
 import time
 
@@ -178,8 +179,8 @@ def run_keras_and_ort(case_name, onnx_model, keras_model, data, expected, model_
 
 
 def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb",
-              target_size=224, tf_v2=False, compare_perf=False):
-    if tf_v2:
+              target_size=224, compare_perf=False):
+    if is_tf2:
         preprocess_input = keras.applications.imagenet_utils.preprocess_input
     else:
         preprocess_input = keras.applications.resnet50.preprocess_input

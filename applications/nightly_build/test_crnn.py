@@ -209,7 +209,7 @@ class TestCRNN(unittest.TestCase):
         expected = model.predict(data)
         onnx_model = keras2onnx.convert_keras(model, model.name)
         self.assertTrue(
-            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files, compare_perf=True))
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":

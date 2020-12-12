@@ -114,7 +114,7 @@ class TestSeriesNet(unittest.TestCase):
         expected = keras_model.predict(data)
         onnx_model = keras2onnx.convert_keras(keras_model, keras_model.name)
         self.assertTrue(
-            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files, compare_perf=True))
+            run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model, data, expected, self.model_files))
 
 
 if __name__ == "__main__":
