@@ -82,7 +82,7 @@ class TestNameEntityRecognition(unittest.TestCase):
             run_keras_and_ort(onnx_model.graph.name, onnx_model, keras_model,
                               {keras_model.input_names[0]: data1,
                                keras_model.input_names[1]: data2,
-                               keras_model.input_names[2]: data3}, expected, self.model_files, compare_perf=True))
+                               keras_model.input_names[2]: data3}, expected, self.model_files))
 
 
 if __name__ == "__main__":

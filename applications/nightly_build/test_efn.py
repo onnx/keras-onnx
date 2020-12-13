@@ -32,14 +32,14 @@ class TestEfn(unittest.TestCase):
         base_model = efn.EfficientNetB0(input_shape=(600, 600, 3), weights=None)
         backbone = keras.Model(base_model.input, base_model.get_layer("top_activation").output)
         res = run_image(backbone, self.model_files, img_path, target_size=(600, 600),
-                        rtol=1e-2, atol=1e-1, tf_v2=True)
+                        rtol=1e-2, atol=1e-1)
         self.assertTrue(*res)
 
     def test_efn(self):
         from efficientnet import tfkeras as efn
         keras.backend.set_learning_phase(0)
         model = efn.EfficientNetB0(weights=None)
-        res = run_image(model, self.model_files, img_path, target_size=(224, 224), rtol=1e-2, tf_v2=True)
+        res = run_image(model, self.model_files, img_path, target_size=(224, 224), rtol=1e-2)
         self.assertTrue(*res)
 
 
