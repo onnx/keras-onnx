@@ -17,6 +17,7 @@ import tensorflow as tf
 from keras.utils import conv_utils
 from keras.engine import Layer, InputSpec
 import keras.backend as K
+from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 
 
 Activation = keras.layers.Activation
