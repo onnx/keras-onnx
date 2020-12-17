@@ -69,22 +69,14 @@ def convert_BatchNorm(scope, operator, container):
 
 
 def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpose, score_identity, deltas_transpose, windows_transpose):
-    box_squeeze = scope.get_unique_variable_name('box_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node('Squeeze', box_transpose, box_squeeze, op_version=operator.target_opset,
-                       **attrs)
+    oopb = OnnxOperatorBuilder(container, scope)
+    box_squeeze = oopb.apply_squeeze(box_transpose, name=operator.full_name + '_box_squeeze', axes=[0])[0]
     # output shape: [spatial_dimension, 4]
 
-    deltas_squeeze = scope.get_unique_variable_name('deltas_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node('Squeeze', deltas_transpose, deltas_squeeze, op_version=operator.target_opset,
-                       **attrs)
+    deltas_squeeze = oopb.apply_squeeze(deltas_transpose, name=operator.full_name + '_deltas_squeeze', axes=[0])[0]
     # output shape: [spatial_dimension, num_classes, 4]
 
-    score_squeeze = scope.get_unique_variable_name('score_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node('Squeeze', score_identity, score_squeeze, op_version=operator.target_opset,
-                       **attrs)
+    score_squeeze = oopb.apply_squeeze(score_identity, name=operator.full_name + '_score_squeeze', axes=[0])[0]
     # output shape: [spatial_dimension, num_classes]
 
     class_ids = scope.get_unique_variable_name('class_ids')
@@ -113,11 +105,9 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                          op_domain='com.microsoft',
                          op_version=1)
 
-    attrs = {'axes': [1]}
-    prob_range_unsqueeze = oopb.add_node('Unsqueeze',
-                         [prob_range],
-                         operator.inputs[1].full_name + '_prob_range_unsqueeze',
-                         **attrs)
+    prob_range_unsqueeze = oopb.apply_unsqueeze([prob_range],
+                                                operator.inputs[1].full_name + '_prob_range_unsqueeze',
+                                                axes=[1])[0]
     # output shape: [spatial_dimension, 1]
 
     attrs = {'axis': 1}
@@ -272,10 +262,8 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                                [x1, width_exp],
                                operator.inputs[0].full_name + '_x2')
 
-    windows_squeeze = scope.get_unique_variable_name('windows_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node('Squeeze', windows_transpose, windows_squeeze, op_version=operator.target_opset,
-                       **attrs)
+    windows_squeeze = oopb.apply_squeeze(windows_transpose, name=operator.full_name + '_windows_squeeze',
+                                         axes=[0])[0]
     wy1 = oopb.add_node('Slice',
                          [windows_squeeze,
                           ('_start', oopb.int64, np.array([0], dtype='int64')),
@@ -336,10 +324,8 @@ def convert_apply_box_deltas_graph(scope, operator, container, oopb, box_transpo
                        op_version=operator.target_opset,
                        name=operator.outputs[0].full_name + '_concat_result', **attrs)
 
-    concat_unsqueeze = scope.get_unique_variable_name('concat_unsqueeze')
-    attrs = {'axes': [0]}
-    container.add_node('Unsqueeze', concat_result, concat_unsqueeze, op_version=operator.target_opset,
-                       **attrs)
+    concat_unsqueeze = oopb.apply_unsqueeze(concat_result, name=operator.full_name + '_concat_unsqueeze',
+                                            axes=[0])[0]
     return concat_unsqueeze
 
 
@@ -358,10 +344,8 @@ def norm_boxes_graph(scope, operator, container, oopb, image_meta):
                                   ('_axes', oopb.int64, np.array([0], dtype='int64'))
                                   ],
                                  operator.inputs[0].full_name + '_image_shape')
-    image_shape_squeeze = scope.get_unique_variable_name('image_shape_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node('Squeeze', image_shape, image_shape_squeeze, op_version=operator.target_opset,
-                       **attrs)
+    image_shape_squeeze = oopb.apply_squeeze(image_shape, name=operator.full_name + '_image_shape_squeeze', axes=[0])[0]
+
     window = oopb.add_node('Slice',
                             [image_meta,
                              ('_start', oopb.int64, np.array([7], dtype='int64')),
@@ -516,13 +500,8 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_box_idx')
     # output shape: [num_selected_indices, 1]
 
-    box_idx_squeeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_idx_squeeze')
-    attrs = {'axes': [1]}
-    container.add_node("Squeeze",
-                       box_idx_output,
-                       box_idx_squeeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_box_idx_squeeze', **attrs)
+    box_idx_squeeze = oopb.apply_squeeze(box_idx_output,
+                                        name=nms_node.name + '_box_idx_squeeze', axes=[1])[0]
     # output shape: [num_selected_indices]
 
     starts_init_3 = scope.get_unique_variable_name('starts')
@@ -548,23 +527,12 @@ def convert_DetectionLayer(scope, operator, container):
                        name=nms_node.name + '_class_box_idx')
     # output shape: [num_selected_indices, 2]
 
-    box_squeeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_squeeze')
-    attrs = {'axes': [0]}
-    container.add_node("Squeeze",
-                       delta_mul_output,
-                       box_squeeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_box_squeeze', **attrs)
+    box_squeeze = oopb.apply_squeeze(delta_mul_output,
+                                     name=nms_node.name + '_box_squeeze', axes=[0])[0]
     # output shape: [spatial_dimension, 4]
 
-    score_squeeze = scope.get_local_variable_or_declare_one(operator.output_full_names[0] + '_score_squeeze',
-                                                             type=FloatTensorType(shape=[None]))
-    attrs = {'axes': [0]}
-    container.add_node("Squeeze",
-                       score_identity,
-                       score_squeeze.full_name,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_score_squeeze', **attrs)
+    score_squeeze = oopb.apply_squeeze(score_identity,
+                                       name=nms_node.name + '_score_squeeze', axes=[0])[0]
     # output shape: [spatial_dimension, num_classes]
 
     box_gather = scope.get_unique_variable_name(operator.output_full_names[0] + '_box_gather')
@@ -578,19 +546,14 @@ def convert_DetectionLayer(scope, operator, container):
 
     score_gather = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_gather')
     container.add_node("GatherND",
-                       [score_squeeze.full_name, class_box_idx_output.full_name],
+                       [score_squeeze, class_box_idx_output.full_name],
                        score_gather,
                        op_version=operator.target_opset,
                        name=nms_node.name + '_score_gather')
     # output shape: [num_selected_indices]
 
-    score_gather_unsqueeze = scope.get_unique_variable_name(operator.output_full_names[0] + '_score_gather_unsqueeze')
-    attrs = {'axes': [1]}
-    container.add_node("Unsqueeze",
-                       score_gather,
-                       score_gather_unsqueeze,
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_score_gather_unsqueeze', **attrs)
+    score_gather_unsqueeze = oopb.apply_unsqueeze(score_gather,
+                                                  name=nms_node.name + '_score_gather_unsqueeze', axes=[1])[0]
     # output shape: [num_selected_indices, 1]
 
 
@@ -661,12 +624,10 @@ def convert_DetectionLayer(scope, operator, container):
                                  nms_node.name + '_detection_final'
                                  )
 
-    attrs = {'axes': [0]}
-    container.add_node("Unsqueeze",
-                       detection_final,
-                       operator.output_full_names[0],
-                       op_version=operator.target_opset,
-                       name=nms_node.name + '_concat_unsqueeze', **attrs)
+    oopb.apply_op_with_output('apply_unsqueeze',
+                              detection_final,
+                              operator.output_full_names[0],
+                              name=nms_node.name + '_concat_unsqueeze', axes=[0])
     # output shape: [1, num_top_K, 6]
 
 

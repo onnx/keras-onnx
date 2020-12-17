@@ -12,7 +12,7 @@ from keras.layers import Input
 from keras.models import load_model
 from keras2onnx import convert_keras
 from keras2onnx import set_converter
-from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast
+from keras2onnx.common.onnx_ops import apply_transpose, apply_identity, apply_cast, OnnxOperatorBuilder
 from keras2onnx.proto import onnx_proto
 from onnxconverter_common.onnx_ex import get_maximum_opset_supported
 from onnxconverter_common.onnx_fx import Graph
@@ -324,19 +324,15 @@ def detect_img(yolo, img_url, model_file_name):
 
 def convert_NMSLayer(scope, operator, container):
     # type: (keras2onnx.common.InterimContext, keras2onnx.common.Operator, keras2onnx.common.OnnxObjectContainer) -> None
+    oopb = OnnxOperatorBuilder(container, scope)
     box_transpose = scope.get_unique_variable_name(operator.inputs[0].full_name + '_tx')
     score_transpose = scope.get_unique_variable_name(operator.inputs[1].full_name + '_tx')
 
     apply_identity(scope, operator.inputs[0].full_name, box_transpose, container)
     apply_transpose(scope, operator.inputs[1].full_name, score_transpose, container, perm=[1, 0])
 
-    box_batch = scope.get_unique_variable_name(operator.inputs[0].full_name + '_btc')
-    score_batch = scope.get_unique_variable_name(operator.inputs[1].full_name + '_btc')
-
-    container.add_node("Unsqueeze", box_transpose,
-                       box_batch, op_version=operator.target_opset, axes=[0])
-    container.add_node("Unsqueeze", score_transpose,
-                       score_batch, op_version=operator.target_opset, axes=[0])
+    box_batch = oopb.apply_unsqueeze(box_transpose, name=operator.inputs[0].full_name + '_btc', axes=[0])[0]
+    score_batch = oopb.apply_unsqueeze(score_transpose, name=operator.inputs[1].full_name + '_btc', axes=[0])[0]
 
     layer = operator.raw_operator  # type: YOLONMSLayer
 
@@ -359,9 +355,7 @@ def convert_NMSLayer(scope, operator, container):
                        op_version=operator.target_opset,
                        name=nms_node.name)
 
-    cast_batch = scope.get_unique_variable_name(operator.output_full_names[2] + '_btc')
-    container.add_node("Unsqueeze", cast_name,
-                       cast_batch, op_version=operator.target_opset, axes=[0])
+    cast_batch = oopb.apply_unsqueeze(cast_name, name=operator.output_full_names[2] + '_btc', axes=[0])[0]
     apply_cast(scope, cast_batch, operator.output_full_names[2], container, to=onnx_proto.TensorProto.INT32)
 
     apply_identity(scope, box_batch, operator.output_full_names[0], container)
