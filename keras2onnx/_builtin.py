@@ -553,10 +553,6 @@ def convert_tf_depth_to_space(scope, operator, container):
     node = operator.raw_operator
     block_size = node.get_attr('block_size')
     oopb = OnnxOperatorBuilder(container, scope)
-    if container.target_opset < 13:
-        op_version = 11
-    else:
-        op_version = 13
     if _is_nhwc(node):
         adjusted_input_name = oopb.apply_transpose(operator.input_full_names,
                                                    name=operator.full_name + '_pre_transpose',
@@ -566,7 +562,7 @@ def convert_tf_depth_to_space(scope, operator, container):
                                               name=operator.full_name,
                                               blocksize=node.get_attr('block_size'),
                                               mode="DCR",
-                                              op_version=op_version)
+                                              op_version=11)
         oopb.apply_op_with_output("apply_transpose",
                                   depth_to_space_result,
                                   operator.output_full_names,
@@ -579,7 +575,7 @@ def convert_tf_depth_to_space(scope, operator, container):
                                   name=operator.full_name,
                                   blocksize=block_size,
                                   mode="DCR",
-                                  op_version=op_version)
+                                  op_version=11)
 
 
 @converter_func(TYPES.DepthwiseConv2dNative)
@@ -1273,17 +1269,13 @@ def convert_reshape_timedistributed(scope, operator, container):
     else:
         oopb = OnnxOperatorBuilder(container, scope)
         shape0 = oopb.apply_shape(input_name, name=operator.full_name + '_shape')
-        if container.target_opset < 13:
-            op_version = 11
-        else:
-            op_version = 13
         cropped_tensor_name = oopb.add_node('Slice',
                                             [shape0[0],
                                              ('_start', oopb.int64, np.array([0], dtype=np.int64)),
                                              ('_end', oopb.int64, np.array([2], dtype=np.int64))
                                              ],
                                             operator.inputs[0].full_name + '_cropping',
-                                            op_version=op_version)
+                                            op_version=11)
         concat = oopb.apply_concat([cropped_tensor_name,
                                     ('_start', oopb.int64, np.array(target_shape, dtype=np.int64)),
                                     ], name=operator.full_name + '_concat')
@@ -1427,8 +1419,7 @@ def _convert_tf_reduce_op(scope, operator, container, onnx_op):
     axes = _cal_tensor_value(node.inputs[1]).tolist()
     axes = [axes] if np.isscalar(axes) else axes
 
-    if container.target_opset < 11:
-        op_version = 1
+    if operator.target_opset < 11:
         input_shape = _cal_tensor_shape(node.inputs[0])
         if input_shape is None:
             if any([val < 0 for val in axes]):
@@ -1436,19 +1427,12 @@ def _convert_tf_reduce_op(scope, operator, container, onnx_op):
         else:
             input_rank = len(input_shape)
             axes = [val + input_rank if val < 0 else val for val in axes]
-    elif container.target_opset < 13:
-        op_version = 11
-        if onnx_op in ['ReduceMax', 'ReduceMin'] and container.target_opset == 12:
-            op_version = 12
-    else:
-        op_version = 13
 
     keepdims = node.get_attr("keep_dims")
     oopb.add_node_with_output(onnx_op,
                               operator.inputs[0].full_name,
                               operator.outputs[0].full_name,
                               name=operator.full_name + '_reduce_min',
-                              op_version=op_version,
                               axes=axes, keepdims=keepdims)
 
 
@@ -2269,10 +2253,6 @@ def convert_tf_tensor_scatter_update(scope, operator, container):
     if operator.target_opset < 11:
         raise ValueError("TensorScatterUpdate op is not supported for opset = " + str(operator.target_opset))
     else:
-        if operator.target_opset < 13:
-            op_version = 11
-        else:
-            op_version = 13
         oopb = OnnxOperatorBuilder(container, scope)
         node = operator.raw_operator
 
@@ -2296,7 +2276,7 @@ def convert_tf_tensor_scatter_update(scope, operator, container):
                                   [operator.inputs[0].full_name, cast_indices[0], updates_name],
                                   operator.outputs[0].full_name,
                                   name=operator.full_name + '_tensor_scatter_nd',
-                                  op_version=op_version)
+                                  op_version=11)
 
 
 @converter_func(TYPES.Unpack)
@@ -2380,14 +2360,10 @@ def convert_tf_variable_v2(scope, operator, container):
 def convert_tf_where(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
-    if container.target_opset < 13:
-        op_version = 9
-    else:
-        op_version = 13
     where_node = oopb.add_node('NonZero',
                                operator.inputs[0].full_name,
                                operator.inputs[0].full_name + '_non_zero',
-                               op_version=op_version)
+                               op_version=9)
     oopb.apply_op_with_output("apply_transpose",
                               where_node,
                               operator.output_full_names,
