@@ -391,14 +391,14 @@ def build_output_states(scope, operator, container, output_names, bidirectional=
             apply_split(scope, rnn_h, split_names, container)
 
             for split_name, output_name in zip(split_names, output_names):
-                apply_squeeze(scope, split_name, output_name, container)
+                apply_squeeze(scope, split_name, output_name, container, axes=[0])
 
     else:
         output_state = op.return_state
 
         if output_state:
             output_h = operator.outputs[1].full_name
-            apply_squeeze(scope, rnn_h, output_h, container)
+            apply_squeeze(scope, rnn_h, output_h, container, axes=[0])
 
 
 def is_time_major(op, bidirectional):

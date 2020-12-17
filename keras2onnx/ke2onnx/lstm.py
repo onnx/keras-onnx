@@ -224,7 +224,7 @@ def build_output_states(scope, operator, container, output_names, bidirectional=
             squeeze_names.extend(list(zip(split_names, outputs)))
 
         for split_name, output_name in squeeze_names:
-            apply_squeeze(scope, split_name, output_name, container)
+            apply_squeeze(scope, split_name, output_name, container, axes=[0])
 
     else:
         output_state = op.return_state
@@ -234,8 +234,8 @@ def build_output_states(scope, operator, container, output_names, bidirectional=
 
         output_h = operator.outputs[1].full_name
         output_c = operator.outputs[2].full_name
-        apply_squeeze(scope, lstm_h, output_h, container)
-        apply_squeeze(scope, lstm_c, output_c, container)
+        apply_squeeze(scope, lstm_h, output_h, container, axes=[0])
+        apply_squeeze(scope, lstm_c, output_c, container, axes=[0])
 
 
 def _calculate_keras_lstm_output_shapes(operator):
