@@ -104,15 +104,13 @@ def convert_keras_masking(scope, operator, container):
     not_o = _apply_not_equal(oopb, container.target_opset, operator)
     cast_o = oopb.apply_cast(not_o, to=oopb.float, name=operator.full_name + '_cast')
     if operator.output_masks:
-        reduce_node = oopb.add_node("ReduceSum",
-                                    cast_o[0], keepdims=False, axes=[-1], name=operator.full_name + '_reduced')
-        oopb.add_node_with_output("Greater", [reduce_node, np.array(0, dtype=np.float32)],
+        reduce_node = oopb.apply_reducesum(cast_o[0], keepdims=False, axes=[-1], name=operator.full_name + '_reduced')
+        oopb.add_node_with_output("Greater", reduce_node + [np.array(0, dtype=np.float32)],
                                   [operator.output_masks[0].full_name], name=operator.full_name + '_greater')
 
-    reduce_node2 = oopb.add_node("ReduceSum",
-                                 cast_o, keepdims=True, axes=[-1], name=operator.full_name + 'reduced2')
+    reduce_node2 = oopb.apply_reducesum(cast_o, keepdims=True, axes=[-1], name=operator.full_name + 'reduced2')
     greater_o = oopb.add_node("Greater",
-                              [reduce_node2, np.array(0, dtype=np.float32)], name=operator.full_name + '_greater2')
+                              reduce_node2 + [np.array(0, dtype=np.float32)], name=operator.full_name + '_greater2')
     cast2_o = oopb.apply_cast(greater_o, to=oopb.float, name=operator.full_name + '_cast2')
 
     oopb.add_node_with_output('Mul', [cast2_o[0], operator.inputs[0].full_name], [operator.outputs[0].full_name],

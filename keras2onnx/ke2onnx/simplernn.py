@@ -163,9 +163,13 @@ def build_sequence_lengths(scope, operator, container):
     mask_cast = scope.get_unique_operator_name(operator.full_name + '_mask_cast')
     sequence_lengths = scope.get_unique_operator_name(operator.full_name + '_seq_lens')
 
-    apply_cast(scope, input_mask_name, mask_cast, container, to=TensorProto.INT32)
-    container.add_node('ReduceSum', mask_cast, sequence_lengths, keepdims=False, axes=[-1])
-    return sequence_lengths
+    oopb = OnnxOperatorBuilder(container, scope)
+    mask_cast = oopb.apply_cast(input_mask_name,
+                                to=oopb.int32,
+                                name=operator.full_name + 'cast')
+    sequence_lengths = oopb.apply_reducesum(mask_cast, name=operator.full_name + '_reduced', axes=[-1],
+                                            keepdims=False)
+    return sequence_lengths[0]
 
 
 def build_initial_states(scope, operator, container, bidirectional=False):

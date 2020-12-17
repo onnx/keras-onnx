@@ -323,7 +323,8 @@ def convert_topology(topology, model_name, doc_string, target_opset, channel_fir
             if target_opset < 9:
                 nodes = onnxconverter_common.optimizer.optimize_onnx(nodes, nchw_inputs=nchw_inputs,
                                                                      inputs=container.inputs + extra_inputs,
-                                                                     outputs=container.outputs)
+                                                                     outputs=container.outputs,
+                                                                     target_opset=container.target_opset)
                 node_number = len(nodes)
             else:
                 graph = onnxconverter_common.optimizer.optimize_onnx_graph(nodes, nchw_inputs=nchw_inputs,
