@@ -50,16 +50,16 @@ def convert_keras_merge_layer(scope, operator, container):
         oopb = OnnxOperatorBuilder(container, scope)
         expanded = []
         for idx_, i_ in enumerate(operator.input_masks):
-            expanded.append(oopb.add_node('Unsqueeze', i_.full_name, i_.full_name + '_i' + str(idx_), axes=[0]))
+            expanded.extend(oopb.apply_unsqueeze(i_.full_name, i_.full_name + '_i' + str(idx_), axes=[0]))
 
         if len(expanded) > 1:
             concat = oopb.apply_concat(expanded, name=operator.full_name + '_concat')
         else:
             concat = expanded[0]
         cast = oopb.add_node('Cast', concat, name=operator.full_name + '_cast', to=1)
-        reduced = oopb.add_node('ReduceSum', cast, name=operator.full_name + '_reduced', op_version=1, axes=[0],
-                                keepdims=0)
+        reduced = oopb.apply_reducesum(cast, name=operator.full_name + '_reduced', axes=[0],
+                                       keepdims=0)
         oopb.apply_op_with_output('apply_greater',
-                                  [reduced, np.array([0], dtype=np.float32)],
+                                  reduced + [np.array([0], dtype=np.float32)],
                                   [operator.output_masks[0].full_name],
                                   name=operator.raw_operator.name)

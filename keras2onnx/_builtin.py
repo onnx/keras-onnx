@@ -784,7 +784,7 @@ def convert_tf_expand_dims(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     axis = _cal_tensor_value(node.inputs[1]).tolist()
-    rank = len(_cal_tensor_shape(node.inputs[0]))
+    rank = len(_cal_tensor_shape(node.inputs[0])) + 1
     oopb.apply_op_with_output("apply_unsqueeze",
                               [operator.inputs[0].full_name],
                               operator.output_full_names,
@@ -1295,13 +1295,20 @@ def convert_tf_any_all(scope, operator, container):
                               to=oopb.float,
                               name=operator.full_name + '_cast')
     keepdims = node.get_attr("keep_dims")
-    op_type = "ReduceMin" if node.type == "All" else "ReduceSum"
-    reduce_op = oopb.add_node(op_type, cast_op,
-                              axes=axis,
-                              keepdims=keepdims,
-                              name=operator.full_name + '_reduce')
+    if node.type == 'All':
+        reduce_op = oopb.add_node('ReduceMin', cast_op,
+                                  axes=axis,
+                                  keepdims=keepdims,
+                                  name=operator.full_name + '_reduce')
+    else:
+        reduce_op = oopb.apply_reducesum(cast_op,
+                                         axes=axis,
+                                         keepdims=keepdims,
+                                         name=operator.full_name + '_reduce')
+    if not isinstance(reduce_op, list):
+        reduce_op = [reduce_op]
     oopb.apply_op_with_output('apply_greater',
-                              [reduce_op, np.array(0, dtype=np.float32)],
+                              reduce_op + [np.array(0, dtype=np.float32)],
                               operator.output_full_names,
                               name=operator.full_name)
 
@@ -1316,10 +1323,9 @@ def convert_tf_pack(scope, operator, container):
 
     inputs = []
     for i in range(len(node.inputs)):
-        unsqueeze = oopb.add_node('Unsqueeze',
-                                  operator.inputs[i].full_name,
-                                  operator.full_name + '_unsqueeze' + str(i), axes=[axis])
-        inputs.append(unsqueeze)
+        unsqueeze = oopb.apply_unsqueeze(operator.inputs[i].full_name,
+                                         operator.full_name + '_unsqueeze' + str(i), axes=[axis])
+        inputs.extend(unsqueeze)
 
     oopb.apply_op_with_output("apply_concat",
                               inputs,
@@ -1429,11 +1435,18 @@ def _convert_tf_reduce_op(scope, operator, container, onnx_op):
             axes = [val + input_rank if val < 0 else val for val in axes]
 
     keepdims = node.get_attr("keep_dims")
-    oopb.add_node_with_output(onnx_op,
-                              operator.inputs[0].full_name,
-                              operator.outputs[0].full_name,
-                              name=operator.full_name + '_reduce_min',
-                              axes=axes, keepdims=keepdims)
+    if onnx_op == 'ReduceSum':
+        oopb.apply_op_with_output("apply_"+onnx_op.lower(),
+                                  [operator.inputs[0].full_name],
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_' + onnx_op.lower(),
+                                  axes=axes, keepdims=keepdims)
+    else:
+        oopb.add_node_with_output(onnx_op,
+                                  operator.inputs[0].full_name,
+                                  operator.outputs[0].full_name,
+                                  name=operator.full_name + '_' + onnx_op.lower(),
+                                  axes=axes, keepdims=keepdims)
 
 
 @converter_func(TYPES.Max)
@@ -1768,7 +1781,7 @@ def convert_tf_squeeze(scope, operator, container):
     if shape is None:
         raise ValueError("Squeeze input shape cannot be None for node {}".format(node.name))
 
-    oopb.add_node_with_output('Squeeze',
+    oopb.apply_op_with_output('apply_squeeze',
                               operator.input_full_names[0],
                               operator.output_full_names,
                               operator.inputs[0].full_name + '_squeeze',
@@ -1801,9 +1814,8 @@ def convert_tf_topkv2(scope, operator, container):
         cast_1 = oopb.add_node('Cast',
                                operator.inputs[1].full_name,
                                operator.inputs[1].full_name + '_1_cast', to=oopb.int64)
-        unsqueeze = oopb.add_node('Unsqueeze',
-                                  cast_1,
-                                  operator.inputs[1].full_name + '_unsqueeze', axes=[0])
+        unsqueeze = oopb.apply_unsqueeze(cast_1,
+                                         operator.inputs[1].full_name + '_unsqueeze', axes=[0])[0]
         k_value = unsqueeze
     else:
         k_value = k.item(0)
@@ -2168,10 +2180,9 @@ def convert_tf_strided_slice(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
 
     if len(new_axis_axes) > 0:
-        new_axis_unsqueeze = oopb.add_node('Unsqueeze',
-                                           operator.inputs[0].full_name,
-                                           operator.inputs[0].full_name + '_unsqueeze',
-                                           axes=new_axis_axes)
+        new_axis_unsqueeze = oopb.apply_unsqueeze(operator.inputs[0].full_name,
+                                                  operator.inputs[0].full_name + '_unsqueeze',
+                                                  axes=new_axis_axes)[0]
     else:
         new_axis_unsqueeze = operator.inputs[0].full_name
 
@@ -2236,7 +2247,7 @@ def convert_tf_strided_slice(scope, operator, container):
                                             operator.inputs[0].full_name + '_cropping')
 
     if needs_squeeze:
-        oopb.add_node_with_output('Squeeze',
+        oopb.apply_op_with_output('apply_squeeze',
                                   cropped_tensor_name,
                                   operator.output_full_names,
                                   operator.inputs[0].full_name + '_squeeze',

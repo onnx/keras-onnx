@@ -116,10 +116,9 @@ def convert_keras_dot_224(scope, operator, container):
             result_mul = oopb.add_node('Mul',
                                        [x_reshape, y_reshape],
                                        operator.inputs[0].full_name + '_result_mul')
-            out = oopb.add_node('ReduceSum',
-                                [result_mul],
-                                operator.inputs[0].full_name + '_out',
-                                axes=[axes[0]])
+            out = oopb.apply_reducesum([result_mul],
+                                       operator.inputs[0].full_name + '_out',
+                                       axes=[axes[0]])
         else:
             x_transpose = oopb.add_node('Transpose',
                                         [x_reshape],
@@ -128,10 +127,10 @@ def convert_keras_dot_224(scope, operator, container):
             result_mul = oopb.add_node('Mul',
                                        [x_transpose, y_reshape],
                                        operator.inputs[0].full_name + '_result_mul')
-            out = oopb.add_node('ReduceSum',
-                                [result_mul],
-                                operator.inputs[0].full_name + '_out',
-                                axes=[axes[1]])
+            out = oopb.apply_reducesum([result_mul],
+                                       operator.inputs[0].full_name + '_out',
+                                       axes=[axes[1]])
+        out = out[0]
     else:
         if axes is not None:
             adj_x = None if axes[0] == max_ndim - 1 else True
@@ -168,19 +167,17 @@ def convert_keras_dot_224(scope, operator, container):
             idx = x_ndim + y_ndim - 3
         else:
             idx = x_ndim - 1
-        out_squeeze = oopb.add_node('Squeeze',
-                                    [out],
-                                    operator.inputs[0].full_name + '_out_squeeze',
-                                    axes=list(range(idx, idx + diff)))
+        out_squeeze = oopb.apply_squeeze([out],
+                                         operator.inputs[0].full_name + '_out_squeeze',
+                                         axes=list(range(idx, idx + diff)))
         matrix_len = matrix_len - diff
     else:
         out_squeeze = out
 
     if matrix_len == 1:
-        out_expand = oopb.add_node('Unsqueeze',
-                                   [out_squeeze],
-                                   operator.inputs[0].full_name + '_out_expand',
-                                   axes=[1])
+        out_expand = oopb.apply_unsqueeze([out_squeeze],
+                                          operator.inputs[0].full_name + '_out_expand',
+                                          axes=[1])
     else:
         out_expand = out_squeeze
     container.add_node('Identity', out_expand, operator.output_full_names,
@@ -216,20 +213,18 @@ def convert_keras_dot_post_224(scope, operator, container):
         raise RuntimeError('Dimension incompatibility: %s != %s' % (x_shape[axes[0]], y_shape[axes[1]]))
 
     if x_ndim == 2:
-        x_expand = oopb.add_node('Unsqueeze',
-                                 [normalized_input_names[0]],
-                                 operator.inputs[0].full_name + '_expand',
-                                 axes=[1])
+        x_expand = oopb.apply_unsqueeze([normalized_input_names[0]],
+                                        operator.inputs[0].full_name + '_expand',
+                                        axes=[1])[0]
         a0 += 1
         x_ndim += 1
     else:
         x_expand = normalized_input_names[0]
 
     if y_ndim == 2:
-        y_expand = oopb.add_node('Unsqueeze',
-                                 [normalized_input_names[1]],
-                                 operator.inputs[1].full_name + '_expand',
-                                 axes=[2])
+        y_expand = oopb.apply_unsqueeze([normalized_input_names[1]],
+                                        operator.inputs[1].full_name + '_expand',
+                                        axes=[2])[0]
         y_ndim += 1
     else:
         y_expand = normalized_input_names[1]
@@ -421,11 +416,17 @@ def convert_keras_dot_post_224(scope, operator, container):
 
     # if the inputs were originally rank 2, we remove the added 1 dim.
     if orig_x_ndim == 2:
-        container.add_node('Squeeze', output_reshape, operator.output_full_names,
-                           name=scope.get_unique_operator_name('Squeeze'), axes=[1])
+        oopb.apply_op_with_output("apply_squeeze",
+                                  output_reshape,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_squeeze',
+                                  axes=[1])
     elif orig_y_ndim == 2:
-        container.add_node('Squeeze', output_reshape, operator.output_full_names,
-                           name=scope.get_unique_operator_name('Squeeze'), axes=[y_ndim - 1])
+        oopb.apply_op_with_output("apply_squeeze",
+                                  output_reshape,
+                                  operator.output_full_names,
+                                  name=operator.full_name + '_squeeze',
+                                  axes=[y_ndim - 1])
     else:
         container.add_node('Identity', output_reshape, operator.output_full_names,
                            name=scope.get_unique_operator_name('Identity'))
