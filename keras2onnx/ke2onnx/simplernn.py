@@ -158,11 +158,8 @@ def build_sequence_lengths(scope, operator, container):
     if len(operator.input_masks) != 1:
         return ''
 
-    input_mask_name = operator.input_masks[0].full_name
-    mask_cast = scope.get_unique_operator_name(operator.full_name + '_mask_cast')
-    sequence_lengths = scope.get_unique_operator_name(operator.full_name + '_seq_lens')
-
     oopb = OnnxOperatorBuilder(container, scope)
+    input_mask_name = operator.input_masks[0].full_name
     mask_cast = oopb.apply_cast(input_mask_name,
                                 to=oopb.int32,
                                 name=operator.full_name + 'cast')
