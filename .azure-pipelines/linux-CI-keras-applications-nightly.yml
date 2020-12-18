@@ -89,7 +89,11 @@ jobs:
       pip install h5py==2.9.0
       $(INSTALL_TENSORFLOW)
       $(INSTALL_KERAS)
-      pip install git+https://github.com/microsoft/onnxconverter-common
+      git clone https://github.com/microsoft/onnxconverter-common
+      cd onnxconverter-common
+      git checkout 73b40dbb799f8a4c08180e06915a517201c631e6
+      pip install -e .
+      cd ..
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
       $(INSTALL_ORT)
