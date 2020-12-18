@@ -175,9 +175,9 @@ def convert_keras_dot_224(scope, operator, container):
         out_squeeze = out
 
     if matrix_len == 1:
-        out_squeeze = oopb.apply_unsqueeze([out_squeeze],
-                                           operator.inputs[0].full_name + '_out_expand',
-                                           axes=[1])
+        out_expand = oopb.apply_unsqueeze([out_squeeze],
+                                          operator.inputs[0].full_name + '_out_expand',
+                                          axes=[1])
     else:
         out_expand = out_squeeze
     container.add_node('Identity', out_expand, operator.output_full_names,
