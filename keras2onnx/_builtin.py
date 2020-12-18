@@ -784,7 +784,7 @@ def convert_tf_expand_dims(scope, operator, container):
     oopb = OnnxOperatorBuilder(container, scope)
     node = operator.raw_operator
     axis = _cal_tensor_value(node.inputs[1]).tolist()
-    rank = len(_cal_tensor_shape(node.inputs[0]))
+    rank = len(_cal_tensor_shape(node.inputs[0])) + 1
     oopb.apply_op_with_output("apply_unsqueeze",
                               [operator.inputs[0].full_name],
                               operator.output_full_names,
