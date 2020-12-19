@@ -1055,6 +1055,21 @@ def convert_tf_logsoftmax(scope, operator, container):
                               axis=axis)
 
 
+@converter_func(TYPES.LRN)
+def convert_tf_lrn(scope, operator, container):
+    node = operator.raw_operator
+    attrs = _to_onnx_attrs(node)
+    attrs['size'] = 2 * attrs['depth_radius'] + 1
+    del attrs['depth_radius']
+    oopb = OnnxOperatorBuilder(container, scope)
+    oopb.add_node_with_output('LRN',
+                              operator.input_full_names,
+                              operator.output_full_names,
+                              name=operator.full_name,
+                              op_version=1,
+                              **attrs)
+
+
 def _convert_tf_maximum_minimum(scope, operator, container, oopb, apply_func):
     node = operator.raw_operator
     supported_types = [oopb.double, oopb.float, oopb.float16]
