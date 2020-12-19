@@ -50,6 +50,7 @@ class TYPES:
     LogicalAnd = 'LogicalAnd'
     LogicalNot = 'LogicalNot'
     LogSoftmax = 'LogSoftmax'
+    LRN = 'LRN'
     MatMul = 'MatMul'
     Max = 'Max'
     Maximum = 'Maximum'
