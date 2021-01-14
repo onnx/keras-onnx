@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import unittest
@@ -56,7 +53,7 @@ class TestKerasApplications(unittest.TestCase):
         model = InceptionV3(include_top=True)
         res = run_image(model, self.model_files, img_path, target_size=299)
         self.assertTrue(*res)
-    
+
     def test_InceptionResNetV2(self):
         InceptionResNetV2 = keras.applications.inception_resnet_v2.InceptionResNetV2
         model = InceptionResNetV2(include_top=True)

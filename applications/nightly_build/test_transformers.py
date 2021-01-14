@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import unittest
@@ -54,7 +51,7 @@ class TestTransformers(unittest.TestCase):
             'text': self.text_str
         })
         text = json.loads(raw_data)['text']
-        # The tokenizers are generated using transformers 2.5.0, but model_max_length is introduced and needed in 2.9.0. 
+        # The tokenizers are generated using transformers 2.5.0, but model_max_length is introduced and needed in 2.9.0.
         if not hasattr(tokenizer, 'model_max_length'):
             tokenizer.model_max_length = 1024
         inputs_raw = tokenizer.encode_plus(text, add_special_tokens=True)

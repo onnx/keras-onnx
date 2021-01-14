@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 import os
 import sys
 import unittest
@@ -90,7 +87,7 @@ class Interpolate(Layer):
         self.target_shape = _collect_input_shape(target_layer)
         # self.data_format = conv_utils.normalize_data_format(data_format)
         self.data_format = K.normalize_data_format(data_format)
-        
+
         self.input_spec = InputSpec(ndim=4)
 
     def compute_output_shape(self, input_shape):

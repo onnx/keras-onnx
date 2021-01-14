@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 import tensorflow as tf
 from ..proto import keras, is_tf_keras, is_keras_older_than
 from ..proto.tfcompat import is_tf2
