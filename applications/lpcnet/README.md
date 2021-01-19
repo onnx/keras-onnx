@@ -1,3 +1,5 @@
+<!--- SPDX-License-Identifier: Apache-2.0 -->
+
 # Introduction
 This tool converts the lpcnet model to onnx.
 To run this code, we need first install the original lpcnet model from <https://github.com/mozilla/LPCNet/>.

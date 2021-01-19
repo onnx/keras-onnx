@@ -1,3 +1,5 @@
+<!--- SPDX-License-Identifier: Apache-2.0 -->
+
 # Introduction
 The original Keras project of Masked RCNN is: <https://github.com/matterport/Mask_RCNN>. Follow the 'Installation' section in README.md to set up the model.
 There is also a good [tutorial](https://github.com/matterport/Mask_RCNN#step-by-step-detection) to learn about the object detection.

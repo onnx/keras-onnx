@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 # the interim objects for the model conversion.
 import six
 from ..proto import helper

@@ -1,8 +1,5 @@
-###############################################################################
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 import numpy as np
 from ..proto import keras, is_tf_keras, is_keras_older_than, is_tensorflow_later_than
 from ..common import with_variable, k2o_logger

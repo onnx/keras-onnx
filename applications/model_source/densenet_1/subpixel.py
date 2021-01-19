@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # From https://github.com/titu1994/DenseNet/blob/master/subpixel.py
 # Modifications Copyright (c) Microsoft.
 

@@ -1,5 +1,4 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License.
+# SPDX-License-Identifier: Apache-2.0
 
 """
 .. _l-transfer-learning:
@@ -114,7 +113,7 @@ plt.axis('off')
 
 with open(model_file, "rb") as f:
     model_bytes = f.read()
-    
+
 ot = OnnxTransformer(model_bytes)
 
 img2 = img.resize((224, 224))
@@ -140,14 +139,14 @@ print(df)
 
 ###################################
 # .. index:: Yolo
-# 
+#
 # Transfer Learning with Yolo
 # +++++++++++++++++++++++++++
 #
 # `yolo <https://pjreddie.com/darknet/yolo/>`_
 # is quite popular among the framework
 # which can identity objects in images in real time.
-# One of the models is available in 
+# One of the models is available in
 # `ONNX zoo <https://github.com/onnx/models>`_.
 
 import os
@@ -192,7 +191,7 @@ X = X.astype(numpy.float32)
 
 with open(model_file, "rb") as f:
     model_bytes = f.read()
-    
+
 ot = OnnxTransformer(model_bytes)
 pred = ot.fit_transform(X)
 print(pred.shape)

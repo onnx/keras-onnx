@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+
 # From https://github.com/tdeboissiere/DeepLearningImplementations/blob/master/DenseNet/densenet.py
 # Modifications Copyright (c) Microsoft.
 
@@ -173,7 +175,7 @@ def DenseNet(nb_classes, img_dim, depth, nb_dense_block, growth_rate,
     # Add dense blocks
     for block_idx in range(nb_dense_block - 1):
         x, nb_filter = denseblock(x, concat_axis, nb_layers,
-                                  nb_filter, growth_rate, 
+                                  nb_filter, growth_rate,
                                   dropout_rate=dropout_rate,
                                   weight_decay=weight_decay)
         # add transition
@@ -182,7 +184,7 @@ def DenseNet(nb_classes, img_dim, depth, nb_dense_block, growth_rate,
 
     # The last denseblock does not have a transition
     x, nb_filter = denseblock(x, concat_axis, nb_layers,
-                              nb_filter, growth_rate, 
+                              nb_filter, growth_rate,
                               dropout_rate=dropout_rate,
                               weight_decay=weight_decay)
 

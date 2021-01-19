@@ -1,7 +1,5 @@
-# Copyright (c) Microsoft Corporation. All rights reserved.
-# Licensed under the MIT License. See License.txt in the project root for
-# license information.
-###############################################################################
+# SPDX-License-Identifier: Apache-2.0
+
 from onnxconverter_common.oopb import OnnxOperatorBuilder
 from .funcbook import converter_func
 from ._tf_utils import tf_attrs_to_onnx as _to_onnx_attrs
