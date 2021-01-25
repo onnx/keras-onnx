@@ -13,8 +13,8 @@ jobs:
     vmImage: 'Ubuntu-16.04'
   strategy:
     matrix:
-      Python35-tf1110:
-        python.version: '3.5'
+      Python36-tf1110:
+        python.version: '3.6'
         ONNX_PATH: onnx==1.2.3
         KERAS: keras==2.1.6
         TENSORFLOW_PATH: tensorflow==1.11.0

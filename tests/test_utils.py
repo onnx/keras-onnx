@@ -9,6 +9,7 @@ from keras2onnx.proto import keras, is_keras_older_than
 from keras2onnx.proto.tfcompat import is_tf2
 from keras2onnx.common.onnx_ops import apply_identity, OnnxOperatorBuilder
 import time
+import json
 
 working_path = os.path.abspath(os.path.dirname(__file__))
 tmp_path = os.path.join(working_path, 'temp')
@@ -111,14 +112,66 @@ def print_mismatches(case_name, list_idx, expected_list, actual_list, rtol=1.e-3
           file=sys.stderr)
 
 
-def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6, compare_perf=False):
+def load_profile_json(profile_file):
+    print(f"loading profile output {profile_file} ...")
+
+    with open(profile_file, "r") as f:
+        sess_time = json.load(f)
+
+    assert isinstance(sess_time, list)
+    return sess_time
+
+
+def parse_profile_results(sess_time, kernel_time_only=False, threshold=0):
+    node_time = {}
+    node_provider = {}
+    total = 0
+    for item in sess_time:
+        if item["cat"] == "Node" and "dur" in item and "args" in item and "op_name" in item["args"]:
+            if "provider" in item["args"]:
+                device = "CPU" if item["args"]["provider"] == "CPUExecutionProvider" else "CUDA"
+                if item["name"] not in node_provider:
+                    node_provider[item["name"]] = device
+                else:
+                    assert node_provider[item["name"]] == device
+            elif kernel_time_only:
+                continue
+
+            if item["name"] in node_time:
+                node_time[item["name"]] += item["dur"]
+            else:
+                node_time[item["name"]] = item["dur"]
+            total += item["dur"]
+
+    results = []
+    if (threshold > 0):
+        results.append(f"Threshold of Percentage > {threshold:.2f}%")
+
+    results.append(f"Duration\tPercentage\tProvider\tName")
+    for k, v in sorted(node_time.items(), key=lambda x: x[1], reverse=True):
+        provider = node_provider[k] if k in node_provider else ""
+        ratio = v / total
+        if ratio > threshold:
+            results.append(f"{v}\t{ratio * 100.0:5.2f}\t{provider}\t{k}")
+
+    return results
+
+
+def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6,
+                     compare_perf=False, enable_profiling=False):
     if not os.path.exists(tmp_path):
         os.mkdir(tmp_path)
     temp_model_file = os.path.join(tmp_path, 'temp_' + case_name + '.onnx')
     onnx.save_model(onnx_model, temp_model_file)
     try:
         import onnxruntime
-        sess = onnxruntime.InferenceSession(temp_model_file)
+        if enable_profiling:
+            from onnxruntime import SessionOptions
+            sess_options = SessionOptions()
+            sess_options.enable_profiling = True
+            sess = onnxruntime.InferenceSession(temp_model_file, sess_options)
+        else:
+            sess = onnxruntime.InferenceSession(temp_model_file)
     except ImportError:
         keras2onnx.common.k2o_logger().warning("Cannot import ONNXRuntime!")
         return True
@@ -140,6 +193,15 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
             sess.run(None, feed_input)
         time_end = time.time()
         print('avg ort time =' + str((time_end - time_start)/count))
+
+    if enable_profiling:
+        profile_file = sess.end_profiling()
+        profile_records = load_profile_json(profile_file)
+        lines = parse_profile_results(profile_records)
+        print("Results:")
+        print("-" * 64)
+        for line in lines:
+            print(line)
 
     if expected is None:
         return
@@ -163,7 +225,8 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     return res
 
 
-def run_keras_and_ort(case_name, onnx_model, keras_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6, compare_perf=False):
+def run_keras_and_ort(case_name, onnx_model, keras_model, data, expected, model_files, rtol=1.e-3, atol=1.e-6,
+                      compare_perf=False, enable_profiling=False):
     if compare_perf:
         count = 10
         time_start = time.time()
@@ -172,7 +235,7 @@ def run_keras_and_ort(case_name, onnx_model, keras_model, data, expected, model_
         time_end = time.time()
         print('avg keras time =' + str((time_end - time_start) / count))
     return run_onnx_runtime(case_name, onnx_model, data, expected, model_files,
-                            rtol=rtol, atol=atol, compare_perf=compare_perf)
+                            rtol=rtol, atol=atol, compare_perf=compare_perf, enable_profiling=enable_profiling)
 
 
 def run_image(model, model_files, img_path, model_name='onnx_conversion', rtol=1.e-3, atol=1.e-5, color_mode="rgb",

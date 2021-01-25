@@ -15,8 +15,8 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      Python35:
-        python.version: '3.5'
+      Python36-onnx1.2:
+        python.version: '3.6'
         ONNX_PATH: onnx==1.2.3
         INSTALL_KERAS: pip install keras==2.1.6
         UNINSTALL_KERAS:
@@ -26,7 +26,7 @@ jobs:
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
-      Python36:
+      Python36-onnx1.5:
         python.version: '3.6'
         ONNX_PATH: onnx==1.5.0
         INSTALL_KERAS: pip install keras==2.2.4
@@ -104,10 +104,10 @@ jobs:
       %INSTALL_KERAS_RESNET%
       pip install git+https://www.github.com/keras-team/keras-contrib.git
       pip install keras-tcn==2.8.3
-      %UNINSTALL_KERAS%
       pip install git+https://github.com/qubvel/efficientnet
       %INSTALL_TRANSFORMERS%
       pip install keras-self-attention
+      %UNINSTALL_KERAS%
     displayName: 'Install dependencies'
 
   - script: |
