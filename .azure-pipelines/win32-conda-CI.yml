@@ -14,31 +14,8 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      Python36-tf1110:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.2.3
-        KERAS: keras==2.1.6
-        TENSORFLOW_PATH: tensorflow==1.11.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-
-      Python36-tf1140:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
-        KERAS: keras==2.2.5
-        TENSORFLOW_PATH: tensorflow==1.15.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-
-      # UT for keras 2.3 need tensorflow <= 2.0.0
-      Python37-tf200:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.7.0
-        KERAS: keras==2.3.1
-        TENSORFLOW_PATH: tensorflow==2.0.0
-        INSTALL_ORT: pip install onnxruntime==1.4.0
-
       Python38-tf220:
         python.version: '3.8'
-        ONNX_PATH: onnx==1.8.0
         KERAS: keras==2.4.3
         TENSORFLOW_PATH: tensorflow==2.2.0
         INSTALL_ORT:
@@ -61,7 +38,7 @@ jobs:
       call activate py$(python.version)
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
-      pip install %ONNX_PATH%
+      pip install -i https://test.pypi.org/simple/ onnx==1.8.102
       pip install h5py==2.9.0
       pip install %TENSORFLOW_PATH%
       pip install %KERAS%

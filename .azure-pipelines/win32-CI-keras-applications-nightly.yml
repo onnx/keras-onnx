@@ -15,31 +15,8 @@ jobs:
   strategy:
     matrix:
       # No python 2.x since no available ONNX package for Windows
-      Python36-onnx1.2:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.2.3
-        INSTALL_KERAS: pip install keras==2.1.6
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET:
-        INSTALL_TRANSFORMERS:
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
-      Python36-onnx1.5:
-        python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
-        INSTALL_KERAS: pip install keras==2.2.4
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-        INSTALL_TRANSFORMERS:
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
       Python37:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.8.0
         INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
@@ -48,20 +25,8 @@ jobs:
         INSTALL_TRANSFORMERS:
         NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
 
-      Python37-official-ort:
-        python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
-        INSTALL_KERAS: pip install keras==2.3.1
-        UNINSTALL_KERAS:
-        INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
-        INSTALL_ORT: pip install onnxruntime==1.1.1
-        INSTALL_KERAS_RESNET: pip install keras-resnet
-        INSTALL_TRANSFORMERS:
-        NIGHTLY_BUILD_TEST: python run_all.py --exclude "test_keras_applications_v2.py test_mask_rcnn.py"
-
       Python38-tf2:
         python.version: '3.8'
-        ONNX_PATH: onnx==1.8.0
         INSTALL_KERAS:
         UNINSTALL_KERAS: pip uninstall keras -y
         INSTALL_TENSORFLOW: pip install tensorflow==2.2.0
@@ -88,7 +53,7 @@ jobs:
       call activate py$(python.version)
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
-      pip install %ONNX_PATH%
+      pip install -i https://test.pypi.org/simple/ onnx==1.8.102
       pip install h5py==2.9.0
       %INSTALL_TENSORFLOW%
       %INSTALL_KERAS%
