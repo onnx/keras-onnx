@@ -2387,7 +2387,7 @@ def test_masking(runner, rnn_class):
     onnx_model = keras2onnx.convert_keras(model, model.name)
     x = np.random.uniform(100, 999, size=(2, 3, 5)).astype(np.float32)
     expected = model.predict(x)
-    assert runner(onnx_model.graph.name, onnx_model, x, expected)
+    assert runner(onnx_model.graph.name, onnx_model, x, expected, rtol=5e-3)
 
 
 @pytest.mark.parametrize("rnn_class", RNN_CLASSES)
