@@ -4,10 +4,12 @@ import os
 import sys
 import unittest
 import numpy as np
+import onnxruntime
 from os.path import dirname, abspath
 from keras2onnx.proto import keras, is_keras_older_than
 from keras.applications.vgg16 import VGG16
 from onnxconverter_common.onnx_ex import get_maximum_opset_supported
+from distutils.version import StrictVersion
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image
@@ -100,8 +102,8 @@ class TestUnetPlusPlus(unittest.TestCase):
         for fl in self.model_files:
             os.remove(fl)
 
-    @unittest.skipIf(get_maximum_opset_supported() < 14,
-                     "Need ConvTranspose-14 support.")
+    @unittest.skipIf(StrictVersion(onnxruntime.__version__.split('-')[0]) < StrictVersion('1.7.0'),
+                     "Need ConvTranspose support.")
     def test_unet_plus_plus(self):
         backbone_name = 'vgg16'
         input_shape = (None, None, 3)
