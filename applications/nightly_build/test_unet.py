@@ -127,7 +127,7 @@ class TestUnet(unittest.TestCase):
         self.assertTrue(*res)
 
     @unittest.skipIf(StrictVersion(onnxruntime.__version__.split('-')[0]) < StrictVersion('1.7.0'),
-                     "Need ConvTranspose support.")
+                     "ConvTranspose stride > 1 is fixed in onnxruntime 1.7.0.")
     def test_unet_3(self):
         # From https://github.com/yu4u/noise2noise/blob/master/model.py
         model = get_unet_model(out_ch=3, upconv=False)

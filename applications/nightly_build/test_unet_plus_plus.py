@@ -103,7 +103,7 @@ class TestUnetPlusPlus(unittest.TestCase):
             os.remove(fl)
 
     @unittest.skipIf(StrictVersion(onnxruntime.__version__.split('-')[0]) < StrictVersion('1.7.0'),
-                     "Need ConvTranspose support.")
+                     "ConvTranspose stride > 1 is fixed in onnxruntime 1.7.0.")
     def test_unet_plus_plus(self):
         backbone_name = 'vgg16'
         input_shape = (None, None, 3)
