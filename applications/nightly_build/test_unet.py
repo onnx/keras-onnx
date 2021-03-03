@@ -4,9 +4,11 @@ import os
 import sys
 import unittest
 import keras_segmentation
+import onnxruntime
 from os.path import dirname, abspath
 from keras2onnx.proto import keras, is_keras_older_than
 from onnxconverter_common.onnx_ex import get_maximum_opset_supported
+from distutils.version import StrictVersion
 
 sys.path.insert(0, os.path.join(dirname(abspath(__file__)), '../../tests/'))
 from test_utils import run_image
@@ -124,8 +126,8 @@ class TestUnet(unittest.TestCase):
         res = run_image(model, self.model_files, img_path, color_mode="grayscale", target_size=(img_rows, img_cols))
         self.assertTrue(*res)
 
-    @unittest.skipIf(get_maximum_opset_supported() < 14,
-                     "Need ConvTranspose-14 support.")
+    @unittest.skipIf(StrictVersion(onnxruntime.__version__.split('-')[0]) < StrictVersion('1.7.0'),
+                     "ConvTranspose stride > 1 is fixed in onnxruntime 1.7.0.")
     def test_unet_3(self):
         # From https://github.com/yu4u/noise2noise/blob/master/model.py
         model = get_unet_model(out_ch=3, upconv=False)
