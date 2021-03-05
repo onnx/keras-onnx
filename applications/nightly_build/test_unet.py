@@ -131,7 +131,7 @@ class TestUnet(unittest.TestCase):
     def test_unet_3(self):
         # From https://github.com/yu4u/noise2noise/blob/master/model.py
         model = get_unet_model(out_ch=3, upconv=False)
-        res = run_image(model, self.model_files, img_path, target_size=(256, 256, 3))
+        res = run_image(model, self.model_files, img_path, atol=5.e-4, target_size=(256, 256, 3))
         self.assertTrue(*res)
 
 if __name__ == "__main__":
