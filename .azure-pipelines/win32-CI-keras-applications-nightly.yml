@@ -17,7 +17,7 @@ jobs:
       # No python 2.x since no available ONNX package for Windows
       Python36-onnx1.2:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.2.3
+        ONNX_PATH: pip install onnx==1.2.3
         INSTALL_KERAS: pip install keras==2.1.6
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
@@ -28,7 +28,7 @@ jobs:
 
       Python36-onnx1.5:
         python.version: '3.6'
-        ONNX_PATH: onnx==1.5.0
+        ONNX_PATH: pip install onnx==1.5.0
         INSTALL_KERAS: pip install keras==2.2.4
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
@@ -39,7 +39,7 @@ jobs:
 
       Python37:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.8.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
@@ -50,7 +50,7 @@ jobs:
 
       Python37-official-ort:
         python.version: '3.7'
-        ONNX_PATH: onnx==1.6.0
+        ONNX_PATH: pip install onnx==1.6.0
         INSTALL_KERAS: pip install keras==2.3.1
         UNINSTALL_KERAS:
         INSTALL_TENSORFLOW: pip install tensorflow==1.14.0
@@ -61,7 +61,7 @@ jobs:
 
       Python38-tf2:
         python.version: '3.8'
-        ONNX_PATH: onnx==1.8.0
+        ONNX_PATH: pip install -i https://test.pypi.org/simple/ onnx
         INSTALL_KERAS:
         UNINSTALL_KERAS: pip uninstall keras -y
         INSTALL_TENSORFLOW: pip install tensorflow==2.2.0
@@ -88,7 +88,7 @@ jobs:
       call activate py$(python.version)
       python -m pip install --upgrade pip numpy
       echo Test numpy installation... && python -c "import numpy"
-      pip install %ONNX_PATH%
+      %ONNX_PATH%
       pip install h5py==2.9.0
       %INSTALL_TENSORFLOW%
       %INSTALL_KERAS%
