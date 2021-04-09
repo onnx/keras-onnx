@@ -2638,3 +2638,21 @@ def test_tensor_scatter_update(runner):
     tensor_data = np.array([[[6, 5], [6, 6]], [[5, 5], [6, 6]]]).astype(np.float32)
     expected = model.predict(tensor_data)
     assert runner(onnx_model.graph.name, onnx_model, tensor_data, expected)
+
+
+def test_two_zero_padding(runner):
+    def my_func_1(input_layer, nf=64):
+        temp = keras.layers.Conv2D(filters=nf, kernel_size=(3, 3), strides=(1, 1), padding="same")(input_layer)
+        pad1 = keras.layers.ZeroPadding2D(padding=((1, 0), (1, 0)))(temp)
+        pad2 = keras.layers.ZeroPadding2D(padding=((0, 1), (0, 1)))(temp)
+        conv = keras.layers.Conv2D(filters=nf, kernel_size=(3, 3), strides=(1, 1), padding="valid")
+        output = keras.layers.concatenate([conv(pad1), conv(pad2)], axis=3)
+        return output
+
+    input1 = Input(shape=(32, 32, 3))
+    outputs = my_func_1(input1)
+    model = keras.models.Model(inputs=input1, outputs=outputs)
+    onnx_model = keras2onnx.convert_keras(model, 'test_two_zero_padding')
+    data = np.random.rand(1, 32, 32, 3).astype(np.float32)
+    expected = model.predict(data)
+    assert runner('test_two_zero_padding', onnx_model, data, expected)
