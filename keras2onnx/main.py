@@ -51,6 +51,7 @@ def convert_keras(model, name=None, doc_string='', target_opset=None, initial_ty
     :param custom_op_conversions: the handler for custom operator conversion
     :return an ONNX ModelProto
     """
+    print("Hello! I'm a test")
     if isinstance(model, tf.keras.Model) and not is_tf_keras:
         raise Exception("This is a tensorflow keras model, but keras standalone converter is used." +
                         " Please set environment variable TF_KERAS = 1 before importing keras2onnx.")
