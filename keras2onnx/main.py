@@ -37,8 +37,24 @@ def _process_initial_types(initial_types):
     return input_specs
 
 
-def convert_keras(model, name=None, doc_string='', target_opset=None, initial_types=None,
-                  channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
+def convert_keras_tf2onnx(model, name=None, doc_string='', target_opset=None, initial_types=None,
+                          channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
+    if target_opset is None:
+        target_opset = 13
+    input_signature = _process_initial_types(initial_types)
+
+    import tf2onnx
+    model, external_tensor_storage = tf2onnx.convert.from_keras(model, input_signature, opset=target_opset)
+
+    return model
+
+
+def convert_keras(*args, **kwargs):
+    return convert_keras_tf2onnx(*args, **kwargs)
+
+
+def convert_keras_old(model, name=None, doc_string='', target_opset=None, initial_types=None,
+                      channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
     # type: (keras.Model, str, str, int, [], [], bool, {}) -> onnx.ModelProto
     """
     :param model: keras model

@@ -186,6 +186,7 @@ jobs:
       pip install git+https://github.com/qubvel/efficientnet
       $(INSTALL_TRANSFORMERS)
       pip install keras-self-attention
+      pip install git+https://github.com/onnx/tensorflow-onnx
     displayName: 'Install dependencies'
 
   - script: |
