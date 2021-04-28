@@ -18,7 +18,7 @@ from ._parser_1x import build_opdict_from_keras
 from ._parser_tf import build_layer_output_from_model
 
 
-def _process_initial_types(initial_types):
+def _process_initial_types(initial_types, unknown_dim=1):
     if initial_types is None:
         return None
 
@@ -30,7 +30,7 @@ def _process_initial_types(initial_types):
         if isinstance(initial_types[c_], str):
             name = initial_types[c_]
             type_idx = c_ + 1
-        ts_spec = to_tf_tensor_spec(initial_types[type_idx], name)
+        ts_spec = to_tf_tensor_spec(initial_types[type_idx], name, unknown_dim)
         input_specs.append(ts_spec)
         c_ += 1 if name is None else 2
 
@@ -41,10 +41,10 @@ def convert_keras_tf2onnx(model, name=None, doc_string='', target_opset=None, in
                           channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
     if target_opset is None:
         target_opset = 13
-    input_signature = _process_initial_types(initial_types)
+    input_signature = _process_initial_types(initial_types, unknown_dim=None)
 
     import tf2onnx
-    model, external_tensor_storage = tf2onnx.convert.from_keras(model, input_signature, opset=target_opset)
+    model, external_tensor_storage = tf2onnx.convert.from_keras(model, input_signature, opset=target_opset, inputs_as_nchw=channel_first_inputs)
 
     return model
 

@@ -85,8 +85,8 @@ def tf_attrs_to_onnx(node):
     return attrs
 
 
-def to_tf_tensor_spec(onnx_type, name=None):
-    shp = [1 if isinstance(n_, str) else n_ for n_ in onnx_type.shape]
+def to_tf_tensor_spec(onnx_type, name=None, unknown_dim=1):
+    shp = [unknown_dim if isinstance(n_, str) else n_ for n_ in onnx_type.shape]
     return tensorflow.TensorSpec(shp,
                                  mapping.TENSOR_TYPE_TO_NP_TYPE[onnx_type.to_onnx_type().tensor_type.elem_type],
                                  name=name)

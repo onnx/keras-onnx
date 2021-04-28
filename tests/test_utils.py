@@ -211,6 +211,8 @@ def run_onnx_runtime(case_name, onnx_model, data, expected, model_files, rtol=1.
     elif not isinstance(expected, list):
         expected = [expected]
 
+    for n_ in range(len(expected)):
+        np.testing.assert_allclose(expected[n_], actual[n_], rtol=rtol, atol=atol)
     res = all(np.allclose(expected[n_], actual[n_], rtol=rtol, atol=atol) for n_ in range(len(expected)))
 
     if res and temp_model_file not in model_files:  # still keep the failed case files for the diagnosis.
