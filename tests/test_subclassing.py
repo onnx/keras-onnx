@@ -195,7 +195,7 @@ def test_tf_where(runner):
         return c
 
     swm = SimpleWrapperModel(_tf_where)
-    const_in = [np.array([2, 4, 6, 8, 10]).astype(np.int32)]
+    const_in = np.array([2, 4, 6, 8, 10]).astype(np.int32)
     expected = swm(const_in)
     swm._set_inputs(const_in)
     oxml = keras2onnx.convert_keras(swm)
