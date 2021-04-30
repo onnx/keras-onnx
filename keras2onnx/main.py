@@ -40,11 +40,12 @@ def _process_initial_types(initial_types, unknown_dim=1):
 def convert_keras_tf2onnx(model, name=None, doc_string='', target_opset=None, initial_types=None,
                           channel_first_inputs=None, debug_mode=False, custom_op_conversions=None):
     if target_opset is None:
-        target_opset = 13
+        target_opset = get_maximum_opset_supported()
     input_signature = _process_initial_types(initial_types, unknown_dim=None)
 
     import tf2onnx
-    model, external_tensor_storage = tf2onnx.convert.from_keras(model, input_signature, opset=target_opset, inputs_as_nchw=channel_first_inputs)
+    model, external_tensor_storage = tf2onnx.convert.from_keras(model, input_signature, opset=target_opset,
+                                                                inputs_as_nchw=channel_first_inputs)
 
     return model
 
