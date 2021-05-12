@@ -1982,10 +1982,11 @@ def test_LSTM_with_initializer(runner):
                     reason="None seq_length LSTM is not supported before opset 5.")
 def test_LSTM_seqlen_none(runner):
     lstm_dim = 2
+    np.random.seed(42)
     data = np.random.rand(1, 5, 1).astype(np.float32)
     for return_sequences in [True, False]:
         inp = Input(batch_shape=(1, None, 1))
-        out = LSTM(lstm_dim, return_sequences=return_sequences, stateful=True)(inp)
+        out = LSTM(lstm_dim, return_sequences=return_sequences, stateful=False)(inp)
         keras_model = keras.Model(inputs=inp, outputs=out)
 
         onnx_model = keras2onnx.convert_keras(keras_model)
