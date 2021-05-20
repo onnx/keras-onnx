@@ -66,7 +66,7 @@ jobs:
       pip install -r requirements.txt
       pip install -r requirements-dev.txt
       $(INSTALL_ORT)
-      pip install git+https://github.com/onnx/tensorflow-onnx
+      pip install git+https://github.com/onnx/tensorflow-onnx@tom/test_keras_tf1
     displayName: 'Install dependencies'
 
   - script: |
@@ -187,7 +187,7 @@ jobs:
       pip install git+https://github.com/qubvel/efficientnet
       $(INSTALL_TRANSFORMERS)
       pip install keras-self-attention
-      pip install git+https://github.com/onnx/tensorflow-onnx
+      pip install git+https://github.com/onnx/tensorflow-onnx@tom/test_keras_tf1
     displayName: 'Install dependencies'
 
   - script: |
