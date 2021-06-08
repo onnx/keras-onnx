@@ -796,7 +796,8 @@ def _convert_tf_fused_batch_norm_core(scope, operator, container):
     input_dim = len(_cal_tensor_shape(node.inputs[0]))
     epsilon = node.get_attr('epsilon')
     attrs = {'epsilon': epsilon, 'momentum': 0.9, 'spatial': 1}
-    outputs_num = min(5, len(node.outputs))
+    # ORT assumes opitonal outputs indicate training mode. So we should use one output for inference.
+    outputs_num = 1
 
     if _is_nhwc(node):
         input_perm = [0, input_dim - 1] + list(range(1, input_dim - 1))
