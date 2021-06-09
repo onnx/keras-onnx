@@ -6,7 +6,6 @@ from ..proto import onnx_proto
 
 
 def convert_keras_batch_normalization(scope, operator, container):
-    print("keras here")
     op = operator.raw_operator
     shape_len = len(operator.get_input_shape())
 
