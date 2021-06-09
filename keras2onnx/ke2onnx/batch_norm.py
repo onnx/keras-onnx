@@ -65,7 +65,8 @@ def convert_keras_batch_normalization(scope, operator, container):
 
     if skip_transpose:
         # If no transpose is required, we can simply use the output of ONNX BatchNorm as the final outcome
-        apply_batch_norm(scope, input_tensor_names, operator.output_full_names[0:5], container,
+        # ORT assumes opitonal outputs indicate training mode. So we should use one output for inference.
+        apply_batch_norm(scope, input_tensor_names, operator.output_full_names[0], container,
                          operator_name=operator.full_name, epsilon=epsilon, is_test=is_test,
                          momentum=momentum, spatial=spatial)
     else:
