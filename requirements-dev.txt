@@ -1,5 +1,5 @@
 numpy<=1.19.5
-pillow
+pillow<=8.2.0
 pytest
 onnxruntime
 coverage
