@@ -108,6 +108,8 @@ jobs:
       pip install git+https://github.com/qubvel/efficientnet
       %INSTALL_TRANSFORMERS%
       pip install keras-self-attention
+      pip uninstall -y onnx
+      pip install -i https://test.pypi.org/simple/ onnx==1.9.101
     displayName: 'Install dependencies'
 
   - script: |
