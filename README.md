@@ -2,6 +2,20 @@
 
 # keras2onnx
 
+<b>
+We stopped active development of keras2onnx and keras2onnx is now frozen to tf-2.3 and onnx-1.10.
+
+To convert your Keras models you can head over to [tf2onnx](https://github.com/onnx/tensorflow-onnx) which can convert Tensorflow, Keras, Tflite and Tensorflow.js models. All keras2onnx unit tests have been added to the tf2onnx ci pipeline to make sure there are no avoidable regressions. The tf2onnx api [tf2onnx.convert.from_keras()](https://github.com/onnx/tensorflow-onnx#from_keras-tf-20-and-newer) is similar to the keras2onnx api and we hope transition is painless.
+
+You can find a simple tutorial how to convert keras models using tf2onnx [here](https://github.com/onnx/tensorflow-onnx/blob/master/tutorials/keras-resnet50.ipynb).
+
+If you run into issue or need help with the transition, please open issue against tf2onnx [here](https://github.com/onnx/tensorflow-onnx/issues).
+</b>
+<br/>
+<br/>
+
+
+
 |          | Linux | Windows |
 |----------|-------|---------|
 | keras.io | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/linux-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=9&branchName=master) | [![Build Status](https://dev.azure.com/onnxmltools/ketone/_apis/build/status/win32-conda-ci?branchName=master)](https://dev.azure.com/onnxmltools/ketone/_build/latest?definitionId=10&branchName=master) |
