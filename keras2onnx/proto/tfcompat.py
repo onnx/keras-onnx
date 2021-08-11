@@ -10,9 +10,9 @@ is_tf2 = StrictVersion(_tf.__version__.split('-')[0]) >= StrictVersion('2.0.0')
 
 def normalize_tensor_shape(tensor_shape):
     if is_tf2:
-        return [d for d in tensor_shape]
-    else:
         return [d.value for d in tensor_shape]
+    else:
+        return [d for d in tensor_shape]
 
 
 def dump_graph_into_tensorboard(tf_graph):
