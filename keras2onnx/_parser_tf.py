@@ -286,10 +286,12 @@ def extract_outputs_from_inbound_nodes(model):
             output_tensors = [nd_.output_tensors] if hasattr(nd_.output_tensors, 'dtype') else \
                 nd_.output_tensors
             for ts_ in output_tensors:
-                op_name = tsname_to_node(ts_.name)
-                if op_name not in output_dict:
-                    output_dict[op_name] = (model, None)
-
+                if not isinstance(ts_, (tuple, list)):
+                    ts_ = [ts_]
+                for ts__ in ts_:
+                    op_name = tsname_to_node(ts__.name)
+                    if op_name not in output_dict:
+                        output_dict[op_name] = (model, None)
         for ts_ in _get_output_mask(model):
             if ts_ is not None:
                 output_dict[ts_.op.name] = (model, model)
