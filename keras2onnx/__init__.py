@@ -24,9 +24,17 @@ try:
 except ImportError:
     raise AssertionError('Please conda install / pip install tensorflow or tensorflow-gpu before the model conversion.')
 
-from .proto import save_model
+from .proto import save_model, is_tensorflow_later_than
 from .common import Variable, cvtfunc, set_logger_level
+from .common.utils import k2o_logger
 from .funcbook import set_converter, set_converters
+
+if is_tensorflow_later_than("2.3"):
+    start_red = "\033[91m"
+    end_color = "\033[00m"
+    k2o_logger().error(
+        start_red + "\n**** keras2onnx does not support tensorflow version > 2.3. "
+        "Please see https://github.com/onnx/keras-onnx/issues/737 ****\n" + end_color)
 
 from .main import convert_keras
 from .main import export_tf_frozen_graph
